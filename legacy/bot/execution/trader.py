@@ -24,7 +24,19 @@ class BinanceTrader:
                 Config.BINANCE_API_SECRET,
                 testnet=self.testnet
             )
+            self._sync_time_offset(self._client)
         return self._client
+
+    def _sync_time_offset(self, client):
+        """Lokal saat sunucuya gore kayiksa imzalari kaydirir (hata -1021)."""
+        try:
+            server_ms = int(client.futures_time()["serverTime"])
+            offset = server_ms - int(time.time() * 1000)
+            if abs(offset) > 500:
+                client.timestamp_offset = offset
+                print(f"  [TIME] offset {offset:+d}ms applied")
+        except Exception as e:
+            print(f"  [TIME] sync failed: {e}")
 
     def set_leverage(self, symbol, leverage=Config.LEVERAGE):
         try:
