@@ -22,7 +22,9 @@ class TrailingStopManager:
             "trail_dist": trail_dist,
             "current_stop": initial_stop,
             "trailing_active": False,
-            "is_hit": False
+            "is_hit": False,
+            "sl_order_id": None,
+            "tp_order_id": None
         }
         return initial_stop
 
@@ -57,6 +59,23 @@ class TrailingStopManager:
     def get_stop(self, pos_id):
         if pos_id in self.stops and not self.stops[pos_id]["is_hit"]:
             return self.stops[pos_id]["current_stop"]
+        return None
+
+    def set_orders(self, pos_id, sl_order_id=None, tp_order_id=None):
+        if pos_id in self.stops:
+            if sl_order_id is not None:
+                self.stops[pos_id]["sl_order_id"] = sl_order_id
+            if tp_order_id is not None:
+                self.stops[pos_id]["tp_order_id"] = tp_order_id
+
+    def get_sl_order_id(self, pos_id):
+        if pos_id in self.stops:
+            return self.stops[pos_id]["sl_order_id"]
+        return None
+
+    def get_tp_order_id(self, pos_id):
+        if pos_id in self.stops:
+            return self.stops[pos_id]["tp_order_id"]
         return None
 
     def close_position(self, pos_id):

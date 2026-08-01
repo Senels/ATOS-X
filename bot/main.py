@@ -33,6 +33,43 @@ def update_top_list():
     except Exception as e:
         print(f"  Top list update failed: {e}")
 
+def sync_exchange_positions():
+    """Restart sonrasi borsadaki acik pozisyonlari geri yukle:
+    state, trailing stop ve exchange-side SL emri yeniden kurulur."""
+    try:
+        open_positions = trader.sync_open_positions()
+    except Exception as e:
+        print(f"  [SYNC] Position sync failed: {e}")
+        return
+    if not open_positions:
+        print("  [SYNC] No open positions on exchange")
+        return
+    print(f"  [SYNC] Found {len(open_positions)} open position(s) on exchange:")
+    for p in open_positions:
+        sym, side = p["symbol"], p["side"]
+        if positions.is_open(sym, side):
+            print(f"    {sym} {side} already tracked, skipping")
+            continue
+        try:
+            df = add_all_indicators(fetch_klines(sym, limit=Config.ATR_LEN + 60))
+            atr = float(df.iloc[-1]["atr"])
+        except Exception:
+            atr = 0.0
+        pos_id = f"{sym}_{side}_restored_{int(time.time()*1000)}"
+        entry = p["entry_price"]
+        qty = p["qty"]
+        est_margin = qty * entry / Config.LEVERAGE if Config.LEVERAGE > 0 else qty * entry
+        positions.open(pos_id, sym, side, entry, qty, est_margin, atr)
+        mm.add_position(pos_id, est_margin)
+        sl_price = trailing.open_position(pos_id, entry, atr, side)
+        tp_price = None
+        if Config.TP_ATR_MULT > 0:
+            tp_price = entry + atr * Config.TP_ATR_MULT if side == "LONG" else entry - atr * Config.TP_ATR_MULT
+        stops = trader.set_tp_sl(sym, side, entry, sl_price, tp_price)
+        if stops:
+            trailing.set_orders(pos_id, sl_order_id=stops.get("sl"), tp_order_id=stops.get("tp"))
+        print(f"    RESTORED {sym} {side} qty={qty:.4f} entry={entry:.4f} sl={sl_price:.4f}")
+
 def scan_and_trade():
     global top_symbols
     if not top_symbols:
@@ -114,35 +151,87 @@ def scan_and_trade():
             positions.open(pos_id, sym, side, price, qty, pos_margin, atr)
             mm.add_position(pos_id, pos_margin)
             sl_price = trailing.open_position(pos_id, price, atr, side)
+            tp_price = None
+            if Config.TP_ATR_MULT > 0:
+                tp_price = price + atr * Config.TP_ATR_MULT if side == "LONG" else price - atr * Config.TP_ATR_MULT
+            stops = trader.set_tp_sl(sym, side, price, sl_price, tp_price)
+            if stops:
+                trailing.set_orders(pos_id, sl_order_id=stops.get("sl"), tp_order_id=stops.get("tp"))
+            else:
+                print(f"  !! ALERT {sym}: exchange SL/TP could not be placed - position unprotected!")
             open_count += 1
             print(f"  ENTRY: {sym} {side} @ {price:.2f} | Margin: {pos_margin:.1f} | "
-                  f"SL: {sl_price:.2f} | Momentum: %{momentum[sym]:.2f}")
+                  f"SL: {sl_price:.2f} | TP: {tp_price if tp_price else '-'} | Momentum: %{momentum[sym]:.2f}")
     check_open_positions()
 
+def _cancel_position_orders(sym, pos_id):
+    """Kapanan pozisyonun bekleyen SL/TP emirlerini iptal eder (sonraki giriste tetiklenmesin)."""
+    sl_id = trailing.get_sl_order_id(pos_id)
+    tp_id = trailing.get_tp_order_id(pos_id)
+    if sl_id:
+        trader.cancel_order(sym, sl_id)
+    if tp_id:
+        trader.cancel_order(sym, tp_id)
+
+def _settle_position(pos_id, exit_price, reason):
+    """Exchange close basarili olduktan sonra lokal state'i kapatir (sadece bir kez)."""
+    pos = positions.positions.get(pos_id)
+    if pos is None or pos["status"] != "open":
+        return
+    pnl = positions.close(pos_id, exit_price, reason)
+    mm.remove_position(pos_id)
+    logger.log_trade(pos["symbol"], pos["side"],
+                     pos["entry_price"], exit_price, pos["qty"],
+                     pos["margin_used"], pnl, pnl / pos["margin_used"],
+                     reason, None, int(time.time() * 1000))
+    kelly.update(pos["symbol"], pos["side"], pnl)
+    if pnl > 0:
+        martingale.on_win(pos["symbol"], pos["side"])
+    else:
+        martingale.on_loss(pos["symbol"], pos["side"])
+    trailing.close_position(pos_id)
+    print(f"  EXIT: {pos_id} @ {exit_price:.2f} | PnL: {pnl:.1f} USDT | reason: {reason}")
+
+def _exit_position(pos_id, exit_price, reason):
+    """Gerçek kapanis emri gonderir; basarisizsa exit_pending ile retry."""
+    pos = positions.positions.get(pos_id)
+    if pos is None:
+        return
+    order = trader.market_close(pos["symbol"], pos["side"], pos["qty"])
+    if order:
+        _cancel_position_orders(pos["symbol"], pos_id)
+        _settle_position(pos_id, exit_price, reason)
+    else:
+        pos["status"] = "exit_pending"
+        print(f"  !! ALERT {pos_id}: close order failed, will retry (exit_pending)")
+
 def check_open_positions():
-    for pos_id, pos in list(positions.get_open_positions().items()):
+    for pos_id, pos in list(positions.positions.items()):
+        if pos["status"] == "exit_pending":
+            _exit_position(pos_id, pos.get("exit_price", 0) or 0, "trailing_stop")
+            continue
+        if pos["status"] != "open":
+            continue
         try:
             df = fetch_klines(pos["symbol"], limit=2)
             if df is None or len(df) < 2:
                 continue
             cp = df.iloc[-1]["close"]
             result = trailing.update_price(pos_id, cp)
-            if result and result[0] == "hit":
-                stop_price = result[1]
-                pnl = positions.close(pos_id, stop_price, "trailing_stop")
-                mm.total_equity += pnl
-                mm.remove_position(pos_id)
-                logger.log_trade(pos["symbol"], pos["side"],
-                                 pos["entry_price"], stop_price, pos["qty"],
-                                 pos["margin_used"], pnl, pnl / pos["margin_used"],
-                                 "trailing_stop", None, int(time.time() * 1000))
-                kelly.update(pos["symbol"], pos["side"], pnl)
-                if pnl > 0:
-                    martingale.on_win(pos["symbol"], pos["side"])
-                else:
-                    martingale.on_loss(pos["symbol"], pos["side"])
-                trailing.close_position(pos_id)
-                print(f"  EXIT: {pos_id} @ {stop_price:.2f} | PnL: {pnl:.1f} USDT")
+            if result:
+                event, stop_price = result
+                if event in ("trail_activated", "trail_updated"):
+                    if Config.UPDATE_EXCHANGE_STOP:
+                        new_stop = trailing.get_stop(pos_id)
+                        old_sl = trailing.get_sl_order_id(pos_id)
+                        if new_stop:
+                            replaced = trader.replace_stop(
+                                pos["symbol"], pos["side"], old_sl, new_stop, pos["entry_price"])
+                            if replaced and replaced.get("sl"):
+                                trailing.set_orders(pos_id, sl_order_id=replaced["sl"])
+                elif event == "hit":
+                    pos["exit_price"] = stop_price
+                    _exit_position(pos_id, stop_price, "trailing_stop")
         except Exception as e:
             print(f"  Position check error {pos_id}: {e}")
 
@@ -165,6 +254,8 @@ if __name__ == "__main__":
     print("Starting Liquidity Orchestrator Bot (Momentum Strategy)...")
     print(f"Capital: {Config.INITIAL_CAPITAL} USDT | Leverage: {Config.LEVERAGE}x | "
           f"MaxPos: {Config.MAX_CONCURRENT_POSITIONS} | Top {Config.MOMENTUM_TOP_N} Gainers/Losers")
+    print("Syncing open positions from exchange...")
+    sync_exchange_positions()
     update_top_list()
     schedule.every(Config.TOP_N_UPDATE_INTERVAL).seconds.do(update_top_list)
     schedule.every(Config.TIMEFRAME_MINUTES).minutes.do(scan_and_trade)
