@@ -1,0 +1,387 @@
+================================================================================
+  DETAILED ANALYSIS: LONG TRADE ON JUNE 5 (adds:4, reason:dca_stop)
+================================================================================
+
+  TRADE SUMMARY
+  Entry         : 05-14 18:01  (idx 25879, 2026-05-14 18:01:00)
+  Exit          : 06-05 17:25  (idx 57523, 2026-06-05 17:25:00)
+  Side          : LONG
+  Bars Held     : 31644
+  Avg Entry     : $4619.32
+  Exit Price    : $4360.29
+  Add Count     : 4
+  Net PnL       : $-3388.52
+  Reason        : dca_stop
+
+================================================================================
+  1. S/R LEVELS DETECTED IN 3m DATA AROUND ENTRY TIME
+================================================================================
+
+  3m lookback: indices 25849 to 25879 (05-14 17:31 to 05-14 18:01)
+  Supports found: None
+  Resistances found (2): $4692.11, $4692.38
+
+  S/R levels progressive over the trade:
+    05-14 18:01: supports=0 resistances=2
+    05-14 21:43: supports=0 resistances=1
+    05-15 02:43: supports=1 resistances=1
+    05-15 07:43: supports=1 resistances=1
+    05-15 12:43: supports=0 resistances=1
+    05-15 17:43: supports=1 resistances=2
+    05-15 22:43: supports=1 resistances=2
+    05-16 03:43: supports=1 resistances=0
+    05-16 08:43: supports=0 resistances=0
+    05-16 13:43: supports=0 resistances=2
+    05-16 18:43: supports=1 resistances=1
+    05-16 23:43: supports=1 resistances=0
+    05-17 04:43: supports=0 resistances=1
+    05-17 09:43: supports=1 resistances=1
+    05-17 14:43: supports=1 resistances=0
+    05-17 19:43: supports=2 resistances=1
+    05-18 00:43: supports=0 resistances=0
+    05-18 05:43: supports=2 resistances=1
+    05-18 10:43: supports=1 resistances=0
+    05-18 15:43: supports=2 resistances=0
+    05-18 20:43: supports=0 resistances=0
+    05-19 01:43: supports=1 resistances=0
+    05-19 06:43: supports=1 resistances=1
+    05-19 11:43: supports=1 resistances=1
+    05-19 16:43: supports=1 resistances=0
+    05-19 21:43: supports=1 resistances=0
+    05-20 02:43: supports=0 resistances=1
+    05-20 07:43: supports=0 resistances=1
+    05-20 12:43: supports=1 resistances=1
+    05-20 17:43: supports=0 resistances=2
+    05-20 22:43: supports=1 resistances=1
+    05-21 03:43: supports=1 resistances=1
+    05-21 08:43: supports=1 resistances=1
+    05-21 13:43: supports=0 resistances=2
+    05-21 18:43: supports=1 resistances=0
+    05-21 23:43: supports=0 resistances=1
+    05-22 04:43: supports=1 resistances=1
+    05-22 09:43: supports=1 resistances=1
+    05-22 14:43: supports=1 resistances=0
+    05-22 19:43: supports=1 resistances=1
+    05-23 00:43: supports=0 resistances=1
+    05-23 05:43: supports=0 resistances=0
+    05-23 10:43: supports=0 resistances=1
+    05-23 15:43: supports=1 resistances=1
+    05-23 20:43: supports=0 resistances=1
+    05-24 01:43: supports=1 resistances=0
+    05-24 06:43: supports=1 resistances=1
+    05-24 11:43: supports=1 resistances=0
+    05-24 16:43: supports=1 resistances=0
+    05-24 21:43: supports=0 resistances=1
+    05-25 02:43: supports=1 resistances=0
+    05-25 07:43: supports=1 resistances=1
+    05-25 12:43: supports=0 resistances=0
+    05-25 17:43: supports=1 resistances=0
+    05-25 22:43: supports=1 resistances=1
+    05-26 03:43: supports=0 resistances=0
+    05-26 08:43: supports=1 resistances=2
+    05-26 13:43: supports=0 resistances=1
+    05-26 18:43: supports=1 resistances=0
+    05-26 23:43: supports=1 resistances=1
+    05-27 04:43: supports=1 resistances=1
+    05-27 09:43: supports=1 resistances=1
+    05-27 14:43: supports=1 resistances=1
+    05-27 19:43: supports=0 resistances=0
+    05-28 00:43: supports=1 resistances=1
+    05-28 05:43: supports=1 resistances=2
+    05-28 10:43: supports=0 resistances=1
+    05-28 15:43: supports=1 resistances=0
+    05-28 20:43: supports=1 resistances=1
+    05-29 01:43: supports=2 resistances=1
+    05-29 06:43: supports=2 resistances=2
+    05-29 11:43: supports=2 resistances=1
+    05-29 16:43: supports=1 resistances=2
+    05-29 21:43: supports=0 resistances=2
+    05-30 02:43: supports=2 resistances=0
+    05-30 07:43: supports=2 resistances=0
+    05-30 12:43: supports=1 resistances=1
+    05-30 17:43: supports=0 resistances=1
+    05-30 22:43: supports=0 resistances=0
+    05-31 03:43: supports=1 resistances=0
+    05-31 08:43: supports=0 resistances=0
+    05-31 13:43: supports=1 resistances=1
+    05-31 18:43: supports=2 resistances=0
+    05-31 23:43: supports=1 resistances=0
+    06-01 04:43: supports=1 resistances=1
+    06-01 09:43: supports=1 resistances=0
+    06-01 14:43: supports=1 resistances=0
+    06-01 19:43: supports=1 resistances=0
+    06-02 00:43: supports=1 resistances=0
+    06-02 05:43: supports=1 resistances=1
+    06-02 10:43: supports=0 resistances=1
+    06-02 15:43: supports=1 resistances=2
+    06-02 20:43: supports=0 resistances=1
+    06-03 01:43: supports=1 resistances=0
+    06-03 06:43: supports=1 resistances=1
+    06-03 11:43: supports=2 resistances=0
+    06-03 16:43: supports=0 resistances=1
+    06-03 21:43: supports=0 resistances=0
+    06-04 02:43: supports=1 resistances=0
+    06-04 07:43: supports=0 resistances=0
+    06-04 12:43: supports=0 resistances=1
+    06-04 17:43: supports=0 resistances=1
+    06-04 22:43: supports=0 resistances=0
+    06-05 03:43: supports=1 resistances=0
+    06-05 08:43: supports=2 resistances=0
+    06-05 13:43: supports=0 resistances=1
+
+================================================================================
+  2. ENTRY CANDLE DETAILS
+================================================================================
+
+  Timestamp    : 2026-05-14 18:01:00
+  Open         : $4681.80
+  High         : $4683.76
+  Low          : $4681.74
+  Close        : $4682.73
+  Volume       : 30.48
+
+  INDICATORS AT ENTRY:
+  EMA9         : $4686.30
+  EMA21        : $4688.36
+  EMA9 > EMA21 : False  (score += 1)
+  RSI(14)      : 33.03
+  RSI < 35     : True  (score += 1)
+  BB Upper     : $4694.02
+  BB Mid       : $4688.80
+  BB Lower     : $4683.59
+  Close <= BBL*1.001 : True  (score += 1)
+  Close > Open : True  (score += 1)
+  LONG SCORE   : 3/4 >= 3 -> ENTRY
+
+================================================================================
+  3. DCA ADD LEVELS AND TRIGGER DETAILS
+================================================================================
+
+  --- ADD #1 @ $4659.32 ---
+  Trigger Time : 2026-05-14 22:46:00
+  Trigger Bar  : 285 bars after entry
+  Candle: O=$4660.24 H=$4660.47 L=$4659.28 C=$4659.28
+  Price action : low=4659.28 <= add_price=4659.32? True
+  Active S supports: None
+  Active R resistances: $4671.87
+  New avg entry: $4668.60
+  New SL       : $4426.35
+  New TP       : $4680.27
+
+  --- ADD #2 @ $4636.02 ---
+  Trigger Time : 2026-05-15 03:26:00
+  Trigger Bar  : 565 bars after entry
+  Candle: O=$4636.66 H=$4636.66 L=$4634.43 C=$4634.43
+  Price action : low=4634.43 <= add_price=4636.02? True
+  Active S supports: $4650.00
+  Active R resistances: $4656.14, $4659.52
+  New avg entry: $4654.00
+  New SL       : $4404.22
+  New TP       : $4665.64
+
+  --- ADD #3 @ $4612.84 ---
+  Trigger Time : 2026-05-15 04:30:00
+  Trigger Bar  : 629 bars after entry
+  Candle: O=$4613.08 H=$4625.00 L=$4612.45 C=$4614.20
+  Price action : low=4612.45 <= add_price=4612.84? True
+  Active S supports: $4616.41
+  Active R resistances: $4625.26
+  New avg entry: $4637.37
+  New SL       : $4382.20
+  New TP       : $4648.97
+
+  --- ADD #4 @ $4589.78 ---
+  Trigger Time : 2026-05-15 08:19:00
+  Trigger Bar  : 858 bars after entry
+  Candle: O=$4591.48 H=$4597.34 L=$4586.64 C=$4587.63
+  Price action : low=4586.64 <= add_price=4589.78? True
+  Active S supports: None
+  Active R resistances: None
+  New avg entry: $4619.32
+  New SL       : $4360.29
+  New TP       : $4630.87
+
+================================================================================
+  4. PRICE CHART (every ~50 bars) FROM ENTRY TO EXIT
+================================================================================
+  Period: 05-14 18:01 to 06-05 17:25 (31644 bars)
+
+     Bar         Time     Open     High      Low    Close     EMA9    EMA21    RSI
+  ------ ------------ -------- -------- -------- -------- -------- -------- ------
+      0  05-14 18:01 $4681.80 $4683.76 $4681.74 $4682.73 $4686.30 $4688.36  33.0
+    632  05-15 04:33 $4616.56 $4625.44 $4615.56 $4616.58 $4617.60 $4619.62  41.4
+   1264  05-15 15:05 $4555.67 $4556.47 $4555.50 $4555.57 $4555.98 $4557.42  39.7
+   1896  05-16 01:37 $4544.70 $4545.53 $4543.84 $4543.84 $4545.03 $4545.58  25.3
+   2528  05-16 12:09 $4536.86 $4536.86 $4536.83 $4536.84 $4536.89 $4537.17  35.2
+   3160  05-16 22:41 $4539.54 $4539.55 $4539.54 $4539.55 $4539.54 $4539.53  58.4
+   3792  05-17 09:13 $4532.59 $4533.03 $4532.58 $4533.03 $4532.25 $4532.15  62.9
+   4424  05-17 19:45 $4542.10 $4542.10 $4542.09 $4542.09 $4541.67 $4541.43  63.5
+   5056  05-18 06:17 $4532.44 $4533.76 $4532.44 $4533.76 $4533.62 $4534.27  47.6
+   5688  05-18 16:49 $4576.44 $4578.22 $4576.21 $4576.53 $4575.06 $4574.75  53.7
+   6320  05-19 03:21 $4583.38 $4584.68 $4583.05 $4584.68 $4583.02 $4583.62  52.4
+   6952  05-19 13:53 $4537.46 $4537.91 $4537.00 $4537.60 $4536.92 $4538.27  44.9
+   7584  05-20 00:25 $4489.25 $4490.00 $4489.25 $4490.00 $4489.11 $4488.59  80.1
+   8216  05-20 10:57 $4481.13 $4481.30 $4479.55 $4480.30 $4481.06 $4481.62  43.6
+   8848  05-20 21:29 $4536.46 $4536.93 $4536.35 $4536.93 $4536.47 $4536.34  55.7
+   9480  05-21 08:01 $4540.90 $4542.30 $4540.90 $4542.13 $4540.74 $4540.11  67.0
+  10112  05-21 18:33 $4509.18 $4509.94 $4509.18 $4509.94 $4508.35 $4508.29  57.2
+  10744  05-22 05:05 $4529.56 $4529.56 $4527.37 $4527.37 $4529.04 $4529.31  39.9
+  11376  05-22 15:37 $4521.37 $4521.37 $4519.57 $4520.73 $4522.91 $4524.85  32.1
+  12008  05-23 02:09 $4511.11 $4511.11 $4511.01 $4511.01 $4511.10 $4511.19  33.9
+  12640  05-23 12:41 $4510.00 $4510.02 $4510.00 $4510.02 $4510.01 $4509.96  53.3
+  13272  05-23 23:13 $4522.27 $4522.27 $4522.20 $4522.20 $4521.94 $4521.42  65.0
+  13904  05-24 09:45 $4551.59 $4552.00 $4551.59 $4551.59 $4551.59 $4551.63  45.0
+  14536  05-24 20:17 $4525.37 $4525.46 $4525.15 $4525.18 $4525.70 $4526.64  26.8
+  15168  05-25 06:49 $4561.96 $4562.09 $4561.57 $4561.86 $4562.58 $4563.49  36.6
+  15800  05-25 17:21 $4570.03 $4571.44 $4570.02 $4571.44 $4570.56 $4569.92  61.9
+  16432  05-26 03:53 $4574.50 $4574.50 $4574.50 $4574.50 $4574.50 $4574.50  26.0
+  17064  05-26 14:25 $4530.06 $4530.06 $4528.81 $4528.83 $4531.62 $4533.87  19.1
+  17696  05-27 00:57 $4511.93 $4511.93 $4511.92 $4511.92 $4512.58 $4513.08  24.8
+  18328  05-27 11:29 $4492.27 $4492.85 $4491.95 $4492.60 $4492.42 $4491.18  60.0
+  18960  05-27 22:01 $4457.09 $4457.31 $4456.80 $4456.81 $4456.70 $4456.46  54.2
+  19592  05-28 08:33 $4387.35 $4389.99 $4382.31 $4389.99 $4384.77 $4381.79  79.0
+  20224  05-28 19:05 $4482.93 $4486.04 $4482.93 $4486.04 $4483.18 $4482.60  63.5
+  20856  05-29 05:37 $4506.25 $4506.26 $4505.62 $4505.87 $4505.73 $4506.32  46.9
+  21488  05-29 16:09 $4526.67 $4530.00 $4526.67 $4527.50 $4525.20 $4523.44  61.2
+  22120  05-30 02:41 $4547.84 $4547.84 $4547.83 $4547.84 $4547.11 $4546.55  72.5
+  22752  05-30 13:13 $4544.39 $4544.40 $4544.39 $4544.40 $4544.48 $4544.73  41.7
+  23384  05-30 23:45 $4537.18 $4537.18 $4537.17 $4537.18 $4537.18 $4537.29  30.3
+  24016  05-31 10:17 $4546.74 $4546.99 $4546.19 $4546.75 $4546.58 $4546.51  57.3
+  24648  05-31 20:49 $4543.64 $4543.64 $4543.63 $4543.63 $4543.63 $4543.52  54.1
+  25280  06-01 07:21 $4518.18 $4518.55 $4512.73 $4518.30 $4518.09 $4517.72  52.7
+  25912  06-01 17:53 $4457.56 $4463.95 $4457.55 $4458.41 $4459.26 $4460.08  44.5
+  26544  06-02 04:25 $4486.13 $4487.02 $4485.86 $4487.00 $4487.29 $4487.07  49.9
+  27176  06-02 14:57 $4532.64 $4532.64 $4531.70 $4531.70 $4531.61 $4531.27  52.6
+  27808  06-03 01:29 $4492.32 $4492.99 $4491.92 $4492.99 $4492.35 $4492.44  54.5
+  28440  06-03 12:01 $4446.49 $4449.35 $4446.49 $4449.35 $4449.63 $4452.89  41.9
+  29072  06-03 22:33 $4450.26 $4450.95 $4450.26 $4450.49 $4450.88 $4450.85  49.9
+  29704  06-04 09:05 $4473.67 $4473.67 $4473.67 $4473.67 $4473.00 $4472.45  58.0
+  30336  06-04 19:37 $4485.57 $4487.40 $4484.56 $4484.69 $4484.84 $4484.78  51.0
+  30968  06-05 06:09 $4441.15 $4442.43 $4441.15 $4442.39 $4441.68 $4443.40  43.3
+  31600  06-05 16:41 $4398.88 $4399.86 $4395.22 $4395.22 $4399.81 $4406.15  31.7
+  31644  06-05 17:25 $4371.63 $4381.63 $4360.00 $4360.00 $4369.81 $4373.11  25.6
+
+  Add point markers:
+    ADD #1 @ $4659.32 at bar 285 (05-14 22:46)
+    ADD #2 @ $4636.02 at bar 565 (05-15 03:26)
+    ADD #3 @ $4612.84 at bar 629 (05-15 04:30)
+    ADD #4 @ $4589.78 at bar 858 (05-15 08:19)
+
+================================================================================
+  5. SHORT POSITION STATUS DURING THIS LONG TRADE
+================================================================================
+  YES - SHORT position was active during this LONG trade.
+
+  SHORT events in range (05-14 14:41 to 06-05 20:45):
+    05-14 14:49 | OPEN  SHORT @ $4700.92
+    05-14 16:30 | CLOSE SHORT @ $4688.73
+    05-14 16:50 | OPEN  SHORT @ $4690.53
+    05-14 19:08 | CLOSE SHORT @ $4678.92 *** DURING LONG ***
+    05-14 19:19 | OPEN  SHORT @ $4683.19 *** DURING LONG ***
+    05-14 21:45 | CLOSE SHORT @ $4671.81 *** DURING LONG ***
+    05-14 21:51 | OPEN  SHORT @ $4673.44 *** DURING LONG ***
+    05-14 22:41 | CLOSE SHORT @ $4661.99 *** DURING LONG ***
+    05-14 23:03 | OPEN  SHORT @ $4658.44 *** DURING LONG ***
+    05-15 03:25 | CLOSE SHORT @ $4636.66 *** DURING LONG ***
+    05-15 04:00 | OPEN  SHORT @ $4630.24 *** DURING LONG ***
+    05-15 04:15 | CLOSE SHORT @ $4618.42 *** DURING LONG ***
+    05-15 04:25 | OPEN  SHORT @ $4621.31 *** DURING LONG ***
+    05-15 08:03 | CLOSE SHORT @ $4603.11 *** DURING LONG ***
+    05-15 08:54 | OPEN  SHORT @ $4573.76 *** DURING LONG ***
+    05-15 11:17 | CLOSE SHORT @ $4560.85 *** DURING LONG ***
+    05-15 12:26 | OPEN  SHORT @ $4556.75 *** DURING LONG ***
+    05-15 12:49 | CLOSE SHORT @ $4543.33 *** DURING LONG ***
+    05-15 13:01 | OPEN  SHORT @ $4550.50 *** DURING LONG ***
+    05-15 16:37 | CLOSE SHORT @ $4537.14 *** DURING LONG ***
+    05-15 17:14 | OPEN  SHORT @ $4550.05 *** DURING LONG ***
+    05-15 19:07 | CLOSE SHORT @ $4535.92 *** DURING LONG ***
+    05-15 19:31 | OPEN  SHORT @ $4547.78 *** DURING LONG ***
+    05-16 10:14 | CLOSE SHORT @ $4535.93 *** DURING LONG ***
+    05-16 10:30 | OPEN  SHORT @ $4536.05 *** DURING LONG ***
+    05-18 03:24 | CLOSE SHORT @ $4520.19 *** DURING LONG ***
+    05-18 04:52 | OPEN  SHORT @ $4531.52 *** DURING LONG ***
+    05-19 16:22 | CLOSE SHORT @ $4515.69 *** DURING LONG ***
+    05-19 18:33 | OPEN  SHORT @ $4508.14 *** DURING LONG ***
+    05-19 21:55 | CLOSE SHORT @ $4496.19 *** DURING LONG ***
+    05-19 22:06 | OPEN  SHORT @ $4499.31 *** DURING LONG ***
+    05-19 22:52 | CLOSE SHORT @ $4488.11 *** DURING LONG ***
+    05-19 23:05 | OPEN  SHORT @ $4486.64 *** DURING LONG ***
+    05-20 04:30 | CLOSE SHORT @ $4475.10 *** DURING LONG ***
+    05-20 04:51 | OPEN  SHORT @ $4479.64 *** DURING LONG ***
+    05-20 05:44 | CLOSE SHORT @ $4466.26 *** DURING LONG ***
+    05-20 06:04 | OPEN  SHORT @ $4467.21 *** DURING LONG ***
+    05-27 13:48 | CLOSE SHORT @ $4452.83 *** DURING LONG ***
+    05-27 14:09 | OPEN  SHORT @ $4454.67 *** DURING LONG ***
+    05-27 14:30 | CLOSE SHORT @ $4440.96 *** DURING LONG ***
+    05-27 14:43 | OPEN  SHORT @ $4447.62 *** DURING LONG ***
+    05-27 14:56 | CLOSE SHORT @ $4437.49 *** DURING LONG ***
+    05-27 15:23 | OPEN  SHORT @ $4460.38 *** DURING LONG ***
+    05-27 15:48 | CLOSE SHORT @ $4448.82 *** DURING LONG ***
+    05-27 17:08 | OPEN  SHORT @ $4444.74 *** DURING LONG ***
+    05-27 18:10 | CLOSE SHORT @ $4434.30 *** DURING LONG ***
+    05-27 18:26 | OPEN  SHORT @ $4436.91 *** DURING LONG ***
+    05-28 04:26 | CLOSE SHORT @ $4424.85 *** DURING LONG ***
+    05-28 05:27 | OPEN  SHORT @ $4410.17 *** DURING LONG ***
+    05-28 06:35 | CLOSE SHORT @ $4382.20 *** DURING LONG ***
+    05-28 06:59 | OPEN  SHORT @ $4377.51 *** DURING LONG ***
+    06-05 17:22 | CLOSE SHORT @ $4371.63 *** DURING LONG ***
+
+================================================================================
+  6. ALL INDICATOR VALUES AT EACH ADD POINT
+================================================================================
+
+  --- ADD #1 @ $4659.32 (05-14 22:46) ---
+  Candle    : O=$4660.24 H=$4660.47 L=$4659.28 C=$4659.28
+  EMA9      : $4661.82
+  EMA21     : $4664.71
+  RSI(14)   : 16.38
+  BB Lower  : $4658.08
+  BB Mid    : $4665.32
+  BB Upper  : $4672.56
+  Volume    : 16.94
+  S/R Supports  : None
+  S/R Resistances: $4671.87
+  LONG signal at this bar? score=2/4
+
+  --- ADD #2 @ $4636.02 (05-15 03:26) ---
+  Candle    : O=$4636.66 H=$4636.66 L=$4634.43 C=$4634.43
+  EMA9      : $4646.37
+  EMA21     : $4650.32
+  RSI(14)   : 24.56
+  BB Lower  : $4639.62
+  BB Mid    : $4651.54
+  BB Upper  : $4663.45
+  Volume    : 179.18
+  S/R Supports  : $4650.00
+  S/R Resistances: $4656.14, $4659.52
+  LONG signal at this bar? score=2/4
+
+  --- ADD #3 @ $4612.84 (05-15 04:30) ---
+  Candle    : O=$4613.08 H=$4625.00 L=$4612.45 C=$4614.20
+  EMA9      : $4618.77
+  EMA21     : $4620.71
+  RSI(14)   : 35.77
+  BB Lower  : $4614.60
+  BB Mid    : $4620.26
+  BB Upper  : $4625.93
+  Volume    : 2.29
+  S/R Supports  : $4616.41
+  S/R Resistances: $4625.26
+  LONG signal at this bar? score=2/4
+
+  --- ADD #4 @ $4589.78 (05-15 08:19) ---
+  Candle    : O=$4591.48 H=$4597.34 L=$4586.64 C=$4587.63
+  EMA9      : $4593.33
+  EMA21     : $4598.34
+  RSI(14)   : 24.99
+  BB Lower  : $4585.10
+  BB Mid    : $4598.78
+  BB Upper  : $4612.46
+  Volume    : 7.39
+  S/R Supports  : None
+  S/R Resistances: None
+  LONG signal at this bar? score=2/4
+
+================================================================================
+  END OF ANALYSIS
+================================================================================

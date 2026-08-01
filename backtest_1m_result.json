@@ -1,0 +1,13 @@
+{
+  "trades": 0,
+  "win_rate": "N/A",
+  "total_pnl": 0,
+  "final_capital": 1000.0,
+  "return_pct": 0.0,
+  "profit_factor": 0,
+  "avg_win": 0,
+  "avg_loss": 0,
+  "max_dd": 0.0,
+  "sharpe": 0,
+  "mg_dist": {}
+}

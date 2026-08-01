@@ -1,0 +1,357 @@
+//@version=6
+//@ZPayab - XAUUSDT Auto Strategy [ZP] - v1
+
+strategy(title='XAUUSDT Auto Strategy [ZP]', 
+         shorttitle="XAU Auto", 
+         overlay=true, 
+         max_bars_back=500,
+         initial_capital=1000,
+         default_qty_type=strategy.percent_of_equity,
+         default_qty_value=95,
+         commission_type=strategy.commission.percent,
+         commission_value=0.04,
+         pyramiding=1)
+
+//==========================================
+// 1. INPUTLAR - TÜMÜ BACKTESTTE ÇALIŞIR
+//==========================================
+
+// === ZAMAN DİLİMİ ===
+tf_group = "══════ ZAMAN DİLİMİ ══════"
+user_tf = input.string("Auto", "Zaman Dilimi", 
+    options=["Auto", "5m", "15m", "30m", "1h", "2h", "4h", "8h", "1d"], group=tf_group)
+
+// === RİSK YÖNETİMİ ===
+risk_group = "══════ RİSK YÖNETİMİ ══════"
+use_auto_risk = input.bool(true, "Otomatik Risk Parametreleri", group=risk_group, tooltip="Aktif: TF'ye göre otomatik SL/TP | Pasif: Manuel SL/TP")
+stop_loss_pct_input = input.float(1.5, "Stop-Loss (%)", minval=0.1, maxval=10, step=0.1, group=risk_group)
+take_profit_pct_input = input.float(4.0, "Take-Profit (%)", minval=0.1, maxval=20, step=0.1, group=risk_group)
+
+// === POZİSYON BÜYÜKLÜĞÜ ===
+position_group = "══════ POZİSYON BÜYÜKLÜĞÜ ══════"
+position_sizing_type = input.string("Risk Based", "Pozisyon Tipi", 
+    options=["Risk Based", "Fixed"], group=position_group)
+risk_per_trade = input.float(2.0, "Trade Riski (%)", minval=0.1, maxval=10, step=0.1, group=position_group)
+fixed_position_size = input.float(95.0, "Sabit Pozisyon (%)", minval=1, maxval=100, step=1, group=position_group)
+
+// === SİNYAL AYARLARI ===
+signal_group = "══════ SİNYAL AYARLARI ══════"
+signalexpiry = input.int(2, "Signal Expiry", minval=1, maxval=5, group=signal_group)
+alternatesignal = input.bool(true, "Alternate Signal", group=signal_group)
+
+// === GÖRSELLER ===
+visual_group = "══════ GÖRSELLER ══════"
+showdashboard = input.bool(true, "Dashboard", group=visual_group)
+showsignals = input.bool(true, "Sinyal Etiketleri", group=visual_group)
+
+//==========================================
+// 2. ZAMAN DİLİMİ TESPİTİ
+//==========================================
+
+get_tf() =>
+    if timeframe.isintraday
+        n = timeframe.multiplier
+        if n <= 5
+            "5m"
+        else if n <= 15
+            "15m"
+        else if n <= 30
+            "30m"
+        else if n <= 60
+            "1h"
+        else if n <= 120
+            "2h"
+        else
+            "4h"
+    else if timeframe.isdaily
+        "1d"
+    else
+        "4h"
+
+current_tf = user_tf == "Auto" ? get_tf() : user_tf
+
+//==========================================
+// 3. STRATEJİ PARAMETRELERİ
+//==========================================
+
+// TF'ye göre otomatik SL/TP değerleri (sadece use_auto_risk true ise)
+var float auto_sl_pct = 0.015
+var float auto_tp_pct = 0.04
+
+if current_tf == "5m"
+    auto_sl_pct := 0.008
+    auto_tp_pct := 0.02
+else if current_tf == "15m"
+    auto_sl_pct := 0.01
+    auto_tp_pct := 0.025
+else if current_tf == "30m"
+    auto_sl_pct := 0.015
+    auto_tp_pct := 0.03
+else if current_tf == "1h"
+    auto_sl_pct := 0.015
+    auto_tp_pct := 0.04
+else if current_tf == "2h"
+    auto_sl_pct := 0.015
+    auto_tp_pct := 0.04
+else if current_tf == "4h"
+    auto_sl_pct := 0.015
+    auto_tp_pct := 0.04
+else if current_tf == "8h"
+    auto_sl_pct := 0.015
+    auto_tp_pct := 0.04
+else if current_tf == "1d"
+    auto_sl_pct := 0.02
+    auto_tp_pct := 0.05
+
+// Kullanılacak SL/TP değerleri
+sl_pct = use_auto_risk ? auto_sl_pct : stop_loss_pct_input / 100
+tp_pct = use_auto_risk ? auto_tp_pct : take_profit_pct_input / 100
+
+//==========================================
+// 4. GÖSTERGELER
+//==========================================
+
+rsi_val = ta.rsi(close, 14)
+
+// SuperTrend
+statr = ta.atr(10)
+stup = close - 2.5 * statr
+up1 = nz(stup[1], stup)
+stup := close[1] > up1 ? math.max(stup, up1) : stup
+dn = close + 2.5 * statr
+dn1 = nz(dn[1], dn)
+dn := close[1] < dn1 ? math.min(dn, dn1) : dn
+
+var int sttrend = 1
+sttrend := nz(sttrend[1], sttrend)
+
+if sttrend == -1 and close > dn1
+    sttrend := 1
+else if sttrend == 1 and close < up1
+    sttrend := -1
+
+isstup = sttrend == 1
+isstdown = sttrend != 1
+
+// MACD
+macd_fast = ta.ema(close, 12)
+macd_slow = ta.ema(close, 26)
+macd_line = macd_fast - macd_slow
+macd_signal_line = ta.ema(macd_line, 9)
+
+// Stochastic
+stoch_k = ta.sma(ta.stoch(close, high, low, 14), 3)
+stoch_d = ta.sma(stoch_k, 3)
+
+// Bollinger
+bb_basis = ta.sma(close, 20)
+bb_dev = 2.0 * ta.stdev(close, 20)
+bb_upper = bb_basis + bb_dev
+bb_lower = bb_basis - bb_dev
+
+// EMA
+ema_fast = ta.ema(close, 9)
+ema_slow = ta.ema(close, 21)
+
+// Ichimoku
+donchian(len) => math.avg(ta.lowest(len), ta.highest(len))
+tenkan = donchian(9)
+kijun = donchian(26)
+senkou_a = math.avg(tenkan, kijun)
+senkou_b = donchian(52)
+senkou_a_shift = senkou_a[26]
+senkou_b_shift = senkou_b[26]
+
+//==========================================
+// 5. SİNYALLER - TF'YE GÖRE
+//==========================================
+
+var bool long_signal = false
+var bool short_signal = false
+
+if current_tf == "5m"
+    long_signal := close < bb_lower and rsi_val < 30
+    short_signal := close > bb_upper and rsi_val > 70
+else if current_tf == "15m"
+    long_signal := rsi_val < 30 and stoch_k > stoch_d and stoch_k[1] <= stoch_d[1]
+    short_signal := rsi_val > 70 and stoch_k < stoch_d and stoch_k[1] >= stoch_d[1]
+else if current_tf == "30m"
+    long_signal := close < bb_lower and stoch_k > stoch_d and stoch_k[1] <= stoch_d[1]
+    short_signal := close > bb_upper and stoch_k < stoch_d and stoch_k[1] >= stoch_d[1]
+else if current_tf == "1h"
+    long_signal := isstup and rsi_val > 50
+    short_signal := isstdown and rsi_val < 50
+else if current_tf == "2h"
+    long_signal := ta.crossover(macd_line, macd_signal_line) and rsi_val > 45
+    short_signal := ta.crossunder(macd_line, macd_signal_line) and rsi_val < 55
+else if current_tf == "4h"
+    long_signal := isstup and macd_line > macd_signal_line
+    short_signal := isstdown and macd_line < macd_signal_line
+else if current_tf == "8h"
+    price_above_cloud = close > math.max(senkou_a_shift, senkou_b_shift)
+    tenkan_above_kijun = tenkan > kijun
+    cloud_green = senkou_a_shift > senkou_b_shift
+    long_signal := price_above_cloud and tenkan_above_kijun and cloud_green and rsi_val > 50
+    short_signal := not price_above_cloud and not tenkan_above_kijun and not cloud_green and rsi_val < 50
+else if current_tf == "1d"
+    long_signal := ta.crossover(ema_fast, ema_slow) and rsi_val > 50
+    short_signal := ta.crossunder(ema_fast, ema_slow) and rsi_val < 50
+
+//==========================================
+// 6. SİNYAL FİLTRELEME
+//==========================================
+
+var int CondIni = 0
+
+var int long_signal_count = 0
+var int short_signal_count = 0
+
+if long_signal
+    long_signal_count := long_signal_count + 1
+else
+    long_signal_count := 0
+
+if short_signal
+    short_signal_count := short_signal_count + 1
+else
+    short_signal_count := 0
+
+long_condition = long_signal and long_signal_count <= signalexpiry
+short_condition = short_signal and short_signal_count <= signalexpiry
+
+var bool longCondition = false
+var bool shortCondition = false
+
+prev_CondIni = nz(CondIni[1])
+
+if alternatesignal
+    longCondition := long_condition and prev_CondIni != 1
+    shortCondition := short_condition and prev_CondIni != -1
+else
+    longCondition := long_condition
+    shortCondition := short_condition
+
+CondIni := longCondition ? 1 : shortCondition ? -1 : CondIni[1]
+
+//==========================================
+// 7. POZİSYON BÜYÜKLÜĞÜ
+//==========================================
+
+var float pos_size = 95.0
+
+if position_sizing_type == "Risk Based"
+    pos_size := risk_per_trade / sl_pct
+else
+    pos_size := fixed_position_size
+
+pos_size := math.min(math.max(pos_size, 1), 100)
+
+//==========================================
+// 8. STRATEJİ İŞLEMLERİ
+//==========================================
+
+qty_contracts = (strategy.equity * pos_size / 100) / close
+
+if longCondition
+    strategy.entry("Long", strategy.long, qty=qty_contracts)
+
+if strategy.position_size > 0
+    strategy.exit("Long Exit", "Long", 
+                  stop=strategy.position_avg_price * (1 - sl_pct),
+                  limit=strategy.position_avg_price * (1 + tp_pct))
+
+if shortCondition
+    strategy.entry("Short", strategy.short, qty=qty_contracts)
+
+if strategy.position_size < 0
+    strategy.exit("Short Exit", "Short", 
+                  stop=strategy.position_avg_price * (1 + sl_pct),
+                  limit=strategy.position_avg_price * (1 - tp_pct))
+
+//==========================================
+// 9. GRAFİK GÖRSELLERİ
+//==========================================
+
+plotshape(longCondition and showsignals, title='Buy', text='LONG', textcolor=color.white, style=shape.labelup, size=size.tiny, location=location.belowbar, color=color.new(#00FF00, 0))
+plotshape(shortCondition and showsignals, title='Sell', text='SHORT', textcolor=color.white, style=shape.labeldown, size=size.tiny, location=location.abovebar, color=color.new(#FF0000, 0))
+
+alertcondition(longCondition, title='Buy Alert', message='XAUUSDT LONG')
+alertcondition(shortCondition, title='Sell Alert', message='XAUUSDT SHORT')
+
+//==========================================
+// 10. DASHBOARD
+//==========================================
+
+var table tab1 = table.new(position.bottom_right, 2, 10, color.rgb(42, 46, 57), color.rgb(204, 204, 204), 0, color.rgb(77, 71, 71), 1)
+
+if showdashboard and barstate.islast
+    // Başlık
+    table.cell(tab1, 0, 0, "XAUUSDT", text_halign=text.align_center, text_size=size.normal, bgcolor=color.rgb(68, 68, 67), text_color=color.white)
+    table.cell(tab1, 1, 0, current_tf, text_halign=text.align_center, text_size=size.normal, bgcolor=color.rgb(68, 68, 67), text_color=color.yellow)
+    
+    // TF
+    table.cell(tab1, 0, 1, "Timeframe", text_halign=text.align_left, text_size=size.small, text_color=color.white)
+    table.cell(tab1, 1, 1, current_tf, text_halign=text.align_center, text_size=size.small, text_color=color.green)
+    
+    // Signal
+    table.cell(tab1, 0, 2, "Signal", text_halign=text.align_left, text_size=size.small, text_color=color.white)
+    if longCondition
+        table.cell(tab1, 1, 2, "▲ LONG", text_halign=text.align_center, text_size=size.small, bgcolor=color.green, text_color=color.white)
+    else if shortCondition
+        table.cell(tab1, 1, 2, "▼ SHORT", text_halign=text.align_center, text_size=size.small, bgcolor=color.red, text_color=color.white)
+    else
+        table.cell(tab1, 1, 2, "— WAIT", text_halign=text.align_center, text_size=size.small, bgcolor=color.gray, text_color=color.white)
+    
+    // RSI
+    table.cell(tab1, 0, 3, "RSI", text_halign=text.align_left, text_size=size.small, text_color=color.white)
+    rsi_color = rsi_val > 70 ? color.red : rsi_val < 30 ? color.green : color.white
+    table.cell(tab1, 1, 3, str.tostring(rsi_val, "#.##"), text_halign=text.align_center, text_size=size.small, text_color=rsi_color)
+    
+    // Stop-Loss
+    table.cell(tab1, 0, 4, "Stop-Loss", text_halign=text.align_left, text_size=size.small, text_color=color.white)
+    table.cell(tab1, 1, 4, str.tostring(sl_pct * 100, "#.#") + "%", text_halign=text.align_center, text_size=size.small, text_color=color.red)
+    
+    // Take-Profit
+    table.cell(tab1, 0, 5, "Take-Profit", text_halign=text.align_left, text_size=size.small, text_color=color.white)
+    table.cell(tab1, 1, 5, str.tostring(tp_pct * 100, "#.#") + "%", text_halign=text.align_center, text_size=size.small, text_color=color.green)
+    
+    // Position Size
+    table.cell(tab1, 0, 6, "Position", text_halign=text.align_left, text_size=size.small, text_color=color.white)
+    table.cell(tab1, 1, 6, str.tostring(pos_size, "#.#") + "%", text_halign=text.align_center, text_size=size.small, text_color=color.orange)
+    
+    // Sizing Type
+    table.cell(tab1, 0, 7, "Sizing", text_halign=text.align_left, text_size=size.small, text_color=color.white)
+    table.cell(tab1, 1, 7, position_sizing_type, text_halign=text.align_center, text_size=size.small, text_color=color.aqua)
+    
+    // Risk Auto
+    risk_mode = use_auto_risk ? "Auto" : "Manual"
+    table.cell(tab1, 0, 8, "Risk Mode", text_halign=text.align_left, text_size=size.small, text_color=color.white)
+    table.cell(tab1, 1, 8, risk_mode, text_halign=text.align_center, text_size=size.small, text_color=color.orange)
+    
+    // Trades
+    table.cell(tab1, 0, 9, "Trades", text_halign=text.align_left, text_size=size.small, text_color=color.white)
+    table.cell(tab1, 1, 9, str.tostring(strategy.closedtrades, "0"), text_halign=text.align_center, text_size=size.small, text_color=color.yellow)
+
+//==========================================
+// 11. GÖSTERGE ÇİZİMLERİ
+//==========================================
+
+plot(sttrend == 1 ? stup : na, title='ST Up', style=plot.style_linebr, linewidth=2, color=color.new(color.green, 70))
+plot(sttrend != 1 ? dn : na, title='ST Down', style=plot.style_linebr, linewidth=2, color=color.new(color.red, 70))
+
+plot(bb_basis, title='BB', color=color.new(color.blue, 50), linewidth=1)
+plot(bb_upper, title='BB Upper', color=color.new(color.blue, 30), linewidth=1)
+plot(bb_lower, title='BB Lower', color=color.new(color.blue, 30), linewidth=1)
+
+plot(ema_fast, title='EMA F', color=color.new(color.green, 50), linewidth=1)
+plot(ema_slow, title='EMA S', color=color.new(color.red, 50), linewidth=1)
+
+plot(senkou_a_shift, title='Senkou A', color=color.new(color.green, 50), linewidth=1)
+plot(senkou_b_shift, title='Senkou B', color=color.new(color.red, 50), linewidth=1)
+
+//==========================================
+// 12. DATA WINDOW
+//==========================================
+
+plot(longCondition ? 100 : na, "Long", display=display.data_window)
+plot(shortCondition ? -100 : na, "Short", display=display.data_window)

@@ -1,0 +1,228 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © FriendOfTheTrend
+//@version=6
+// Trend Strength — Binance Futures Optimized
+
+indicator("Trend Strength Futures", "TS", max_bars_back=500)
+
+// === INPUTS ===
+var sigMode = input.string("Weighted Score", "Signal Mode", options=["All TFs Aligned", "Weighted Score"], group="Signal")
+var trendMode = input.string("Above/Below Midline", "Trend Mode", options=["Open, High, Low, Close + Midline", "Above/Below Midline"], group="Trend Mode")
+
+var tf1On = input.bool(true,  "TF1 (1m)",  group="Timeframes")
+var timeframe1 = input.timeframe("1",  "TF1", options=["1","2","3","5","15","60","240","720","1D","1W","1M","3M","12M"], group="Timeframes")
+var tf2On = input.bool(true,  "TF2 (5m)",  group="Timeframes")
+var timeframe2 = input.timeframe("5",  "TF2", options=["1","2","3","5","15","60","240","720","1D","1W","1M","3M","12M"], group="Timeframes")
+var tf3On = input.bool(true,  "TF3 (15m)", group="Timeframes")
+var timeframe3 = input.timeframe("15", "TF3", options=["1","2","3","5","15","60","240","720","1D","1W","1M","3M","12M"], group="Timeframes")
+var tf4On = input.bool(true,  "TF4 (1h)",  group="Timeframes")
+var timeframe4 = input.timeframe("60", "TF4", options=["1","2","3","5","15","60","240","720","1D","1W","1M","3M","12M"], group="Timeframes")
+var tf5On = input.bool(true,  "TF5 (4h)",  group="Timeframes")
+var timeframe5 = input.timeframe("240","TF5", options=["1","2","3","5","15","60","240","720","1D","1W","1M","3M","12M"], group="Timeframes")
+var tf6On = input.bool(true,  "TF6 (1D)",  group="Timeframes")
+var timeframe6 = input.timeframe("1D", "TF6", options=["1","2","3","5","15","60","240","720","1D","1W","1M","3M","12M"], group="Timeframes")
+var tf7On = input.bool(true,  "TF7 (1W)",  group="Timeframes")
+var timeframe7 = input.timeframe("1W", "TF7", options=["1","2","3","5","15","60","240","720","1D","1W","1M","3M","12M"], group="Timeframes")
+
+var w1 = input.int(1,  "Weight TF1",  minval=1, maxval=50, group="Weights")
+var w2 = input.int(2,  "Weight TF2",  minval=1, maxval=50, group="Weights")
+var w3 = input.int(4,  "Weight TF3",  minval=1, maxval=50, group="Weights")
+var w4 = input.int(8,  "Weight TF4",  minval=1, maxval=50, group="Weights")
+var w5 = input.int(16, "Weight TF5",  minval=1, maxval=50, group="Weights")
+var w6 = input.int(24, "Weight TF6",  minval=1, maxval=50, group="Weights")
+var w7 = input.int(32, "Weight TF7",  minval=1, maxval=50, group="Weights")
+
+var smoothLen = input.int(3, "Fast TF Smoothing", minval=1, maxval=20, group="Smoothing")
+var weightedThresh = input.float(0.30, "Weighted Threshold", minval=0.05, maxval=1.0, step=0.05, group="Signal")
+var showGroups = input.bool(true, "Show Group Lines", group="Display")
+
+var upColor1   = input.color(color.rgb(0, 70, 36),    "Up 1 - Weak",   group="Colors")
+var upColor2   = input.color(color.rgb(0, 129, 67),   "Up 2 - Medium", group="Colors")
+var upColor3   = input.color(color.rgb(0, 255, 132),  "Up 3 - Strong", group="Colors")
+var downColor1 = input.color(color.rgb(105, 0, 0),    "Down 1 - Weak",   group="Colors")
+var downColor2 = input.color(color.rgb(126, 0, 0),    "Down 2 - Medium", group="Colors")
+var downColor3 = input.color(color.rgb(255, 0, 0),    "Down 3 - Strong", group="Colors")
+var neutralColor = input.color(color.gray, "Neutral Color", group="Colors")
+var bullishBg = input.color(color.new(color.green, 92), "Bullish BG", group="Colors")
+var bearishBg = input.color(color.new(color.red, 92),   "Bearish BG",  group="Colors")
+
+var labelsOn   = input.bool(true,  "Labels", group="Labels")
+var labelOffset = input.int(6, "Offset", group="Labels")
+var textColor  = input.color(color.white, "Text Color", group="Labels")
+var textSize   = input.int(8,  "Text Size", group="Labels")
+
+// === DATA ===
+HTF = barstate.isrealtime ? 1 : 0
+CTF = barstate.isrealtime ? 0 : 1
+
+o1 = request.security(syminfo.tickerid, timeframe1, open[HTF])[CTF]
+h1 = request.security(syminfo.tickerid, timeframe1, high[HTF])[CTF]
+l1 = request.security(syminfo.tickerid, timeframe1, low[HTF])[CTF]
+c1 = request.security(syminfo.tickerid, timeframe1, close[HTF])[CTF]
+o2 = request.security(syminfo.tickerid, timeframe2, open[HTF])[CTF]
+h2 = request.security(syminfo.tickerid, timeframe2, high[HTF])[CTF]
+l2 = request.security(syminfo.tickerid, timeframe2, low[HTF])[CTF]
+c2 = request.security(syminfo.tickerid, timeframe2, close[HTF])[CTF]
+o3 = request.security(syminfo.tickerid, timeframe3, open[HTF])[CTF]
+h3 = request.security(syminfo.tickerid, timeframe3, high[HTF])[CTF]
+l3 = request.security(syminfo.tickerid, timeframe3, low[HTF])[CTF]
+c3 = request.security(syminfo.tickerid, timeframe3, close[HTF])[CTF]
+o4 = request.security(syminfo.tickerid, timeframe4, open[HTF])[CTF]
+h4 = request.security(syminfo.tickerid, timeframe4, high[HTF])[CTF]
+l4 = request.security(syminfo.tickerid, timeframe4, low[HTF])[CTF]
+c4 = request.security(syminfo.tickerid, timeframe4, close[HTF])[CTF]
+o5 = request.security(syminfo.tickerid, timeframe5, open[HTF])[CTF]
+h5 = request.security(syminfo.tickerid, timeframe5, high[HTF])[CTF]
+l5 = request.security(syminfo.tickerid, timeframe5, low[HTF])[CTF]
+c5 = request.security(syminfo.tickerid, timeframe5, close[HTF])[CTF]
+o6 = request.security(syminfo.tickerid, timeframe6, open[HTF])[CTF]
+h6 = request.security(syminfo.tickerid, timeframe6, high[HTF])[CTF]
+l6 = request.security(syminfo.tickerid, timeframe6, low[HTF])[CTF]
+c6 = request.security(syminfo.tickerid, timeframe6, close[HTF])[CTF]
+o7 = request.security(syminfo.tickerid, timeframe7, open[HTF])[CTF]
+h7 = request.security(syminfo.tickerid, timeframe7, high[HTF])[CTF]
+l7 = request.security(syminfo.tickerid, timeframe7, low[HTF])[CTF]
+c7 = request.security(syminfo.tickerid, timeframe7, close[HTF])[CTF]
+
+// === FUNCTIONS ===
+calcScore(htfOpen, htfClose, htfHigh, htfLow) =>
+    s = 0
+    bodyHigh = htfClose >= htfOpen ? htfClose : htfOpen
+    bodyLow  = htfClose >= htfOpen ? htfOpen : htfClose
+    midline  = bodyLow + (bodyHigh - bodyLow) / 2
+    if trendMode == "Open, High, Low, Close + Midline"
+        if close >= htfHigh
+            s := 3
+        else if close <= htfLow
+            s := -3
+        else if close >= bodyHigh
+            s := 2
+        else if close <= bodyLow
+            s := -2
+        else
+            s := close >= midline ? 1 : -1
+    else
+        s := close >= midline ? 1 : -1
+    s
+
+scoreColor(s) =>
+    c = neutralColor
+    if trendMode == "Open, High, Low, Close + Midline"
+        if s == 1
+            c := upColor1
+        else if s == 2
+            c := upColor2
+        else if s == 3
+            c := upColor3
+        else if s == -1
+            c := downColor1
+        else if s == -2
+            c := downColor2
+        else if s == -3
+            c := downColor3
+    else
+        c := s == 1 ? upColor3 : downColor3
+    c
+
+// === SCORES ===
+s1 = calcScore(o1, c1, h1, l1)
+s2 = calcScore(o2, c2, h2, l2)
+s3 = calcScore(o3, c3, h3, l3)
+s4 = calcScore(o4, c4, h4, l4)
+s5 = calcScore(o5, c5, h5, l5)
+s6 = calcScore(o6, c6, h6, l6)
+s7 = calcScore(o7, c7, h7, l7)
+
+// === SMOOTH ===
+s1s = smoothLen > 1 ? ta.ema(s1, smoothLen) : s1
+s2s = smoothLen > 1 ? ta.ema(s2, smoothLen) : s2
+s3s = smoothLen > 1 ? ta.ema(s3, smoothLen) : s3
+
+// === GROUP CALCULATIONS (global scope) ===
+n1 = tf1On ? 1 : 0
+n2 = tf2On ? 1 : 0
+n3 = tf3On ? 1 : 0
+n4 = tf4On ? 1 : 0
+n5 = tf5On ? 1 : 0
+n6 = tf6On ? 1 : 0
+n7 = tf7On ? 1 : 0
+groupShort = (s1s * n1 + s2s * n2) / math.max(n1 + n2, 1)
+groupMed   = (s3s * n3 + s4 * n4) / math.max(n3 + n4, 1)
+groupLong  = (s5 * n5 + s6 * n6 + s7 * n7) / math.max(n5 + n6 + n7, 1)
+
+// === SIGNAL CALCULATIONS (global scope) ===
+tfOnArray  = array.from(tf1On, tf2On, tf3On, tf4On, tf5On, tf6On, tf7On)
+scoreArray = array.from(s1s, s2s, s3, s4, s5, s6, s7)
+weightArr  = array.from(w1, w2, w3, w4, w5, w6, w7)
+
+extSignal = 0
+weightedAvg = 0.0
+
+if sigMode == "All TFs Aligned"
+    canBull = true
+    canBear = true
+    for i = 0 to 6
+        if array.get(tfOnArray, i)
+            ts = array.get(scoreArray, i)
+            if ts < 1
+                canBull := false
+            if ts > -1
+                canBear := false
+    extSignal := canBull ? 1 : canBear ? -1 : 0
+else
+    tw = 0.0
+    ws = 0.0
+    for i = 0 to 6
+        if array.get(tfOnArray, i)
+            w = array.get(weightArr, i)
+            tw += w
+            ws += array.get(scoreArray, i) * w
+    weightedAvg := tw > 0 ? ws / tw : 0
+    extSignal := weightedAvg >= weightedThresh ? 1 : weightedAvg <= -weightedThresh ? -1 : 0
+
+// === PLOTS (all global) ===
+plot(tf1On ? 7 : na, "1m",  scoreColor(s1), 4, plot.style_circles)
+plot(tf2On ? 6 : na, "5m",  scoreColor(s2), 4, plot.style_circles)
+plot(tf3On ? 5 : na, "15m", scoreColor(s3), 4, plot.style_circles)
+plot(tf4On ? 4 : na, "1h",  scoreColor(s4), 4, plot.style_circles)
+plot(tf5On ? 3 : na, "4h",  scoreColor(s5), 4, plot.style_circles)
+plot(tf6On ? 2 : na, "1D",  scoreColor(s6), 4, plot.style_circles)
+plot(tf7On ? 1 : na, "1W",  scoreColor(s7), 4, plot.style_circles)
+
+plot(showGroups ? groupShort : na, "Short", groupShort >= 0 ? upColor3 : downColor3, 6, plot.style_line)
+plot(showGroups ? groupMed : na,   "Medium", groupMed >= 0 ? upColor3 : downColor3,   6, plot.style_line)
+plot(showGroups ? groupLong : na,  "Long",  groupLong >= 0 ? upColor3 : downColor3,   6, plot.style_line)
+
+plot(sigMode == "Weighted Score" ? weightedAvg : na, "WAvg", color.gray, 2, plot.style_line)
+plot(extSignal, "Sig", #00000000, display=display.data_window)
+bgcolor(extSignal == 1 ? bullishBg : extSignal == -1 ? bearishBg : na)
+
+// === LABELS (local scope OK) ===
+var labelIds = array.new<label>(7, na)
+var groupLabels = array.new<label>(3, na)
+
+if barstate.islast and labelsOn
+    tfTimes = array.from(timeframe1, timeframe2, timeframe3, timeframe4, timeframe5, timeframe6, timeframe7)
+    tfOns   = array.from(tf1On, tf2On, tf3On, tf4On, tf5On, tf6On, tf7On)
+    for i = 0 to 6
+        if array.get(tfOns, i)
+            old = array.get(labelIds, i)
+            if old != na
+                label.delete(old)
+            array.set(labelIds, i, label.new(bar_index + labelOffset, 7 - i,
+                 str.tostring(array.get(tfTimes, i)),
+                 xloc=xloc.bar_index, yloc=yloc.price,
+                 color=#00000000, style=label.style_label_left,
+                 textcolor=textColor, size=textSize, textalign=text.align_left))
+    if showGroups
+        grpLbls = array.from("S", "M", "L")
+        grpVals = array.from(groupShort, groupMed, groupLong)
+        for i = 0 to 2
+            old = array.get(groupLabels, i)
+            if old != na
+                label.delete(old)
+            array.set(groupLabels, i, label.new(bar_index + labelOffset, -1 - i,
+                 array.get(grpLbls, i) + " " + str.tostring(math.round(array.get(grpVals, i), 2)),
+                 xloc=xloc.bar_index, yloc=yloc.price,
+                 color=#00000000, style=label.style_label_left,
+                 textcolor=textColor, size=textSize, textalign=text.align_left))

@@ -1,0 +1,36 @@
+{
+  "best_params": {
+    "sl_wick_lo_mult": 0.1,
+    "sl_wick_close_mult": 0.6000000000000001
+  },
+  "full_config": {
+    "band_preset": "Custom",
+    "base_mult": 11.5,
+    "band_step": 0.47500000000000003,
+    "atr_len": 74,
+    "flip_band": 3,
+    "min_score": 25,
+    "retest_window": 49,
+    "cooldown": 16,
+    "risk_preset": "Balanced",
+    "sl_mode": "Wick-Anchored",
+    "atr_len_risk": 4,
+    "long_leverage": 18.0,
+    "short_leverage": 19.0,
+    "sl_mult": 1.5,
+    "tp1_mult": 1.0,
+    "tp2_mult": 2.0,
+    "tp3_mult": 3.0,
+    "be": true,
+    "sl_wick_lo_mult": 0.1,
+    "sl_wick_close_mult": 0.6000000000000001
+  },
+  "results": {
+    "trades": 151,
+    "wins": 89,
+    "losses": 62,
+    "win_rate_pct": 58.9,
+    "net_profit_pct": 143.02,
+    "profit_factor": 2.05
+  }
+}

@@ -1,0 +1,23 @@
+//@version=6
+indicator("BB RSI Test", overlay=true)
+
+rsiLen  = input.int(2, "RSI")
+rsiOS   = input.int(25, "RSI OS")
+rsiOB   = input.int(75, "RSI OB")
+bbLen   = input.int(10, "BB Period")
+bbMult  = input.float(1.5, "BB StdDev")
+
+vrsi = ta.rsi(close, rsiLen)
+[_, bbUpper, bbLower] = ta.bb(close, bbLen, bbMult)
+
+longSignal  = ta.crossover(vrsi, rsiOS) and close >= bbLower
+shortSignal = ta.crossunder(vrsi, rsiOB) and close <= bbUpper
+
+plot(vrsi, "RSI", color.purple)
+hline(rsiOS, "OS", color.green)
+hline(rsiOB, "OB", color.red)
+plot(bbUpper, "BB U", color.silver)
+plot(bbLower, "BB L", color.silver)
+
+plotshape(longSignal, "L", shape.triangleup, location.belowbar, color.green, size=size.small)
+plotshape(shortSignal, "S", shape.triangledown, location.abovebar, color.red, size=size.small)

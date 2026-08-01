@@ -1,0 +1,15 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.vscode/
+node_modules/
+*.csv
+*.log
+**/storage/logs/
+**/__pycache__/
+data/history/*.csv
+*.html
+CloddsBot/
+.opencode/

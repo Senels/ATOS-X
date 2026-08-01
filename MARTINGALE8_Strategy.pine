@@ -1,0 +1,110 @@
+//@version=6
+// MARTINGALE8 Strategy — Range-based grid + otomatik DCA
+// Dinamik spacing (Range%/10), limit emirler, TP ortalamaya gore
+
+strategy(
+     title       = "MARTINGALE8 Strategy",
+     shorttitle  = "MrTNGL8 S",
+     overlay     = true,
+     process_orders_on_close = true,
+     pyramiding  = 10,
+     initial_capital  = 10000,
+     commission_type  = strategy.commission.percent,
+     commission_value = 0.04,
+     slippage    = 1)
+
+startPrice   = input.float(0.0, "Baslangic (0 = anlik fiyat)", minval = 0.0)
+baseSize     = input.float(1.0, "Baz kontrat sayisi", minval = 0.1, step = 0.1)
+multiplier   = input.float(1.0, "Boyut Carpani", minval = 0.1, maxval = 10, step = 0.1)
+orderDevIn   = input.float(0.0, "Emir Sapmasi % (0 = Range/10)", minval = 0.0, maxval = 30, step = 0.1)
+profitDevIn  = input.float(0.0, "Kar Sapmasi % (0 = OD*2.5)", minval = 0.0, maxval = 200, step = 0.1)
+lookback     = input.int(84, "Lookback", minval = 1, step = 6)
+maxLevels    = input.int(10, "Maksimum Seviye", minval = 1, maxval = 10)
+
+// Rolling range
+lH = ta.highest(high, lookback)
+lL = ta.lowest(low, lookback)
+ran = 100 * (lH - lL) / lH
+ods = ran / 10
+pf  = ods * 2.5
+
+curOrderDev  = orderDevIn  == 0.0 ? ods : orderDevIn
+curProfitDev = profitDevIn == 0.0 ? pf  : profitDevIn
+curLineZero  = startPrice == 0.0 ? close : startPrice
+
+f_levelPrice(lvl, lz, od) =>
+    lz - lz * ((lvl - 1) * od) / 100
+
+f_levelQty(lvl) =>
+    int(math.max(baseSize * math.pow(multiplier, lvl - 1), 1))
+
+// Grid sabitleri (giris aninda kaydedilir)
+var float gridLineZero  = na
+var float gridOrderDev  = na
+var float gridProfitDev = na
+
+var float cumQty    = 0.0
+var float cumCost   = 0.0
+var float currentTP = na
+var int   filledLvls = 0
+var bool  gridActive = false
+
+bool warmedUp = bar_index > lookback * 2
+
+// Grid baslat
+if strategy.position_size == 0 and warmedUp and barstate.isconfirmed and not gridActive
+    gridLineZero  := curLineZero
+    gridOrderDev  := curOrderDev
+    gridProfitDev := curProfitDev
+
+    float b1qty = f_levelQty(1)
+    cumQty   := b1qty
+    cumCost  := b1qty * close
+    currentTP := close * (1 + gridProfitDev / 100)
+    filledLvls := 1
+    gridActive := true
+
+    strategy.entry("B1", strategy.long, qty = int(b1qty))
+
+    for lvl = 2 to maxLevels
+        strategy.order("B" + str.tostring(lvl), strategy.long, qty = f_levelQty(lvl), limit = f_levelPrice(lvl, gridLineZero, gridOrderDev))
+
+// DCA dolum takibi (kaydedilmis gridLineZero ve gridOrderDev kullanilir)
+if gridActive and strategy.position_size > 0 and barstate.isconfirmed
+    for lvl = 2 to maxLevels
+        float lp = f_levelPrice(lvl, gridLineZero, gridOrderDev)
+        if low <= lp and lvl > filledLvls
+            filledLvls := lvl
+            float q = f_levelQty(lvl)
+            cumQty  := cumQty + q
+            cumCost := cumCost + q * lp
+            currentTP := cumCost / cumQty * (1 + gridProfitDev / 100)
+
+// TP kontrol
+bool tpHit = gridActive and high >= currentTP
+
+if tpHit and barstate.isconfirmed
+    for lvl = 1 to maxLevels
+        strategy.close("B" + str.tostring(lvl))
+        strategy.cancel("B" + str.tostring(lvl))
+    gridActive := false
+    gridLineZero := na
+    gridOrderDev := na
+    gridProfitDev := na
+    cumQty := 0
+    cumCost := 0
+    currentTP := na
+    filledLvls := 0
+
+// Gorsel
+plot(currentTP, "TP", color.fuchsia, 2, style = plot.style_linebr)
+plot(gridActive ? gridLineZero : na, "Entry", color.white, 1, style = plot.style_linebr)
+plot(maxLevels >= 2 ? f_levelPrice(2, gridLineZero, gridOrderDev) : na, "B2", color.aqua, 1, style = plot.style_linebr)
+plot(maxLevels >= 3 ? f_levelPrice(3, gridLineZero, gridOrderDev) : na, "B3", color.aqua, 1, style = plot.style_linebr)
+plot(maxLevels >= 4 ? f_levelPrice(4, gridLineZero, gridOrderDev) : na, "B4", color.aqua, 1, style = plot.style_linebr)
+plot(maxLevels >= 5 ? f_levelPrice(5, gridLineZero, gridOrderDev) : na, "B5", color.aqua, 1, style = plot.style_linebr)
+plot(maxLevels >= 6 ? f_levelPrice(6, gridLineZero, gridOrderDev) : na, "B6", color.aqua, 1, style = plot.style_linebr)
+plot(maxLevels >= 7 ? f_levelPrice(7, gridLineZero, gridOrderDev) : na, "B7", color.aqua, 2, style = plot.style_linebr)
+plot(maxLevels >= 8 ? f_levelPrice(8, gridLineZero, gridOrderDev) : na, "B8", color.aqua, 2, style = plot.style_linebr)
+plot(maxLevels >= 9 ? f_levelPrice(9, gridLineZero, gridOrderDev) : na, "B9", color.aqua, 2, style = plot.style_linebr)
+plot(maxLevels >= 10 ? f_levelPrice(10, gridLineZero, gridOrderDev) : na, "B10", color.aqua, 2, style = plot.style_linebr)

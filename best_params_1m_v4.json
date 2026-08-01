@@ -1,0 +1,28 @@
+{
+  "params": {
+    "rsi_len": 2,
+    "rsi_os": 25,
+    "rsi_ob": 75,
+    "bb_len": 10,
+    "bb_mult": 1.5,
+    "atr_len": 3,
+    "tp_mult": 1.2,
+    "sl_mult": 1.2,
+    "base_qty": 0.2,
+    "qty_mult": 1.5,
+    "max_levels": 4
+  },
+  "results": {
+    "score": 23.97374659856847,
+    "total_trades": 1245,
+    "wins": 644,
+    "losses": 601,
+    "win_rate": 51.72690763052209,
+    "net_pnl": 46.82139348711098,
+    "final_balance": 10046.821393487111,
+    "gross_profit": 457.67000000000013,
+    "gross_loss": 410.6700000000003,
+    "profit_factor": 1.114447122994131,
+    "max_dd": 0.24551236183271452
+  }
+}

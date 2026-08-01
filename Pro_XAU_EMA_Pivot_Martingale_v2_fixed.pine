@@ -1,0 +1,177 @@
+//@version=6
+// Pro XAU EMA-Pivot-Martingale v2 - DÜZELTİLMİŞ
+// Fix: pozisyon büyüklüğü, pyramiding, margin
+strategy(title="Pro XAU EPM - Fixed v2",
+     shorttitle="ProXAU_Fix",
+     overlay=true,
+     pyramiding=4,
+     initial_capital=1000,
+     default_qty_type=strategy.percent_of_equity,
+     default_qty_value=100,
+     commission_type=strategy.commission.percent,
+     commission_value=0.04,
+     slippage=1,
+     margin_long=20,
+     margin_short=20)
+
+// ─── PARAMETRELER ──────────────────────────────────────────────────
+EMA50_LEN  = input.int(50, "EMA 50 Length")
+EMA200_LEN = input.int(200, "EMA 200 Length")
+USE_HTF    = input.bool(true, "Use HTF Trend Filter")
+PIVOT_TF   = input.string("D", "Pivot Timeframe", options=["D", "4H", "W"])
+SRSI_LEN   = input.int(5, "Stoch RSI Length")
+SRSI_K     = input.int(3, "Stoch RSI K")
+SRSI_D     = input.int(3, "Stoch RSI D")
+SRSI_OS    = input.int(20, "Stoch RSI Oversold")
+SRSI_OB    = input.int(80, "Stoch RSI Overbought")
+CCI_LEN    = input.int(20, "CCI Length")
+CCI_OS     = input.int(-100, "CCI Oversold")
+CCI_OB     = input.int(100, "CCI Overbought")
+ATR_LEN    = input.int(14, "ATR Length")
+TP_PCT     = input.float(0.25, "Take Profit %")
+SL_PCT     = input.float(0.15, "Stop Loss %")
+MG_BASE    = input.float(0.5, "Martingale Base %")
+MG_MULT    = input.float(1.5, "Martingale Multiplier")
+MG_MAX     = input.int(4, "Max Martingale Level")
+MIN_SCORE  = input.int(3, "Min Score to Trade")
+STEP_PCT   = input.float(0.10, "Martingale Step %")
+
+// ─── GÜNLÜK FIB PIVOT ──────────────────────────────────────────────────────
+[dp_h, dp_l, dp_c] = request.security(syminfo.tickerid, PIVOT_TF,
+    [high[1], low[1], close[1]], lookahead=barmerge.lookahead_off)
+p_pivot = (dp_h + dp_l + dp_c) / 3
+r1 = p_pivot * 2 - dp_l
+r2 = p_pivot + (dp_h - dp_l)
+s1 = p_pivot * 2 - dp_h
+s2 = p_pivot - (dp_h - dp_l)
+
+// ─── 5m TREND ─────────────────────────────────────────────────────────────
+[ema50, ema200] = request.security(syminfo.tickerid, "5",
+    [ta.ema(close, EMA50_LEN), ta.ema(close, EMA200_LEN)],
+    lookahead=barmerge.lookahead_off)
+trend_up = ema50 > ema200
+
+// ─── 1m GÖSTERGELER ───────────────────────────────────────────────────────
+rsi_r  = ta.rsi(close, SRSI_LEN)
+srsi_kv = ta.sma(ta.stoch(rsi_r, rsi_r, rsi_r, SRSI_LEN), SRSI_K)
+srsi_dv = ta.sma(srsi_kv, SRSI_D)
+[macd_line, macd_sig, macd_hist] = ta.macd(close, 12, 26, 9)
+cci_v = ta.cci(hlc3, CCI_LEN)
+atr_v = ta.atr(ATR_LEN)
+
+// ─── SKORLAMA ─────────────────────────────────────────────────────────
+score_long = 0
+score_short = 0
+
+if USE_HTF == false or trend_up
+    score_long += 1
+if USE_HTF == false or not trend_up
+    score_short += 1
+
+if close <= s1 or close <= s2
+    score_long += 1
+if close >= r1 or close >= r2
+    score_short += 1
+
+if srsi_kv < SRSI_OS and srsi_dv < SRSI_OS
+    score_long += 1
+if srsi_kv > SRSI_OB and srsi_dv > SRSI_OB
+    score_short += 1
+
+if macd_hist > 0 and macd_line > macd_sig
+    score_long += 1
+if macd_hist < 0 and macd_line < macd_sig
+    score_short += 1
+
+if cci_v < CCI_OS
+    score_long += 1
+if cci_v > CCI_OB
+    score_short += 1
+
+bool long_ok  = score_long >= MIN_SCORE
+bool short_ok = score_short >= MIN_SCORE
+
+// ─── MARTINGALE KONTROLÜ ──────────────────────
+var int   mg_lvl    = 0
+var float mg_last   = 0.0
+var int   last_day  = dayofmonth
+
+// Günlük reset: sadece pozisyon yokken yap
+if dayofmonth != last_day and strategy.position_size == 0
+    mg_lvl := 0
+    last_day := dayofmonth
+
+if dayofmonth != last_day
+    last_day := dayofmonth
+
+// Pozisyon kapandığında reset
+if strategy.position_size == 0 and strategy.position_size[1] != 0
+    mg_lvl := 0
+    mg_last := 0.0
+
+mg_size(lvl) => MG_BASE / 100 * math.pow(MG_MULT, lvl - 1)
+
+// ─── GİRİŞ SİNYALLERİ ─────────────────────────
+// Pozisyon yokken skor yeterli ise VEYA pozisyon varken step koşulu sağlanırsa
+bool can_long  = long_ok and (strategy.position_size == 0 ? mg_lvl == 0 : strategy.position_size > 0)
+bool can_short = short_ok and (strategy.position_size == 0 ? mg_lvl == 0 : strategy.position_size < 0)
+
+bool price_step_long  = mg_lvl == 0 or close <= mg_last * (1 - STEP_PCT / 100)
+bool price_step_short = mg_lvl == 0 or close >= mg_last * (1 + STEP_PCT / 100)
+
+// LONG İŞLEM
+if can_long and mg_lvl < MG_MAX and price_step_long
+    mg_lvl += 1
+    s = mg_size(mg_lvl)
+    q = (strategy.equity * s) / close
+    mg_last := close
+    strategy.entry("L" + str.tostring(mg_lvl), strategy.long, qty=q)
+
+// SHORT İŞLEM
+if can_short and mg_lvl < MG_MAX and price_step_short
+    mg_lvl += 1
+    s = mg_size(mg_lvl)
+    q = (strategy.equity * s) / close
+    mg_last := close
+    strategy.entry("S" + str.tostring(mg_lvl), strategy.short, qty=q)
+
+// ─── TP/SL ────────────────────────────────────
+float avg_price = strategy.position_avg_price
+bool has_position = not na(avg_price)
+
+float tp = na
+float sl = na
+
+if has_position
+    tp := strategy.position_size > 0 ? avg_price * (1 + TP_PCT / 100) : avg_price * (1 - TP_PCT / 100)
+    sl := strategy.position_size > 0 ? avg_price * (1 - SL_PCT / 100) : avg_price * (1 + SL_PCT / 100)
+
+if strategy.position_size > 0 and has_position and (close >= tp or close <= sl)
+    strategy.close_all(comment="Lx")
+
+if strategy.position_size < 0 and has_position and (close <= tp or close >= sl)
+    strategy.close_all(comment="Sx")
+
+// ─── GÖRSELLER ────────────────────────────────
+plot(p_pivot, "Pivot", color.white, 1, style=plot.style_linebr)
+plot(r1, "R1", color.red, 1, style=plot.style_linebr)
+plot(r2, "R2", color.maroon, 1, style=plot.style_linebr)
+plot(s1, "S1", color.green, 1, style=plot.style_linebr)
+plot(s2, "S2", color.lime, 1, style=plot.style_linebr)
+plot(ema50, "5m EMA50", color.orange, 2)
+plot(ema200, "5m EMA200", color.blue, 2)
+
+plotshape(long_ok and strategy.position_size == 0, "L Setup", shape.triangleup, location.belowbar, color.green, size=size.small)
+plotshape(short_ok and strategy.position_size == 0, "S Setup", shape.triangledown, location.abovebar, color.red, size=size.small)
+
+var label info = na
+if barstate.islast
+    label.delete(info)
+    string txt = "MG Lvl: " + str.tostring(mg_lvl) +
+         "\nScore L: " + str.tostring(score_long) + " S: " + str.tostring(score_short) +
+         "\nTrend: " + (trend_up ? "UP" : "DOWN")
+    if has_position
+        txt += "\nAvg: " + str.tostring(avg_price, "#.#") +
+               "\nP/L: " + str.tostring(strategy.position_size > 0 ? (close - avg_price) / avg_price * 100 : (avg_price - close) / avg_price * 100, "#.##") + "%"
+    info := label.new(bar_index, high, txt,
+         color=color.black, textcolor=color.white, size=size.small, style=label.style_label_lower_right)

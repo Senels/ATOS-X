@@ -1,0 +1,16 @@
+{
+  "trades": 7,
+  "win_rate": "85.7%",
+  "wins": 6,
+  "losses": 1,
+  "total_pnl": 92.71,
+  "final_capital": 1092.71,
+  "return_pct": 9.27,
+  "profit_factor": 7.65,
+  "avg_win": 17.78,
+  "avg_loss": -13.95,
+  "reasons": {
+    "TP": 6,
+    "SL": 1
+  }
+}
