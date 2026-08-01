@@ -13,11 +13,42 @@ from config import Config
 from execution.trader import BinanceTrader
 
 
+def diagnose_keys():
+    """Anahtarin hangi Binance API'sinde gecerli oldugunu test eder (salt-okunur)."""
+    import hashlib
+    import hmac
+    import time as _time
+    import urllib.parse
+
+    import requests
+
+    ts = int(_time.time() * 1000)
+    qs = urllib.parse.urlencode({"timestamp": ts, "recvWindow": 5000})
+    sig = hmac.new(Config.BINANCE_API_SECRET.encode(), qs.encode(), hashlib.sha256).hexdigest()
+    targets = [
+        ("FUTURES TESTNET", "https://testnet.binancefuture.com"),
+        ("FUTURES MAINNET", "https://fapi.binance.com"),
+        ("SPOT TESTNET", "https://testnet.binance.vision"),
+    ]
+    for label, host in targets:
+        path = "/fapi/v2/positionRisk" if "FUTURES" in label else "/api/v3/account"
+        url = f"{host}{path}?{qs}&signature={sig}"
+        try:
+            r = requests.get(url, headers={"X-MBX-APIKEY": Config.BINANCE_API_KEY}, timeout=10)
+            print(f"  {label:<20} -> {r.status_code} {r.text[:80]}")
+        except Exception as e:
+            print(f"  {label:<20} -> ERISIM YOK: {str(e)[:80]}")
+
+
 def main():
     print(f"Testnet: {Config.BINANCE_TESTNET}")
     if not Config.BINANCE_API_KEY:
         print("ERROR: BINANCE_API_KEY yok (.env kontrol edin)")
         sys.exit(1)
+    if "--diagnose" in sys.argv:
+        print("Anahtar tanilamasi (salt-okunur):")
+        diagnose_keys()
+        return
     trader = BinanceTrader(testnet=Config.BINANCE_TESTNET)
     print("  -> sync_open_positions() testi...")
     positions = trader.sync_open_positions()

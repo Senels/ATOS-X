@@ -1,6 +1,17 @@
 import time
 from config import Config
 
+from binance.client import Client as _BinanceClient
+
+
+class FuturesOnlyClient(_BinanceClient):
+    """Spot bagimliligini kaldirir: constructor spot ping'ini atlar.
+    Sistem sadece Binance USDM Futures kullanir."""
+
+    def ping(self):
+        return {}
+
+
 class BinanceTrader:
     def __init__(self, testnet=True):
         self.testnet = testnet
@@ -8,8 +19,7 @@ class BinanceTrader:
 
     def _get_client(self):
         if self._client is None:
-            from binance.client import Client
-            self._client = Client(
+            self._client = FuturesOnlyClient(
                 Config.BINANCE_API_KEY,
                 Config.BINANCE_API_SECRET,
                 testnet=self.testnet
