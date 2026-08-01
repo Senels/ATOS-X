@@ -12,12 +12,21 @@ from execution.trailing_stop import TrailingStopManager
 class FakeClient:
     def __init__(self):
         self.orders = []
+        self.cancelled = []
 
     def futures_create_order(self, **kwargs):
         self.orders.append(kwargs)
-        return {"orderId": len(self.orders) * 100 + 1, "order_id": len(self.orders) * 100 + 1}
+        num = len(self.orders) * 100 + 1
+        if kwargs.get("type") in ("STOP_MARKET", "TAKE_PROFIT_MARKET", "STOP", "TAKE_PROFIT"):
+            return {"algoId": num, "orderId": num, "order_id": num}
+        return {"orderId": num, "order_id": num}
 
     def futures_cancel_order(self, **kwargs):
+        self.cancelled.append(("order", kwargs))
+        return {"status": "CANCELED"}
+
+    def futures_cancel_algo_order(self, **kwargs):
+        self.cancelled.append(("algo", kwargs))
         return {"status": "CANCELED"}
 
     def futures_position_information(self):
@@ -77,6 +86,13 @@ class TraderFixTest(unittest.TestCase):
         self.trader.replace_stop("BTCUSDT", "LONG", 101, 64500, 65000)
         self.assertEqual(len(self.client.orders), 1)
         self.assertEqual(self.client.orders[0]["stopPrice"], 64500)
+        self.assertEqual(self.client.cancelled[0][0], "algo")
+        self.assertEqual(self.client.cancelled[0][1]["algoId"], 101)
+
+    def test_set_tp_sl_returns_algo_ids(self):
+        result = self.trader.set_tp_sl("BTCUSDT", "LONG", 65000, 64000, 68000)
+        self.assertEqual(result["sl"], 101)
+        self.assertEqual(result["tp"], 201)
 
     def test_sync_open_positions_filters_flat(self):
         positions = self.trader.sync_open_positions()

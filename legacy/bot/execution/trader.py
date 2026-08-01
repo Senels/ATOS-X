@@ -82,7 +82,8 @@ class BinanceTrader:
 
     def set_tp_sl(self, symbol, position_side, entry_price, sl_price, tp_price):
         """Exchange-side SL (STOP_MARKET) + TP (TAKE_PROFIT_MARKET) emirleri koyar.
-        Bot ölse bile pozisyon korunur. Dönen: {'sl': orderId, 'tp': orderId}"""
+        Koşullu emirler Algo Order API'ye gider (Binance 2025-12-09 zorunluluğu).
+        Dönen: {'sl': algoId, 'tp': algoId}"""
         try:
             client = self._get_client()
             side = "SELL" if position_side == "LONG" else "BUY"
@@ -92,32 +93,41 @@ class BinanceTrader:
                     symbol=symbol, side=side, type="STOP_MARKET",
                     stopPrice=sl_price, closePosition=True
                 )
-                result["sl"] = sl.get("orderId") or sl.get("order_id")
+                result["sl"] = sl.get("algoId") or sl.get("orderId") or sl.get("order_id")
             if tp_price:
                 tp = client.futures_create_order(
                     symbol=symbol, side=side, type="TAKE_PROFIT_MARKET",
                     stopPrice=tp_price, closePosition=True
                 )
-                result["tp"] = tp.get("orderId") or tp.get("order_id")
+                result["tp"] = tp.get("algoId") or tp.get("orderId") or tp.get("order_id")
             return result
         except Exception as e:
             print(f"  TP/SL error {symbol}: {e}")
             return None
 
-    def cancel_order(self, symbol, order_id):
+    def cancel_order(self, symbol, order_id, algo=False):
+        """Algo (koşullu) emirlerde algo=True verilir; normal emirlerde varsayilan."""
         if not order_id:
             return None
         try:
             client = self._get_client()
+            if algo:
+                return client.futures_cancel_algo_order(symbol=symbol, algoId=order_id)
             return client.futures_cancel_order(symbol=symbol, orderId=order_id)
         except Exception as e:
             print(f"  Cancel error {symbol} order {order_id}: {e}")
             return None
 
     def replace_stop(self, symbol, position_side, old_sl_order_id, new_sl_price, entry_price):
-        """Trail ilerledikce eski SL emrini iptal edip yenisini koyar."""
-        self.cancel_order(symbol, old_sl_order_id)
+        """Trail ilerledikce eski SL emrini iptal edip yenisini koyar (Algo API)."""
+        self.cancel_order(symbol, old_sl_order_id, algo=True)
         return self.set_tp_sl(symbol, position_side, entry_price, new_sl_price, None)
+
+    def get_open_algo_orders(self, symbol=None):
+        """Acik kosullu (algo) emirleri dondurur."""
+        client = self._get_client()
+        params = {"symbol": symbol} if symbol else {}
+        return client.futures_get_open_algo_orders(**params)
 
     def sync_open_positions(self):
         """Borsadaki gerçek açık pozisyonlari dondurur.
@@ -143,10 +153,12 @@ class BinanceTrader:
             info = client.futures_exchange_info()
             for s in info["symbols"]:
                 if s["symbol"] == symbol:
-                    step = float([f for f in s["filters"] if f["filterType"] == "LOT_SIZE"][0]["stepSize"])
+                    filters = {f["filterType"]: f for f in s["filters"]}
+                    step_str = filters["LOT_SIZE"]["stepSize"]
+                    step = float(step_str)
                     price = float(client.futures_symbol_ticker(symbol=symbol)["price"])
                     raw = usdt_size * Config.LEVERAGE / price
-                    precision = len(step.split(".")[1].rstrip("0")) if "." in step else 0
+                    precision = len(step_str.split(".")[1].rstrip("0")) if "." in step_str else 0
                     return round(raw // step * step, precision)
             return 0.001
         except Exception as e:

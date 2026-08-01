@@ -169,9 +169,9 @@ def _cancel_position_orders(sym, pos_id):
     sl_id = trailing.get_sl_order_id(pos_id)
     tp_id = trailing.get_tp_order_id(pos_id)
     if sl_id:
-        trader.cancel_order(sym, sl_id)
+        trader.cancel_order(sym, sl_id, algo=True)
     if tp_id:
-        trader.cancel_order(sym, tp_id)
+        trader.cancel_order(sym, tp_id, algo=True)
 
 def _settle_position(pos_id, exit_price, reason):
     """Exchange close basarili olduktan sonra lokal state'i kapatir (sadece bir kez)."""
