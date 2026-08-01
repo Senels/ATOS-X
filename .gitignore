@@ -13,3 +13,8 @@ data/history/*.csv
 *.html
 CloddsBot/
 .opencode/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+backend/.env
