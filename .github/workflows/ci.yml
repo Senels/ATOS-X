@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend (lint + test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install
+        run: pip install -e "backend[dev]"
+      - name: Ruff
+        run: ruff check backend
+      - name: Pytest
+        run: pytest backend/tests -q
+
+  legacy-bot:
+    name: Legacy bot (unit tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install
+        run: pip install -r legacy/bot/requirements.txt
+      - name: Unit tests
+        run: python -m unittest discover -s legacy/bot/tests

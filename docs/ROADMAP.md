@@ -5,7 +5,7 @@
 | # | Sprint | İçerik | Durum |
 |---|---|---|---|
 | 1 | Core Foundation | config, event bus, FastAPI iskeleti, DB bağlantısı, Docker | ✅ |
-| 2 | Infrastructure | TimescaleDB şemaları, Redis, alembic migration, CI | ⏳ |
+| 2 | Infrastructure | TimescaleDB şemaları, Redis, alembic migration, CI | ✅ |
 | 3 | Binance Connector | async REST (signed), websocket akışları, rate limiter | ⏳ |
 | 4 | Market Collector | kline/mark price toplama, cache, backfill | ⏳ |
 | 5 | Dashboard | React + TS + Tailwind, canlı PnL/pozisyon | ⏳ |
