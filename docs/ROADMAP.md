@@ -4,20 +4,22 @@
 
 | # | Sprint | İçerik | Durum |
 |---|---|---|---|
-| 1 | Core Foundation | config, event bus, FastAPI iskeleti, DB bağlantısı, Docker | ✅ |
-| 2 | Infrastructure | TimescaleDB şemaları, Redis, alembic migration, CI | ✅ |
-| 3 | Binance Connector | async REST (signed), websocket akışları, rate limiter | ⏳ |
-| 4 | Market Collector | kline/mark price toplama, cache, backfill | ⏳ |
-| 5 | Dashboard | React + TS + Tailwind, canlı PnL/pozisyon | ⏳ |
+| # | Sprint | İçerik | Durum |
+|---|---|---|---|
+| 1 | Core Foundation | config, FastAPI iskeleti, sqlite DB | ✅ |
+| 2 | Backtest | gerçek OHLCV motoru, toplu tarama, optimizasyon | ✅ |
+| 3 | Binance Connector | async REST (signed), websocket akışları | ✅ |
+| 4 | Market Collector | kline/mark price toplama, backfill | ⏳ |
+| 5 | Dashboard | canlı PnL/pozisyon | ⏳ |
 | 6 | Market Intelligence | rejim tespiti, volatilite, likidite analizi | ⏳ |
 | 7 | Coin Intelligence | sembol seçimi, momentum/score motoru | ⏳ |
 | 8 | Decision Council | çoklu sinyal oylaması, açıklanabilir karar | ⏳ |
 | 9 | Governor | risk limitleri, kill-switch, pozisyon boyutlandırma | ⏳ |
 | 10 | Trading | emir yönetimi, TP/SL/trailing, portföy senkronu | ⏳ |
 
-## Legacy (Eski Sistem)
+## Veri
 
-`legacy/bot/` eski momentum botudur ve yeni mimariye geçiş öncesi
-referans olarak korunur. Kritik stop-order bug'ı düzeltilmiştir
-(commit `9a09675`): girişte exchange-side SL/TP, çıkışta gerçek
-market close, restart sonrası pozisyon senkronu.
+Backtest için `legacy/data/futures_4h_data/` (ve 30m/15m/2h) yerel
+OHLCV CSV arşivi kullanılır; geri kalan eski legacy kodları
+(eski XAU bot, araştırma scriptleri, TradingView stratejileri)
+arşivden çıkarılmıştır (git geçmişinde mevcuttur).

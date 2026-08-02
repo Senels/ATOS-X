@@ -7,8 +7,6 @@
 - Reliability (güvenilirlik)
 - Explainable Decisions (açıklanabilir kararlar)
 - Event Driven Architecture
-- AI Assisted Decision Support
-- Enterprise Quality
 - Production First
 
 ## Durum
@@ -16,53 +14,49 @@
 | Bileşen | Durum |
 |---|---|
 | Sürüm | 0.1.0 |
-| Faz | Sprint 1 — Core Foundation |
-| Trading | Disabled (legacy: `legacy/bot/`) |
+| Faz | Core Foundation |
+| Trading | Disabled (testnet/manuel onay bekliyor) |
+| Backtest | Aktif (gerçek 4h OHLCV + toplu tarama + optimizasyon) |
 | AI | Disabled |
-| Governor | Disabled |
-| Risk Engine | Disabled |
 
 ## Teknoloji
 
-- Python 3.13 (yerel: 3.11+) · FastAPI · SQLAlchemy 2 (async) · Pydantic v2
-- PostgreSQL + TimescaleDB · Redis · Docker
-- Frontend (ileriki sprint): React + TypeScript + TailwindCSS
+- Python 3.11+ · FastAPI · pandas / numpy · SQLAlchemy (sqlite) · pydantic-settings
+- Binance USDⓈ-M Futures (testnet destekli), websocket canlı fiyat akışı
+- Telegram bildirimleri (opsiyonel)
 
 ## Repo Yapısı
 
 ```
-backend/        ATOS X (yeni mimari)
+backend/        ATOS X
 ├── app/
-│   ├── core/       config (pydantic-settings), event bus
-│   ├── db/         SQLAlchemy async engine/session
-│   ├── exchange/   Binance async REST + WS (Sprint 3)
-│   └── main.py     FastAPI entry + /health
-└── tests/
-frontend/       (Sprint 5)
+│   ├── api/        REST endpointler (backtest, health, settings)
+│   ├── backtest/   backtest motoru (engine.py)
+│   ├── core/       config, sqlite database
+│   ├── data/       OHLCV yükleyici (yerel CSV arşivi / Binance)
+│   ├── exchange/   Binance REST + websocket
+│   ├── notifications/  Telegram
+│   ├── optimization/   grid search
+│   ├── strategy/   sinyal motoru (tradebot_v23) + canlı otomasyon
+│   ├── websocket/  canlı fiyat akışı
+│   └── main.py     FastAPI entry
+├── scripts/      tarama (scan_backtest) + optimizasyon (optimize)
+└── tests/        pytest (31 test)
+legacy/data/    backtest için yerel OHLCV CSV arşivi (futures_4h/30m/15m/2h)
 docs/           mimari dokümanlar
-docker/         Dockerfile
-docker-compose.yml
-legacy/         eski kodlar (korunmuş)
-├── bot/        eski momentum botu (stop-order fix'li)
-├── strategies/ TradingView .pine
-└── research/   backtest/optimizasyon araçları
-scripts/  tests/  tools/  Makefile  .env.example
 ```
-
-## Roadmap
-
-1. Core Foundation ✅ · 2. Infrastructure · 3. Binance Connector · 4. Market Collector · 5. Dashboard · 6. Market Intelligence · 7. Coin Intelligence · 8. Decision Council · 9. Governor · 10. Trading
 
 ## Başlatma
 
 ```bash
-cp .env.example .env
+cp backend/.env.example backend/.env   # Binance/Telegram kimlikleri
 make install
 make test
 make dev        # http://localhost:8000/health
-# veya Docker:
-make up
 ```
+
+Backtest çalıştırmak için `legacy/data/futures_4h_data/` altında
+`<SYMBOL>_4h.csv` dosyaları gerekir (örn. `BTCUSDT_4h.csv`).
 
 ## Lisans
 
