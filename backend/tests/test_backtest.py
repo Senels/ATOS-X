@@ -21,19 +21,21 @@ def test_analyze_produces_orders(btc_df):
 
 
 def test_sl_tp_respects_rr(btc_df):
-    orders = TradeBotV23().analyze(btc_df)["orders"]
+    bot = TradeBotV23()
+    rr = float(bot.get_settings()["rr_ratio"])
+    orders = bot.analyze(btc_df)["orders"]
     long_sigs = orders[(orders["signal"] == 1) & orders["sl"].notna() & orders["tp"].notna()]
     if len(long_sigs):
         close = float(btc_df.loc[long_sigs.index[-1], "close"])
         row = long_sigs.iloc[-1]
         dist = close - row["sl"]
-        assert abs(row["tp"] - (close + dist * 1.5)) / close < 1e-6
+        assert abs(row["tp"] - (close + dist * rr)) / close < 1e-6
     short_sigs = orders[(orders["signal"] == -1) & orders["sl"].notna() & orders["tp"].notna()]
     if len(short_sigs):
         close = float(btc_df.loc[short_sigs.index[-1], "close"])
         row = short_sigs.iloc[-1]
         dist = row["sl"] - close
-        assert abs(row["tp"] - (close - dist * 1.5)) / close < 1e-6
+        assert abs(row["tp"] - (close - dist * rr)) / close < 1e-6
 
 
 def test_backtest_returns_metrics(btc_df):
