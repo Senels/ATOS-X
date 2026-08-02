@@ -32,6 +32,7 @@ def test_dashboard_has_priority_watchlist():
     assert "Priority Watchlist" in resp.text
     assert "badge-paper" in resp.text
     assert "Equity Curve" in resp.text
+    assert "PnL by Symbol" in resp.text
     client.close()
 
 
@@ -53,4 +54,14 @@ def test_equity_curve_endpoint():
     body = resp.json()
     assert isinstance(body["equity"], list)
     assert len(body["equity"]) == len(body["timestamps"])
+    client.close()
+
+
+def test_trades_summary_endpoint():
+    client = TestClient(app)
+    resp = client.get("/api/v1/trades/summary")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert isinstance(body["symbols"], list)
+    assert "count" in body
     client.close()

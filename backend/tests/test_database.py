@@ -80,3 +80,19 @@ def test_closed_trades_since_returns_only_closed(tmp_path):
     assert len(rows) == 1
     assert rows[0][1] == "BTCUSDT"
     assert rows[0][6] == 500.0
+
+
+def test_symbol_pnl_aggregates(tmp_path):
+    db = Database(str(tmp_path / "t.db"))
+    db.save_trade("BTCUSDT", "BUY", 65000.0, 0.5)
+    db.close_trade_by_symbol("BTCUSDT", 66000.0, 500.0)
+    db.save_trade("BTCUSDT", "BUY", 65000.0, 0.5)
+    db.close_trade_by_symbol("BTCUSDT", 63000.0, -200.0)
+    db.save_trade("ETHUSDT", "BUY", 3000.0, 2.0)
+    db.close_trade_by_symbol("ETHUSDT", 3300.0, 600.0)
+    db.save_trade("XRPUSDT", "BUY", 1.0, 100.0)  # OPEN, dahil edilmez
+
+    rows = db.get_symbol_pnl()
+    assert len(rows) == 2
+    assert rows[0] == {"symbol": "ETHUSDT", "trades": 1, "wins": 1, "losses": 0, "net_pnl": 600.0}
+    assert rows[1] == {"symbol": "BTCUSDT", "trades": 2, "wins": 1, "losses": 1, "net_pnl": 300.0}

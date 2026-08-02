@@ -134,6 +134,13 @@ async def equity_curve(points: int = 200):
         "open_positions": [r[2] for r in rows],
     }
 
+@app.get("/api/v1/trades/summary")
+async def trades_summary():
+    if not auto_trader:
+        return {"symbols": [], "count": 0}
+    symbols = auto_trader.db.get_symbol_pnl(limit=100)
+    return {"symbols": symbols, "count": len(symbols)}
+
 # ============ STRATEJİ AYARLARI ENDPOINT'LERİ ============
 @app.get("/api/v1/strategy/settings")
 async def get_strategy_settings():

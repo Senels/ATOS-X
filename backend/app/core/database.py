@@ -167,6 +167,27 @@ class Database:
         conn.close()
         return rows
 
+    def get_symbol_pnl(self, limit: int = 100):
+        """Kapanan islemleri sembol bazinda toplar (net PnL buyukten kucuge)."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT symbol,
+                   COUNT(*) AS trades,
+                   SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) AS wins,
+                   SUM(CASE WHEN pnl < 0 THEN 1 ELSE 0 END) AS losses,
+                   COALESCE(SUM(pnl), 0) AS net_pnl
+            FROM trades
+            WHERE status = 'CLOSED'
+            GROUP BY symbol
+            ORDER BY net_pnl DESC
+            LIMIT ?
+        ''', (int(limit),))
+        rows = cursor.fetchall()
+        conn.close()
+        cols = ["symbol", "trades", "wins", "losses", "net_pnl"]
+        return [dict(zip(cols, r)) for r in rows]
+
     def save_backtest_run(self, symbol: str, interval: str, source: str,
                           params: dict, metrics: dict):
         conn = sqlite3.connect(self.db_path)
