@@ -114,3 +114,13 @@ async def test_opposite_signal_closes(trader):
     }])
     assert "BTCUSDT" not in tr.active_positions
     assert tr.trade_history[0]["reason"] == "signal_exit"
+
+
+def test_rank_symbols_skips_missing_data(tmp_path, monkeypatch):
+    db = Database(str(tmp_path / "at.db"))
+    monkeypatch.setattr(at_mod, "Database", lambda *a, **k: db)
+    tr = at_mod.AutoTrader(FakeBinance())
+    tr.trading_symbols = ["BTCUSDT", "ETHUSDT", "NOPEUSDT"]
+    ranked = tr.rank_symbols(limit=400)
+    assert ranked
+    assert set(ranked) <= {"BTCUSDT", "ETHUSDT"}

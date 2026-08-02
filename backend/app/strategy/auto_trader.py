@@ -1,9 +1,12 @@
 ﻿import asyncio
+import time
 from datetime import datetime
+from typing import List
 from loguru import logger
 
 from app.backtest.engine import BacktestEngine
 from app.core.database import Database
+from app.data import loader
 from app.strategy import settings as strat_settings
 from app.strategy.tradebot_v23 import TradeBotV23
 
@@ -34,10 +37,49 @@ class AutoTrader:
         self.active_positions = {}
         self.trade_history = []
         self.live_prices = {}
+        self.priority: List[str] = []
+        self._last_rank = time.time()
         self.equity = float(s["initial_equity"])
         self.max_positions = int(s["max_open_positions"])
         self.scan_interval = 30
         self.scan_limit = 50
+
+    def rank_symbols(self, limit: int = 500) -> List[str]:
+        """Yerel OHLCV arsivinde backtest kalitesine gore sembol siralamasi.
+
+        Bu siralama, canli taramada ilk `scan_limit` sembolun nereden
+        secilecegini belirler. Verisi olmayan ya da yeterli islem
+        uretmeyen semboller elenir.
+        """
+        bot = TradeBotV23(strat_settings.get_settings())
+        rows = []
+        for symbol in self.trading_symbols:
+            try:
+                df = loader.load_csv(symbol, "4h", limit=limit)
+            except Exception:
+                continue
+            if len(df) < 200:
+                continue
+            try:
+                orders = bot.analyze(df)["orders"]
+                m = self.engine.run(df, orders, "4h")
+            except Exception:
+                continue
+            if m.get("total_trades", 0) < 5:
+                continue
+            rows.append((float(m.get("sharpe", 0.0) or 0.0),
+                         float(m.get("net_profit", 0.0) or 0.0),
+                         symbol))
+        rows.sort(key=lambda r: (r[0], r[1]), reverse=True)
+        return [r[2] for r in rows]
+
+    async def _refresh_ranking(self):
+        loop = asyncio.get_running_loop()
+        ranked = await loop.run_in_executor(None, self.rank_symbols)
+        if ranked:
+            self.priority = ranked
+            self._last_rank = time.time()
+            logger.info(f"Backtest oncelik listesi: {len(ranked)} sembol")
 
     def update_price(self, symbol: str, price: float):
         self.live_prices[symbol] = float(price)
@@ -47,6 +89,7 @@ class AutoTrader:
         logger.info("Otomatik islem motoru baslatildi")
         self.trading_symbols = await self.binance.load_all_symbols()
         logger.info(f"{len(self.trading_symbols)} coin taranacak")
+        asyncio.create_task(self._refresh_ranking())
 
         while self.running:
             try:
@@ -54,7 +97,13 @@ class AutoTrader:
                 all_prices = await self.binance.get_all_tickers()
                 signals = []
 
-                for symbol in self.trading_symbols[: self.scan_limit]:
+                if self.priority and time.time() - self._last_rank > 1800:
+                    asyncio.create_task(self._refresh_ranking())
+                ranked = [s for s in self.priority if s in all_prices] if self.priority else None
+                candidates = ranked[: self.scan_limit] if ranked \
+                    else self.trading_symbols[: self.scan_limit]
+
+                for symbol in candidates:
                     try:
                         klines = await self.binance.get_klines(symbol, "4h", 200)
                     except Exception:
