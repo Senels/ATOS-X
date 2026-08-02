@@ -5,6 +5,7 @@ from typing import List
 from loguru import logger
 
 from app.backtest.engine import BacktestEngine
+from app.core.config import get_settings
 from app.core.database import Database
 from app.data import loader
 from app.strategy import settings as strat_settings
@@ -18,12 +19,16 @@ class AutoTrader:
     acilip kapanan tum islemler DB'ye yazilir (acilis ve kapanis kaydi).
     Websocket'ten gelen fiyatlar `update_price` ile buraya akar, REST
     taramasi fallback olarak kalir.
+
+    `paper=True` iken emirler borsaya gitmez; sinyal fiyatindan simule
+    edilerek kaydedilir (canli riski olmadan uctan uca deneme icin).
     """
 
-    def __init__(self, binance_client, telegram=None):
+    def __init__(self, binance_client, telegram=None, paper=None):
         self.binance = binance_client
         self.db = Database()
         self.telegram = telegram
+        self.paper = get_settings().PAPER_TRADING if paper is None else bool(paper)
         s = strat_settings.get_settings()
         self.engine = BacktestEngine(
             initial_equity=s["initial_equity"],
@@ -149,6 +154,16 @@ class AutoTrader:
                     signal["sl"], signal["tp"], signal.get("reason"),
                 )
 
+    async def _submit_open(self, symbol: str, side: str, qty: float):
+        if self.paper:
+            return {"symbol": symbol, "side": side, "quantity": qty, "paper": True}
+        return await self.binance.place_market_order(symbol, side, qty)
+
+    async def _submit_close(self, symbol: str):
+        if self.paper:
+            return {"symbol": symbol, "paper": True}
+        return await self.binance.close_position(symbol)
+
     async def open_position(self, symbol: str, side: str, price: float, sl: float, tp: float, reason: str = ""):
         try:
             side = "BUY" if side == "BUY" else "SELL"
@@ -157,7 +172,7 @@ class AutoTrader:
             if qty <= 0:
                 return
 
-            order = await self.binance.place_market_order(symbol, side, qty)
+            order = await self._submit_open(symbol, side, qty)
             if order:
                 self.equity -= float(sizing["entry_fee"])
                 self.active_positions[symbol] = {
@@ -179,7 +194,7 @@ class AutoTrader:
 
     async def close_position(self, symbol: str, price: float, reason: str):
         try:
-            order = await self.binance.close_position(symbol)
+            order = await self._submit_close(symbol)
             if order:
                 pos = self.active_positions.pop(symbol, None)
                 if pos:

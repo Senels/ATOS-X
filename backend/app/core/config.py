@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     BINANCE_SECRET_KEY: str = ""
     BINANCE_TESTNET: bool = True
 
+    # Paper mod: True = emirler borsaya gitmez, simule edilir
+    PAPER_TRADING: bool = True
+
     # Telegram
     TELEGRAM_TOKEN: str = ""
     TELEGRAM_CHAT_ID: str = ""

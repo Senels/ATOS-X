@@ -84,6 +84,7 @@ async def get_status():
         "symbols": len(auto_trader.trading_symbols) if auto_trader else 0,
         "positions": len(auto_trader.active_positions) if auto_trader else 0,
         "trades": len(auto_trader.trade_history) if auto_trader else 0,
+        "paper": auto_trader.paper if auto_trader else True,
         "equity": auto_trader.equity if auto_trader else 10000
     }
 

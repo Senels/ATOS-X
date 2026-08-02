@@ -39,7 +39,7 @@ def trader(tmp_path, monkeypatch):
     db = Database(str(tmp_path / "at.db"))
     monkeypatch.setattr(at_mod, "Database", lambda *a, **k: db)
     fb = FakeBinance()
-    tr = at_mod.AutoTrader(fb)
+    tr = at_mod.AutoTrader(fb, paper=False)
     return tr, fb, db
 
 
@@ -124,3 +124,23 @@ def test_rank_symbols_skips_missing_data(tmp_path, monkeypatch):
     ranked = tr.rank_symbols(limit=400)
     assert ranked
     assert set(ranked) <= {"BTCUSDT", "ETHUSDT"}
+
+
+async def test_paper_mode_skips_exchange(tmp_path, monkeypatch):
+    db = Database(str(tmp_path / "at.db"))
+    monkeypatch.setattr(at_mod, "Database", lambda *a, **k: db)
+    fb = FakeBinance()
+    tr = at_mod.AutoTrader(fb, paper=True)
+    await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
+
+    assert "BTCUSDT" in tr.active_positions
+    assert fb.open_calls == []  # emir borsaya gitmedi
+    rows = db.get_trades(limit=10)
+    assert len(rows) == 1
+    assert rows[0][7] == "OPEN"
+
+    tr.update_price("BTCUSDT", 62900.0)
+    await tr.check_positions({})
+    assert "BTCUSDT" not in tr.active_positions
+    assert fb.close_calls == []  # kapanis da simule edildi
+    assert tr.trade_history[0]["reason"] == "stop_loss"
