@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from datetime import datetime
+from pathlib import Path
 
 from app.core.config import get_settings
 from app.core.database import Database
@@ -19,6 +20,7 @@ from app.notifications.telegram import TelegramNotifier
 
 load_dotenv()
 settings = get_settings()
+_APP_DIR = Path(__file__).resolve().parent
 
 ws = BinanceWebSocket()
 telegram = TelegramNotifier()
@@ -145,7 +147,7 @@ async def metrics():
 @app.get("/dashboard/html")
 async def dashboard_html():
     try:
-        with open("app/dashboard.html", "r", encoding="utf-8") as f:
+        with open(_APP_DIR / "dashboard.html", "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
     except:
         return HTMLResponse(content="<h1>Dashboard not found</h1>")
@@ -153,7 +155,7 @@ async def dashboard_html():
 @app.get("/dashboard/settings")
 async def settings_html():
     try:
-        with open("app/strategy_settings.html", "r", encoding="utf-8") as f:
+        with open(_APP_DIR / "strategy_settings.html", "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
     except:
         return HTMLResponse(content="<h1>Settings not found</h1>")

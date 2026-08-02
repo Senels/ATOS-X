@@ -60,7 +60,7 @@ class Database:
         ''')
         conn.commit()
         conn.close()
-        print("✅ Veritabanı hazır")
+        print("Veritabani hazir")
 
     def save_trade(self, symbol: str, side: str, entry_price: float, quantity: float):
         conn = sqlite3.connect(self.db_path)
