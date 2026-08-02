@@ -154,6 +154,19 @@ class Database:
         rows.reverse()
         return rows
 
+    def get_closed_trades_since(self, days: int = 1):
+        """Son `days` gun icinde kapanan islemler (gunluk rapor icin)."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT * FROM trades
+            WHERE status = 'CLOSED' AND exit_time >= datetime('now', ?)
+            ORDER BY exit_time DESC
+        ''', (f"-{int(days)} days",))
+        rows = cursor.fetchall()
+        conn.close()
+        return rows
+
     def save_backtest_run(self, symbol: str, interval: str, source: str,
                           params: dict, metrics: dict):
         conn = sqlite3.connect(self.db_path)

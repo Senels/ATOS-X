@@ -68,3 +68,15 @@ def test_backtest_runs_filter_by_symbol(tmp_path):
     runs = db.get_backtest_runs(limit=10, symbol="ETHUSDT")
     assert len(runs) == 1
     assert runs[0]["symbol"] == "ETHUSDT"
+
+
+def test_closed_trades_since_returns_only_closed(tmp_path):
+    db = Database(str(tmp_path / "t.db"))
+    db.save_trade("BTCUSDT", "BUY", 65000.0, 0.5)
+    db.close_trade_by_symbol("BTCUSDT", 66000.0, 500.0)
+    db.save_trade("ETHUSDT", "BUY", 3000.0, 2.0)  # hala OPEN
+
+    rows = db.get_closed_trades_since(days=1)
+    assert len(rows) == 1
+    assert rows[0][1] == "BTCUSDT"
+    assert rows[0][6] == 500.0

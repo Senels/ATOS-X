@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     # Paper mod: True = emirler borsaya gitmez, simule edilir
     PAPER_TRADING: bool = True
 
+    # Gunluk Telegram ozet raporu (yerel saat, 0-23)
+    DAILY_REPORT_HOUR: int = 21
+
     # Telegram
     TELEGRAM_TOKEN: str = ""
     TELEGRAM_CHAT_ID: str = ""

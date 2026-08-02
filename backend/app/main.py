@@ -1,12 +1,13 @@
 ﻿import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from datetime import datetime
 from pathlib import Path
+from loguru import logger
 
 from app.core.config import get_settings
 from app.core.database import Database
@@ -25,11 +26,12 @@ _APP_DIR = Path(__file__).resolve().parent
 ws = BinanceWebSocket()
 telegram = TelegramNotifier()
 auto_trader = None
+daily_report_task = None
 system_status = {"status": "initializing", "start_time": datetime.utcnow()}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    global auto_trader
+    global auto_trader, daily_report_task
     system_status["status"] = "starting"
     strat_settings.load()
 
@@ -48,10 +50,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await ws.start(symbols)
 
     system_status["status"] = "online"
+    daily_report_task = asyncio.create_task(_daily_report_loop())
     await telegram.send(f"ATOS X v{settings.APP_VERSION} baslatildi!")
 
     yield
     system_status["status"] = "shutting_down"
+    if daily_report_task:
+        daily_report_task.cancel()
     await auto_trader.stop()
     await ws.stop()
     await app.state.binance.close()
@@ -59,6 +64,26 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 async def on_price_update(symbol: str, price: float):
     if auto_trader:
         auto_trader.update_price(symbol, price)
+
+async def _daily_report_loop():
+    """Her gun `DAILY_REPORT_HOUR` saatinde (yerel) ozet raporu gonderir."""
+    while True:
+        now = datetime.now()
+        target = now.replace(hour=settings.DAILY_REPORT_HOUR, minute=0, second=0, microsecond=0)
+        if now >= target:
+            target += timedelta(days=1)
+        await asyncio.sleep((target - now).total_seconds())
+        try:
+            if auto_trader:
+                trades = auto_trader.db.get_closed_trades_since(days=1)
+                await telegram.send_daily_summary(
+                    trades,
+                    auto_trader.equity,
+                    auto_trader.active_positions,
+                    auto_trader.top_symbols,
+                )
+        except Exception as e:
+            logger.error(f"Gunluk rapor hatasi: {e}")
 
 app = FastAPI(title="ATOS X API", version="1.0.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])

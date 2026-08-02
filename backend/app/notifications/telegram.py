@@ -56,3 +56,28 @@ class TelegramNotifier:
         msg += f"Win Rate: {metrics.get('win_rate', 0)*100:.1f}%\n"
         msg += f"Status: {metrics.get('status', 'unknown')}"
         await self.send(msg)
+
+    async def send_daily_summary(self, trades, equity, open_positions, top_symbols=None):
+        await self.send(format_daily_summary(trades, equity, open_positions, top_symbols))
+
+
+def format_daily_summary(trades, equity, open_positions, top_symbols=None) -> str:
+    """Gunluk ozet rapor metnini kurar. trades satirlari DB trades kolonlaridir."""
+    closed = [t for t in trades if t[6] is not None]
+    wins = sum(1 for t in closed if t[6] > 0)
+    losses = sum(1 for t in closed if t[6] < 0)
+    pnl = sum(t[6] for t in closed)
+    win_rate = wins / len(closed) * 100 if closed else 0.0
+    best = max(closed, key=lambda t: t[6]) if closed else None
+
+    msg = "📊 <b>ATOS X Gunluk Ozet</b>\n"
+    msg += f"Equity: <b>${equity:.2f}</b>\n"
+    msg += f"Kapanan islem: {len(closed)} ({wins}W/{losses}L)\n"
+    msg += f"Win Rate: {win_rate:.1f}%\n"
+    msg += f"Gunluk PnL: <b>{'+' if pnl >= 0 else ''}{pnl:.2f}</b>\n"
+    if best:
+        msg += f"En iyi: {best[1]} {('+' if best[6] >= 0 else '')}{best[6]:.2f}\n"
+    msg += f"Acik pozisyon: {len(open_positions) if open_positions else 0}"
+    if top_symbols:
+        msg += f"\nTarama: {', '.join(top_symbols[:8])}"
+    return msg
