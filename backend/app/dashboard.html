@@ -38,6 +38,8 @@ tr:hover { background:rgba(59,130,246,0.05); }
 .badge-buy { background:#22c55e; color:white; padding:2px 10px; border-radius:12px; font-size:12px; }
 .badge-sell { background:#ef4444; color:white; padding:2px 10px; border-radius:12px; font-size:12px; }
 .badge-hold { background:#f59e0b; color:#0f172a; padding:2px 10px; border-radius:12px; font-size:12px; }
+.badge-paper { background:#8b5cf6; color:white; padding:2px 10px; border-radius:12px; font-size:12px; }
+.chip { background:#334155; color:#e2e8f0; padding:4px 10px; border-radius:12px; font-size:12px; }
 .refresh-info { font-size:12px; color:#64748b; margin-top:8px; text-align:right; }
 </style>
 </head>
@@ -47,6 +49,7 @@ tr:hover { background:rgba(59,130,246,0.05); }
 <h1>🚀 ATOS X</h1>
 <div class="header-right">
 <span id="statusBadge"><span class="status-dot status-online"></span>ONLINE</span>
+<span id="paperBadge" style="display:none"><span class="badge-paper">PAPER</span></span>
 <a href="/dashboard/settings" class="settings-link">⚙️ Settings</a>
 <button class="btn" onclick="refresh()">🔄 Refresh</button>
 <button class="btn btn-red" onclick="emergencyStop()">🛑 Stop</button>
@@ -59,6 +62,7 @@ tr:hover { background:rgba(59,130,246,0.05); }
 <div class="stat-box"><div class="label">Equity</div><div class="value green" id="equity">$10k</div></div>
 <div class="stat-box"><div class="label">Status</div><div class="value green" id="statusText">Active</div></div>
 </div>
+<div class="card"><h3>🎯 Priority Watchlist</h3><div id="watchlistBody" style="display:flex;flex-wrap:wrap;gap:6px;">-</div></div>
 <div class="card"><h3>📊 Active Positions</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Qty</th><th>SL</th><th>TP</th><th>Time</th></tr></thead><tbody id="positionsBody"><tr><td colspan="7" style="text-align:center;color:#64748b;padding:20px;">No active positions</td></tr></tbody></table></div></div>
 <div class="card"><h3>📋 Trade History</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Exit</th><th>PnL</th><th>Reason</th><th>Time</th></tr></thead><tbody id="tradesBody"><tr><td colspan="7" style="text-align:center;color:#64748b;padding:20px;">No trades yet</td></tr></tbody></table></div></div>
 <div class="refresh-info" id="lastUpdate">Last update: -</div>
@@ -74,6 +78,11 @@ document.getElementById('positions').textContent = d.active_positions || 0;
 document.getElementById('totalTrades').textContent = d.total_trades || 0;
 document.getElementById('equity').textContent = '$' + (d.equity || 10000).toLocaleString();
 document.getElementById('statusText').textContent = d.status || 'Active';
+document.getElementById('paperBadge').style.display = d.paper ? 'inline' : 'none';
+const wl = document.getElementById('watchlistBody');
+if (d.top_symbols && d.top_symbols.length > 0) {
+wl.innerHTML = d.top_symbols.map(function(s) { return '<span class="chip">'+s+'</span>'; }).join('');
+} else { wl.textContent = '-'; }
 const posBody = document.getElementById('positionsBody');
 if (d.positions && Object.keys(d.positions).length > 0) {
 posBody.innerHTML = '';

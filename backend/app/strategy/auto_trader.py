@@ -43,6 +43,7 @@ class AutoTrader:
         self.trade_history = []
         self.live_prices = {}
         self.priority: List[str] = []
+        self.top_symbols: List[str] = []
         self._last_rank = time.time()
         self.equity = float(s["initial_equity"])
         self.max_positions = int(s["max_open_positions"])
@@ -83,8 +84,12 @@ class AutoTrader:
         ranked = await loop.run_in_executor(None, self.rank_symbols)
         if ranked:
             self.priority = ranked
+            self.top_symbols = ranked[: self.scan_limit]
             self._last_rank = time.time()
-            logger.info(f"Backtest oncelik listesi: {len(ranked)} sembol")
+            logger.info(
+                f"Backtest oncelik listesi: {len(ranked)} sembol, "
+                f"tarama secimi: {', '.join(self.top_symbols[:10])}"
+            )
 
     def update_price(self, symbol: str, price: float):
         self.live_prices[symbol] = float(price)

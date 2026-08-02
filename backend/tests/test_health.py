@@ -23,3 +23,23 @@ def test_dashboard_pages():
         assert resp.status_code == 200
         assert marker in resp.text, f"{path} dosyasi bulunamadi"
     client.close()
+
+
+def test_dashboard_has_priority_watchlist():
+    client = TestClient(app)
+    resp = client.get("/dashboard/html")
+    assert resp.status_code == 200
+    assert "Priority Watchlist" in resp.text
+    assert "badge-paper" in resp.text
+    client.close()
+
+
+def test_priority_endpoint():
+    client = TestClient(app)
+    resp = client.get("/api/v1/priority")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "count" in body
+    assert isinstance(body["symbols"], list)
+    assert isinstance(body["scanned"], list)
+    client.close()

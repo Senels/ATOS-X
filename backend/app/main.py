@@ -85,7 +85,18 @@ async def get_status():
         "positions": len(auto_trader.active_positions) if auto_trader else 0,
         "trades": len(auto_trader.trade_history) if auto_trader else 0,
         "paper": auto_trader.paper if auto_trader else True,
+        "top_symbols": auto_trader.top_symbols if auto_trader else [],
         "equity": auto_trader.equity if auto_trader else 10000
+    }
+
+@app.get("/api/v1/priority")
+async def get_priority():
+    if not auto_trader:
+        return {"count": 0, "symbols": []}
+    return {
+        "count": len(auto_trader.priority),
+        "scanned": auto_trader.top_symbols,
+        "symbols": auto_trader.priority,
     }
 
 # ============ STRATEJİ AYARLARI ENDPOINT'LERİ ============
@@ -139,6 +150,8 @@ async def metrics():
             "active_positions": len(auto_trader.active_positions) if auto_trader else 0,
             "total_trades": len(auto_trader.trade_history) if auto_trader else 0,
             "equity": auto_trader.equity if auto_trader else 10000,
+            "paper": auto_trader.paper if auto_trader else True,
+            "top_symbols": auto_trader.top_symbols if auto_trader else [],
             "positions": auto_trader.active_positions if auto_trader else {},
             "uptime": int((datetime.utcnow() - system_status["start_time"]).total_seconds())
         }
