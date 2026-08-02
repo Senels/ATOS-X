@@ -49,6 +49,8 @@ class AutoTrader:
         self.max_positions = int(s["max_open_positions"])
         self.scan_interval = 30
         self.scan_limit = 50
+        self.perf_interval = 60
+        self._last_perf = 0.0
 
     def rank_symbols(self, limit: int = 500) -> List[str]:
         """Yerel OHLCV arsivinde backtest kalitesine gore sembol siralamasi.
@@ -242,7 +244,14 @@ class AutoTrader:
                 await self.close_position(symbol, pos["tp"], "take_profit")
 
     async def update_equity(self):
-        self.db.save_performance(self.equity, len(self.active_positions), len(self.trade_history), 0)
+        now = time.monotonic()
+        if now - self._last_perf < self.perf_interval:
+            return
+        self._last_perf = now
+        closed = self.trade_history
+        wins = sum(1 for t in closed if t.get("pnl", 0) > 0)
+        win_rate = wins / len(closed) * 100 if closed else 0.0
+        self.db.save_performance(self.equity, len(self.active_positions), len(self.trade_history), win_rate)
 
     async def stop(self):
         self.running = False

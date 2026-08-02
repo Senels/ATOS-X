@@ -144,3 +144,25 @@ async def test_paper_mode_skips_exchange(tmp_path, monkeypatch):
     assert "BTCUSDT" not in tr.active_positions
     assert fb.close_calls == []  # kapanis da simule edildi
     assert tr.trade_history[0]["reason"] == "stop_loss"
+
+
+async def test_update_equity_throttles(trader):
+    tr, fb, db = trader
+    tr.perf_interval = 3600
+    await tr.update_equity()
+    await tr.update_equity()
+    await tr.update_equity()
+    rows = db.get_performance_series(10)
+    assert len(rows) == 1
+
+
+async def test_update_equity_computes_win_rate(trader):
+    tr, fb, db = trader
+    tr.perf_interval = 0
+    tr.trade_history = [
+        {"pnl": 100.0}, {"pnl": -50.0}, {"pnl": 25.0},
+    ]
+    await tr.update_equity()
+    rows = db.get_performance(limit=10)
+    assert len(rows) == 1
+    assert rows[0][5] == pytest.approx(66.67, abs=0.01)  # 2/3 kazancli
