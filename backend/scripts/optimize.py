@@ -16,6 +16,7 @@ import pandas as pd
 
 from app.optimization.search import DEFAULT_GRID, GridSearch, best_settings_to_file
 from app.data import loader
+from app.data.loader import is_stablecoin_symbol
 from app.strategy import settings as strat_settings
 
 
@@ -33,7 +34,7 @@ def main():
     parser.add_argument("--grid", default="", help="Grid JSON dosyasi (bos = DEFAULT_GRID)")
     args = parser.parse_args()
 
-    symbols = loader.list_symbols(args.interval)[: args.symbols]
+    symbols = [s for s in loader.list_symbols(args.interval) if not is_stablecoin_symbol(s)][: args.symbols]
     if not symbols:
         print("Sembol bulunamadi.")
         return

@@ -16,6 +16,7 @@ import pandas as pd
 
 from app.backtest.engine import BacktestEngine
 from app.data import loader
+from app.data.loader import is_stablecoin_symbol
 from app.strategy import settings as strat_settings
 from app.strategy.tradebot_v23 import TradeBotV23
 
@@ -49,7 +50,7 @@ def main():
     parser.add_argument("--out", default="", help="CSV/JSON cikti dosyasi (bos = yok)")
     args = parser.parse_args()
 
-    all_symbols = loader.list_symbols(args.interval)
+    all_symbols = [s for s in loader.list_symbols(args.interval) if not is_stablecoin_symbol(s)]
     if args.symbols and args.symbols > 0:
         symbols = all_symbols[: args.symbols]
     else:

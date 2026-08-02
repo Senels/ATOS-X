@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 load_dotenv()
 
+from app.data.loader import is_stablecoin_symbol
+
 class BinanceClient:
     def __init__(self):
         self.api_key = os.getenv("BINANCE_API_KEY", "")
@@ -32,7 +34,11 @@ class BinanceClient:
             if not self.client:
                 await self.connect()
             exchange_info = self.client.futures_exchange_info()
-            self.all_symbols = [s['symbol'] for s in exchange_info['symbols'] if s['symbol'].endswith('USDT') and s['status'] == 'TRADING']
+            self.all_symbols = [
+                s['symbol'] for s in exchange_info['symbols']
+                if s['symbol'].endswith('USDT') and s['status'] == 'TRADING'
+                and not is_stablecoin_symbol(s['symbol'])
+            ]
             print(f"[BINANCE] {len(self.all_symbols)} USDT cifti yuklendi")
             return self.all_symbols
         except Exception as e:

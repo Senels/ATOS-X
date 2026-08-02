@@ -7,6 +7,22 @@ import pandas as pd
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_DATA_DIR = REPO_ROOT / "legacy" / "data"
 
+STABLECOIN_BASES = {
+    "USDT", "USDC", "DAI", "FDUSD", "TUSD", "BUSD", "USDE", "USD1",
+    "PYUSD", "EURI", "EUR", "EURV", "USDP", "GUSD", "LUSD", "FRAX", "TETHER",
+}
+
+
+def is_stablecoin_symbol(symbol: str) -> bool:
+    """Sembolun baz varliginin stablecoin olup olmadigini dondurur.
+
+    Orn: USDCUSDT -> True, 1000PEPEUSDT -> False, XAUUSDT -> False.
+    """
+    base = symbol[:-4] if symbol.endswith("USDT") else symbol
+    while base and base[0].isdigit():
+        base = base[1:]
+    return base in STABLECOIN_BASES
+
 
 def _data_dir(interval: str, data_dir: str | None = None) -> Path:
     if data_dir:

@@ -1,0 +1,9 @@
+{
+  "rangefilt_length": 2,
+  "range_filt_mult": 2.0,
+  "signal_expiry": 1,
+  "rr_ratio": 1.0,
+  "sl_lookback": 5,
+  "_objective_score": 28.7028,
+  "_symbols_count": 10
+}
