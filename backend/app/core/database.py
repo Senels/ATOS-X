@@ -141,6 +141,19 @@ class Database:
         conn.close()
         return perfs
 
+    def get_performance_series(self, limit: int = 200):
+        """Equity egrisi icin en eski -> en yeni sirada (timestamp, equity, open_positions)."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT timestamp, equity, open_positions FROM performance
+            ORDER BY timestamp DESC LIMIT ?
+        ''', (limit,))
+        rows = cursor.fetchall()
+        conn.close()
+        rows.reverse()
+        return rows
+
     def save_backtest_run(self, symbol: str, interval: str, source: str,
                           params: dict, metrics: dict):
         conn = sqlite3.connect(self.db_path)

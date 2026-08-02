@@ -99,6 +99,16 @@ async def get_priority():
         "symbols": auto_trader.priority,
     }
 
+@app.get("/api/v1/equity_curve")
+async def equity_curve(points: int = 200):
+    points = max(10, min(points, 1000))
+    rows = auto_trader.db.get_performance_series(points) if auto_trader else []
+    return {
+        "timestamps": [r[0] for r in rows],
+        "equity": [r[1] for r in rows],
+        "open_positions": [r[2] for r in rows],
+    }
+
 # ============ STRATEJİ AYARLARI ENDPOINT'LERİ ============
 @app.get("/api/v1/strategy/settings")
 async def get_strategy_settings():

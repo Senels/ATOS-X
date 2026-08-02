@@ -31,6 +31,7 @@ def test_dashboard_has_priority_watchlist():
     assert resp.status_code == 200
     assert "Priority Watchlist" in resp.text
     assert "badge-paper" in resp.text
+    assert "Equity Curve" in resp.text
     client.close()
 
 
@@ -42,4 +43,14 @@ def test_priority_endpoint():
     assert "count" in body
     assert isinstance(body["symbols"], list)
     assert isinstance(body["scanned"], list)
+    client.close()
+
+
+def test_equity_curve_endpoint():
+    client = TestClient(app)
+    resp = client.get("/api/v1/equity_curve?points=50")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert isinstance(body["equity"], list)
+    assert len(body["equity"]) == len(body["timestamps"])
     client.close()
