@@ -18,3 +18,5 @@ CloddsBot/
 .ruff_cache/
 .mypy_cache/
 backend/.env
+
+*.db

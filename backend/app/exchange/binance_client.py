@@ -1,79 +1,113 @@
-from typing import Any
+﻿import asyncio
+import os
+import urllib3
+import pandas as pd
+from binance.client import Client
+from dotenv import load_dotenv
 
-import aiohttp
-
-from app.core.config import get_settings
-
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+load_dotenv()
 
 class BinanceClient:
-    """Async Binance USDM Futures REST client (public endpoints only)."""
+    def __init__(self):
+        self.api_key = os.getenv("BINANCE_API_KEY", "")
+        self.api_secret = os.getenv("BINANCE_SECRET_KEY", "")
+        self.testnet = os.getenv("BINANCE_TESTNET", "True").lower() == "true"
+        self.client = None
+        self.last_price = 62789.2
+        self.all_symbols = []
 
-    def __init__(self) -> None:
-        self._settings = get_settings()
-        self._session: aiohttp.ClientSession | None = None
+    async def connect(self):
+        try:
+            self.client = Client(self.api_key, self.api_secret, testnet=self.testnet, requests_params={'verify': False, 'timeout': 30})
+            print("[BINANCE] testnet baglandi")
+            await self.load_all_symbols()
+            return True
+        except Exception as e:
+            print(f"[BINANCE] baglanti hatasi: {e}")
+            return False
 
-    async def _get_session(self) -> aiohttp.ClientSession:
-        if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession(
-                headers={"User-Agent": "atosx/0.1"},
-                timeout=aiohttp.ClientTimeout(total=15),
+    async def load_all_symbols(self):
+        try:
+            if not self.client:
+                await self.connect()
+            exchange_info = self.client.futures_exchange_info()
+            self.all_symbols = [s['symbol'] for s in exchange_info['symbols'] if s['symbol'].endswith('USDT') and s['status'] == 'TRADING']
+            print(f"[BINANCE] {len(self.all_symbols)} USDT cifti yuklendi")
+            return self.all_symbols
+        except Exception as e:
+            print(f"[BINANCE] sembol yukleme hatasi: {e}")
+            return ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT"]
+
+    async def get_all_tickers(self):
+        try:
+            if not self.client:
+                await self.connect()
+            tickers = self.client.futures_ticker()
+            return {t['symbol']: float(t['lastPrice']) for t in tickers if t['symbol'].endswith('USDT')}
+        except Exception as e:
+            print(f"[BINANCE] ticker hatasi: {e}")
+            return {}
+
+    async def get_price(self, symbol: str = "BTCUSDT") -> float:
+        if not self.client:
+            await self.connect()
+        try:
+            ticker = self.client.futures_ticker(symbol=symbol)
+            price = ticker.get('price') or ticker.get('lastPrice') or ticker.get('bidPrice')
+            if price is not None:
+                self.last_price = float(price)
+                return self.last_price
+            return self.last_price
+        except Exception as e:
+            return self.last_price
+
+    async def get_klines(self, symbol: str = "BTCUSDT", interval: str = "1h",
+                         limit: int = 1000) -> pd.DataFrame:
+        """Binance futures kline'larini OHLCV DataFrame olarak dondurur.
+
+        Sutunlar: open, high, low, close, volume (index = utc datetime).
+        Public endpoint - API anahtari gerektirmez.
+        """
+        if not self.client:
+            await self.connect()
+        loop = asyncio.get_running_loop()
+        try:
+            raw = await loop.run_in_executor(
+                None,
+                lambda: self.client.futures_klines(symbol=symbol, interval=interval, limit=limit),
             )
-        return self._session
+        except Exception as e:
+            raise Exception(f"Kline cekilemedi {symbol} {interval}: {e}")
+        df = pd.DataFrame(raw).iloc[:, :6]
+        df.columns = ["open_time", "open", "high", "low", "close", "volume"]
+        for col in ["open", "high", "low", "close", "volume"]:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+        df["datetime"] = pd.to_datetime(df["open_time"], unit="ms", utc=True)
+        df = df.set_index("datetime")
+        return df[["open", "high", "low", "close", "volume"]]
 
-    async def close(self) -> None:
-        if self._session is not None and not self._session.closed:
-            await self._session.close()
+    async def place_market_order(self, symbol: str, side: str, quantity: float):
+        if not self.client:
+            await self.connect()
+        try:
+            return self.client.futures_create_order(symbol=symbol, side=side.upper(), type='MARKET', quantity=quantity)
+        except Exception as e:
+            raise Exception(f"Emir gönderilemedi: {e}")
 
-    async def get(self, path: str, params: dict[str, Any] | None = None) -> Any:
-        session = await self._get_session()
-        url = f"{self._settings.BINANCE_REST_BASE}{path}"
-        async with session.get(url, params=params) as resp:
-            resp.raise_for_status()
-            return await resp.json()
+    async def close_position(self, symbol: str):
+        if not self.client:
+            await self.connect()
+        try:
+            position = self.client.futures_position_information(symbol=symbol)
+            if position and float(position[0]['positionAmt']) != 0:
+                qty = abs(float(position[0]['positionAmt']))
+                side = 'SELL' if float(position[0]['positionAmt']) > 0 else 'BUY'
+                return self.client.futures_create_order(symbol=symbol, side=side, type='MARKET', quantity=qty, reduceOnly=True)
+            return None
+        except Exception as e:
+            raise Exception(f"Pozisyon kapatma hatası: {e}")
 
-    async def exchange_info(self) -> dict[str, Any]:
-        data = await self.get("/fapi/v1/exchangeInfo")
-        symbols = {}
-        for s in data.get("symbols", []):
-            filters = {f["filterType"]: f for f in s.get("filters", [])}
-            step = float(filters.get("LOT_SIZE", {}).get("stepSize", 0.001))
-            tick = float(filters.get("PRICE_FILTER", {}).get("tickSize", 0.01))
-            symbols[s["symbol"]] = {"step_size": step, "tick_size": tick}
-        return symbols
-
-    async def klines(self, symbol: str, interval: str, limit: int = 500) -> list[dict[str, Any]]:
-        data = await self.get(
-            "/fapi/v1/klines",
-            {"symbol": symbol, "interval": interval, "limit": limit},
-        )
-        return [
-            {
-                "open_time": int(k[0]),
-                "open": float(k[1]),
-                "high": float(k[2]),
-                "low": float(k[3]),
-                "close": float(k[4]),
-                "volume": float(k[5]),
-                "close_time": int(k[6]),
-                "quote_volume": float(k[7]),
-                "trades": int(k[8]),
-            }
-            for k in data
-        ]
-
-    async def mark_price(self, symbol: str) -> float:
-        data = await self.get("/fapi/v1/premiumIndex", {"symbol": symbol})
-        return float(data.get("markPrice", 0))
-
-
-class BinanceStreamClient:
-    """Websocket stream client (Sprint 3: aggregate trades, mark price, user data)."""
-
-    def __init__(self) -> None:
-        self._settings = get_settings()
-
-    def stream_url(self, stream: str) -> str:
-        return f"{self._settings.BINANCE_WS_BASE}/ws/{stream}"
-
-    async def watch(self, streams: list[str], handler) -> None:
-        raise NotImplementedError("Sprint 3: websocket feed pipeline")
+    async def close(self):
+        if self.client:
+            self.client.close_connection()

@@ -1,0 +1,358 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+<title>ATOS X - Strategy Manager</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0f172a; color:#f1f5f9; font-family:'Segoe UI',Arial,sans-serif; padding:16px; }
+.container { max-width:1600px; margin:0 auto; }
+.header { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid #1e293b; }
+.header h1 { font-size:28px; background:linear-gradient(135deg,#f59e0b,#3b82f6); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.header-right { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.btn { background:#3b82f6; border:none; color:white; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:13px; }
+.btn:hover { background:#2563eb; }
+.btn-green { background:#22c55e; }
+.btn-green:hover { background:#16a34a; }
+.btn-yellow { background:#f59e0b; color:#0f172a; }
+.btn-yellow:hover { background:#d97706; }
+.back-link { color:#3b82f6; text-decoration:none; font-size:13px; }
+.back-link:hover { text-decoration:underline; }
+.tabs { display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
+.tab { background:#1e293b; border:1px solid #334155; color:#94a3b8; padding:8px 20px; border-radius:8px; cursor:pointer; font-size:13px; }
+.tab:hover { border-color:#3b82f6; color:#f1f5f9; }
+.tab.active { background:#3b82f6; color:white; border-color:#3b82f6; }
+.panel { display:none; }
+.panel.active { display:block; }
+.settings-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(380px,1fr)); gap:16px; margin-bottom:20px; }
+.settings-card { background:#1e293b; padding:16px; border-radius:12px; border:1px solid #334155; }
+.settings-card h3 { font-size:15px; margin-bottom:12px; color:#f59e0b; border-bottom:1px solid #334155; padding-bottom:8px; }
+.setting-item { display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid rgba(51,65,85,0.3); }
+.setting-item .label { font-size:12px; color:#cbd5e1; }
+.setting-item .value { font-size:12px; font-weight:bold; }
+.setting-item select, .setting-item input[type="number"] { background:#0f172a; color:#f1f5f9; border:1px solid #334155; border-radius:4px; padding:4px 8px; font-size:12px; width:130px; }
+.setting-item select:focus, .setting-item input:focus { border-color:#3b82f6; outline:none; }
+.badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:bold; }
+.badge-on { background:#22c55e; color:white; }
+.badge-off { background:#ef4444; color:white; }
+.badge-active { background:#3b82f6; color:white; }
+.toggle-btn { background:#1e293b; border:1px solid #334155; color:#94a3b8; padding:2px 12px; border-radius:4px; cursor:pointer; font-size:11px; }
+.toggle-btn:hover { border-color:#3b82f6; }
+.toggle-btn.on { background:#22c55e; color:white; border-color:#22c55e; }
+.toggle-btn.off { background:#ef4444; color:white; border-color:#ef4444; }
+.card { background:#1e293b; padding:16px; border-radius:12px; border:1px solid #334155; margin-bottom:16px; }
+.card h3 { margin-bottom:12px; font-size:16px; }
+.signal-log { max-height:150px; overflow-y:auto; font-size:12px; background:#0f172a; padding:10px; border-radius:6px; }
+.signal-log .buy { color:#22c55e; }
+.signal-log .sell { color:#ef4444; }
+.signal-log .time { color:#64748b; }
+.table-wrap { overflow-x:auto; }
+table { width:100%; font-size:12px; border-collapse:collapse; }
+th,td { padding:6px 8px; text-align:left; border-bottom:1px solid #1e293b; }
+th { color:#94a3b8; font-weight:500; font-size:10px; text-transform:uppercase; }
+.refresh-info { font-size:11px; color:#64748b; margin-top:8px; text-align:right; }
+.status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+.status-online { background:#22c55e; }
+.status-offline { background:#ef4444; }
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+<h1>⚙️ Strategy Manager</h1>
+<div class="header-right">
+<span id="statusBadge"><span class="status-dot status-online"></span>ONLINE</span>
+<a href="/dashboard/html" class="back-link">← Dashboard</a>
+<button class="btn btn-green" onclick="saveAll()">💾 Save</button>
+<button class="btn btn-yellow" onclick="loadDefaults()">↺ Defaults</button>
+<button class="btn" onclick="refresh()">🔄 Refresh</button>
+</div>
+</div>
+
+<div class="tabs">
+<button class="tab active" onclick="showTab('strategy')">📊 Strategy</button>
+<button class="tab" onclick="showTab('tpsl')">🎯 TP/SL</button>
+<button class="tab" onclick="showTab('confirmations')">✅ Confirmations</button>
+<button class="tab" onclick="showTab('status')">📡 Status</button>
+</div>
+
+<div id="tab-strategy" class="panel active">
+<div class="settings-card">
+<h3>📊 Strategy Settings</h3>
+<div class="setting-item"><span class="label">Leading Indicator</span>
+<select id="s_leading">
+<option value="Range Filter">Range Filter</option>
+<option value="RQK">Rational Quadratic Kernel (RQK)</option>
+<option value="Supertrend">Supertrend</option>
+<option value="MACD">MACD</option>
+<option value="RSI">RSI</option>
+<option value="Stochastic">Stochastic</option>
+<option value="Ichimoku">Ichimoku Cloud</option>
+<option value="SSL Channel">SSL Channel</option>
+<option value="VWAP">VWAP</option>
+<option value="2 EMA Cross">2 EMA Cross</option>
+<option value="3 EMA Cross">3 EMA Cross</option>
+</select></div>
+<div class="setting-item"><span class="label">Signal Expiry (Candles)</span>
+<input type="number" id="s_expiry" value="3" min="1" max="10"></div>
+<div class="setting-item"><span class="label">Alternate Signal</span>
+<button class="toggle-btn on" id="s_alternate" onclick="toggleButton(this)">ON</button></div>
+<div class="setting-item"><span class="label">Show Signal on Chart</span>
+<button class="toggle-btn on" id="s_showsignal" onclick="toggleButton(this)">ON</button></div>
+<div class="setting-item"><span class="label">Show Dashboard</span>
+<button class="toggle-btn on" id="s_dashboard" onclick="toggleButton(this)">ON</button></div>
+<div class="setting-item"><span class="label">Dashboard Position</span>
+<select id="s_dashpos"><option value="top-left">top-left</option><option value="top-right">top-right</option><option value="bottom-left">bottom-left</option><option value="bottom-right" selected>bottom-right</option></select></div>
+<div class="setting-item"><span class="label">Dashboard Size</span>
+<select id="s_dashsize"><option value="Tiny">Tiny</option><option value="Small">Small</option><option value="Normal" selected>Normal</option><option value="Large">Large</option><option value="Huge">Huge</option></select></div>
+</div>
+</div>
+
+<div id="tab-tpsl" class="panel">
+<div class="settings-card">
+<h3>🎯 Take Profit / Stop Loss</h3>
+<div class="setting-item"><span class="label">RR Ratio</span>
+<input type="number" id="s_rr" value="1.5" min="0.5" max="10" step="0.5"></div>
+<div class="setting-item"><span class="label">SL Swing Lookback</span>
+<input type="number" id="s_sl_lookback" value="5" min="2" max="50"></div>
+<div class="setting-item"><span class="label">ATR Fallback</span>
+<button class="toggle-btn on" id="s_atr_fallback" onclick="toggleButton(this)">ON</button></div>
+<div class="setting-item"><span class="label">ATR Multiplier</span>
+<input type="number" id="s_atr_mult" value="1.5" min="0.5" max="5" step="0.5"></div>
+</div>
+</div>
+
+<div id="tab-confirmations" class="panel">
+<div class="settings-card">
+<h3>✅ Confirmation Indicators</h3>
+<div class="setting-item"><span class="label">EMA Filter (200)</span>
+<button class="toggle-btn off" id="c_ema" onclick="toggleButton(this)">OFF</button></div>
+<div class="setting-item"><span class="label">2 EMA Cross (50,200)</span>
+<button class="toggle-btn off" id="c_2ma" onclick="toggleButton(this)">OFF</button></div>
+<div class="setting-item"><span class="label">3 EMA Cross (9,21,55)</span>
+<button class="toggle-btn off" id="c_3ma" onclick="toggleButton(this)">OFF</button></div>
+<div class="setting-item"><span class="label">Range Filter</span>
+<button class="toggle-btn off" id="c_rf" onclick="toggleButton(this)">OFF</button></div>
+<div class="setting-item"><span class="label">RQK</span>
+<button class="toggle-btn on" id="c_rqk" onclick="toggleButton(this)">ON</button></div>
+<div class="setting-item"><span class="label">SuperTrend</span>
+<button class="toggle-btn off" id="c_st" onclick="toggleButton(this)">OFF</button></div>
+<div class="setting-item"><span class="label">Half Trend</span>
+<button class="toggle-btn off" id="c_ht" onclick="toggleButton(this)">OFF</button></div>
+<div class="setting-item"><span class="label">RSI</span>
+<button class="toggle-btn off" id="c_rsi" onclick="toggleButton(this)">OFF</button></div>
+<div class="setting-item"><span class="label">MACD</span>
+<button class="toggle-btn off" id="c_macd" onclick="toggleButton(this)">OFF</button></div>
+<div class="setting-item"><span class="label">Stochastic</span>
+<button class="toggle-btn off" id="c_stoch" onclick="toggleButton(this)">OFF</button></div>
+<div class="setting-item"><span class="label">Ichimoku Cloud</span>
+<button class="toggle-btn off" id="c_ichi" onclick="toggleButton(this)">OFF</button></div>
+<div class="setting-item"><span class="label">Chandelier Exit</span>
+<button class="toggle-btn off" id="c_ce" onclick="toggleButton(this)">OFF</button></div>
+</div>
+</div>
+
+<div id="tab-status" class="panel">
+<div class="settings-card">
+<h3>📡 Signal Status</h3>
+<div class="setting-item"><span class="label">Leading Indicator</span><span class="value" id="leading_status"><span class="badge badge-active">ACTIVE</span></span></div>
+<div class="setting-item"><span class="label">Confirmation Count</span><span class="value" id="conf_count">1 / 12</span></div>
+<div class="setting-item"><span class="label">Long Condition</span><span class="value" id="long_cond"><span class="badge badge-off">FALSE</span></span></div>
+<div class="setting-item"><span class="label">Short Condition</span><span class="value" id="short_cond"><span class="badge badge-off">FALSE</span></span></div>
+<div class="setting-item"><span class="label">Current Position</span><span class="value" id="current_pos">None</span></div>
+<div class="setting-item"><span class="label">SL Price</span><span class="value" id="sl_price">-</span></div>
+<div class="setting-item"><span class="label">TP Price</span><span class="value" id="tp_price">-</span></div>
+</div>
+</div>
+
+<div class="card"><h3>📋 Signal Log</h3>
+<div class="signal-log" id="signalLog"><div style="color:#64748b;">No signals yet</div></div>
+</div>
+
+<div class="card"><h3>📊 Recent Trades</h3>
+<div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Exit</th><th>PnL</th><th>Reason</th><th>Time</th></tr></thead>
+<tbody id="tradesBody"><tr><td colspan="7" style="text-align:center;color:#64748b;">No trades yet</td></tr></tbody></table></div></div>
+
+<div class="refresh-info" id="lastUpdate">Last update: -</div>
+</div>
+
+<script>
+function showTab(tab) {
+document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+document.querySelector(`.tab[onclick="showTab('${tab}')"]`).classList.add('active');
+document.getElementById(`tab-${tab}`).classList.add('active');
+}
+
+function toggleButton(btn) {
+if (btn.classList.contains('on')) {
+btn.classList.remove('on');
+btn.classList.add('off');
+btn.textContent = 'OFF';
+} else {
+btn.classList.remove('off');
+btn.classList.add('on');
+btn.textContent = 'ON';
+}
+}
+
+function getValue(id) {
+const el = document.getElementById(id);
+if (!el) return null;
+if (el.tagName === 'SELECT' || el.tagName === 'INPUT') return el.value;
+if (el.classList.contains('toggle-btn')) return el.textContent === 'ON';
+return null;
+}
+
+async function saveAll() {
+const settings = {
+leading_indicator: getValue('s_leading'),
+signal_expiry: parseInt(getValue('s_expiry')) || 3,
+alternate_signal: getValue('s_alternate'),
+show_signal: getValue('s_showsignal'),
+show_dashboard: getValue('s_dashboard'),
+dashboard_position: getValue('s_dashpos'),
+dashboard_size: getValue('s_dashsize'),
+rr_ratio: parseFloat(getValue('s_rr')) || 1.5,
+sl_lookback: parseInt(getValue('s_sl_lookback')) || 5,
+atr_fallback: getValue('s_atr_fallback'),
+atr_mult: parseFloat(getValue('s_atr_mult')) || 1.5,
+confirmations: {
+ema: getValue('c_ema'),
+'2ma': getValue('c_2ma'),
+'3ma': getValue('c_3ma'),
+rf: getValue('c_rf'),
+rqk: getValue('c_rqk'),
+st: getValue('c_st'),
+ht: getValue('c_ht'),
+rsi: getValue('c_rsi'),
+macd: getValue('c_macd'),
+stoch: getValue('c_stoch'),
+ichi: getValue('c_ichi'),
+ce: getValue('c_ce')
+}
+};
+
+try {
+const r = await fetch('/api/v1/strategy/settings', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify(settings)
+});
+const d = await r.json();
+if (d.status === 'ok') {
+alert('✅ Settings saved!');
+refresh();
+} else {
+alert('❌ Error: ' + (d.error || 'Unknown'));
+}
+} catch(e) {
+alert('❌ Error: ' + e.message);
+}
+}
+
+async function loadDefaults() {
+try {
+const r = await fetch('/api/v1/strategy/defaults');
+const d = await r.json();
+if (d.settings) {
+const s = d.settings;
+document.getElementById('s_leading').value = s.leading_indicator || 'Range Filter';
+document.getElementById('s_expiry').value = s.signal_expiry || 3;
+setToggle('s_alternate', s.alternate_signal);
+setToggle('s_showsignal', s.show_signal);
+setToggle('s_dashboard', s.show_dashboard);
+document.getElementById('s_dashpos').value = s.dashboard_position || 'bottom-right';
+document.getElementById('s_dashsize').value = s.dashboard_size || 'Normal';
+document.getElementById('s_rr').value = s.rr_ratio || 1.5;
+document.getElementById('s_sl_lookback').value = s.sl_lookback || 5;
+setToggle('s_atr_fallback', s.atr_fallback);
+document.getElementById('s_atr_mult').value = s.atr_mult || 1.5;
+if (s.confirmations) {
+const map = {'ema':'c_ema','2ma':'c_2ma','3ma':'c_3ma','rf':'c_rf','rqk':'c_rqk','st':'c_st','ht':'c_ht','rsi':'c_rsi','macd':'c_macd','stoch':'c_stoch','ichi':'c_ichi','ce':'c_ce'};
+for (const [key,val] of Object.entries(map)) {
+setToggle(val, s.confirmations[key]);
+}
+}
+alert('✅ Defaults loaded!');
+refresh();
+}
+} catch(e) {
+alert('❌ Error: ' + e.message);
+}
+}
+
+function setToggle(id, value) {
+const el = document.getElementById(id);
+if (!el) return;
+if (value === true || value === 'true' || value === 'ON') {
+el.classList.remove('off');
+el.classList.add('on');
+el.textContent = 'ON';
+} else {
+el.classList.remove('on');
+el.classList.add('off');
+el.textContent = 'OFF';
+}
+}
+
+async function refresh() {
+try {
+const r = await fetch('/api/v1/strategy/settings');
+const data = await r.json();
+if (data.error) { return; }
+const s = data.settings || {};
+document.getElementById('s_leading').value = s.leading_indicator || 'Range Filter';
+document.getElementById('s_expiry').value = s.signal_expiry || 3;
+setToggle('s_alternate', s.alternate_signal);
+setToggle('s_showsignal', s.show_signal);
+setToggle('s_dashboard', s.show_dashboard);
+document.getElementById('s_dashpos').value = s.dashboard_position || 'bottom-right';
+document.getElementById('s_dashsize').value = s.dashboard_size || 'Normal';
+document.getElementById('s_rr').value = s.rr_ratio || 1.5;
+document.getElementById('s_sl_lookback').value = s.sl_lookback || 5;
+setToggle('s_atr_fallback', s.atr_fallback);
+document.getElementById('s_atr_mult').value = s.atr_mult || 1.5;
+if (s.confirmations) {
+const map = {'ema':'c_ema','2ma':'c_2ma','3ma':'c_3ma','rf':'c_rf','rqk':'c_rqk','st':'c_st','ht':'c_ht','rsi':'c_rsi','macd':'c_macd','stoch':'c_stoch','ichi':'c_ichi','ce':'c_ce'};
+for (const [key,val] of Object.entries(map)) {
+setToggle(val, s.confirmations[key]);
+}
+}
+document.getElementById('statusBadge').innerHTML = '<span class="status-dot status-online"></span>ONLINE';
+const tr = await fetch('/api/v1/trades');
+const td = await tr.json();
+const tradeBody = document.getElementById('tradesBody');
+if (td.trades && td.trades.length > 0) {
+tradeBody.innerHTML = td.trades.slice(0,15).map(function(t) {
+return '<tr><td><strong>'+(t.symbol||'-')+'</strong></td><td style="color:'+(t.side==='BUY'?'#22c55e':'#ef4444')+'">'+(t.side||'-')+'</td><td>'+(t.entry?'$'+t.entry.toFixed(2):'-')+'</td><td>'+(t.exit?'$'+t.exit.toFixed(2):'-')+'</td><td style="color:'+(t.pnl>0?'#22c55e':'#ef4444')+'">'+(t.pnl?'$'+t.pnl.toFixed(2):'-')+'</td><td>'+(t.reason||'-')+'</td><td>'+(t.time?new Date(t.time).toLocaleString():'-')+'</td></tr>';
+}).join('');
+}
+try {
+const sr = await fetch('/api/v1/signal/BTCUSDT');
+const sd = await sr.json();
+const indEl = document.getElementById('leading_status');
+if (indEl) indEl.innerHTML = '<span class="badge badge-active">' + (sd.indicator || s.leading_indicator || 'Range Filter') + '</span>';
+const conf = s.confirmations || {};
+const confKeys = Object.keys(conf);
+const confEl = document.getElementById('conf_count');
+if (confEl) confEl.textContent = confKeys.filter(function(k){ return conf[k]; }).length + ' / ' + confKeys.length;
+const sig = sd.signal || 'HOLD';
+const isLong = sig === 'BUY';
+const isShort = sig === 'SELL';
+const setStat = function(id, on) { const el = document.getElementById(id); if (!el) return; el.innerHTML = '<span class="badge ' + (on ? 'badge-on' : 'badge-off') + '">' + (on ? 'TRUE' : 'FALSE') + '</span>'; };
+setStat('long_cond', isLong);
+setStat('short_cond', isShort);
+const posEl = document.getElementById('current_pos'); if (posEl) posEl.textContent = sig;
+const slEl = document.getElementById('sl_price'); if (slEl) slEl.textContent = sd.sl != null ? '$' + Number(sd.sl).toFixed(2) : '-';
+const tpEl = document.getElementById('tp_price'); if (tpEl) tpEl.textContent = sd.tp != null ? '$' + Number(sd.tp).toFixed(2) : '-';
+} catch(e) { console.error(e); }
+document.getElementById('lastUpdate').textContent = 'Last update: ' + new Date().toLocaleString();
+} catch(e) { console.error(e); }
+}
+
+
+refresh();
+setInterval(refresh, 30000);
+</script>
+</body>
+</html>

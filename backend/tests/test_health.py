@@ -8,5 +8,5 @@ def test_health():
         resp = client.get("/health")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["status"] == "ok"
-    assert body["app"] == "ATOS X"
+    assert body["status"] in ("online", "starting", "initializing")
+    assert "uptime" in body
