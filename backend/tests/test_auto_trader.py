@@ -17,6 +17,7 @@ class FakeBinance:
         self.no_position = False
         self.open_positions = []
         self.algo_orders = []
+        self.raise_on_positions = False
 
     async def load_all_symbols(self):
         return ["BTCUSDT", "ETHUSDT"]
@@ -49,6 +50,8 @@ class FakeBinance:
         return {"symbol": symbol, "algoId": algo_id}
 
     async def get_open_positions(self):
+        if self.raise_on_positions:
+            raise Exception("network down")
         return self.open_positions
 
     async def get_open_algo_orders(self):
@@ -275,3 +278,39 @@ async def test_check_positions_skips_missing_levels(trader):
     tr.update_price("BTCUSDT", 70000.0)
     await tr.check_positions({})
     assert "BTCUSDT" not in tr.active_positions
+
+
+async def test_reconcile_drift_records_closed(trader):
+    tr, fb, db = trader
+    await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
+    tr.update_price("BTCUSDT", 64000.0)  # sl/tp arasi -> exchange_closed
+    fb.open_positions = [{"symbol": "ETHUSDT", "positionAmt": "1.0", "entryPrice": "3000"}]
+    fb.algo_orders = []
+    await tr.reconcile_positions()
+    assert "BTCUSDT" not in tr.active_positions
+    assert len(tr.trade_history) == 1
+    assert tr.trade_history[0]["reason"] == "exchange_closed"
+
+
+async def test_reconcile_drift_estimates_take_profit(trader):
+    tr, fb, db = trader
+    await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
+    tr.update_price("BTCUSDT", 70000.0)  # tp ustunde -> take_profit tahmini
+    await tr.reconcile_positions()
+    assert tr.trade_history[0]["reason"] == "take_profit"
+    assert tr.trade_history[0]["exit"] == 69000.0
+
+
+async def test_reconcile_aborts_on_network_error(trader):
+    tr, fb, db = trader
+    await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
+    fb.raise_on_positions = True
+    await tr.reconcile_positions()
+    assert "BTCUSDT" in tr.active_positions  # yanlis kapanis kaydi yok
+    assert tr.trade_history == []
+
+
+async def test_reconcile_empty_is_noop(trader):
+    tr, fb, db = trader
+    await tr.reconcile_positions()
+    assert tr.active_positions == {}

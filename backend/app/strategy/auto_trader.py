@@ -50,6 +50,8 @@ class AutoTrader:
         self.scan_interval = 30
         self.scan_limit = 50
         self.perf_interval = 60
+        self.reconcile_interval = 300
+        self._last_reconcile = 0.0
         self._last_perf = 0.0
 
     def rank_symbols(self, limit: int = 500) -> List[str]:
@@ -140,6 +142,9 @@ class AutoTrader:
 
                 await self.process_signals(signals)
                 await self.check_positions(all_prices)
+                if time.time() - self._last_reconcile > self.reconcile_interval:
+                    await self.reconcile_positions()
+                    self._last_reconcile = time.time()
                 await self.update_equity()
                 await asyncio.sleep(self.scan_interval)
 
@@ -224,43 +229,50 @@ class AutoTrader:
                     await self.binance.cancel_algo_order(symbol, pos["sl_order_id"])
                 if pos.get("tp_order_id"):
                     await self.binance.cancel_algo_order(symbol, pos["tp_order_id"])
-            pnl = (price - pos["entry_price"]) * pos["quantity"] \
-                if pos["side"] == "BUY" \
-                else (pos["entry_price"] - price) * pos["quantity"]
-            exit_fee = price * pos["quantity"] * self.engine.fee_rate
-            net = pnl - exit_fee - pos.get("entry_fee", 0.0)
-            self.equity += pnl - exit_fee
-            self.db.close_trade_by_symbol(symbol, price, net)
-            self.trade_history.append({
-                "symbol": symbol,
-                "side": pos["side"],
-                "entry": pos["entry_price"],
-                "exit": price,
-                "qty": pos["quantity"],
-                "pnl": net,
-                "reason": reason,
-                "time": datetime.utcnow().isoformat(),
-            })
-            if self.telegram:
-                await self.telegram.send_trade(symbol, pos["side"], price, pos["quantity"], reason)
-            logger.success(f"Pozisyon kapatildi: {symbol} PnL: {net:.2f}")
+            await self._record_closed_position(symbol, pos, price, reason)
         except Exception as e:
             logger.error(f"Kapatma hatasi {symbol}: {e}")
 
+    async def _record_closed_position(self, symbol: str, pos: dict, exit_price: float,
+                                      reason: str):
+        """Kapanan pozisyonun PnL hesabi, DB kaydi ve bildirimini yapar."""
+        pnl = (exit_price - pos["entry_price"]) * pos["quantity"] \
+            if pos["side"] == "BUY" \
+            else (pos["entry_price"] - exit_price) * pos["quantity"]
+        exit_fee = exit_price * pos["quantity"] * self.engine.fee_rate
+        net = pnl - exit_fee - pos.get("entry_fee", 0.0)
+        self.equity += pnl - exit_fee
+        self.db.close_trade_by_symbol(symbol, exit_price, net)
+        self.trade_history.append({
+            "symbol": symbol,
+            "side": pos["side"],
+            "entry": pos["entry_price"],
+            "exit": exit_price,
+            "qty": pos["quantity"],
+            "pnl": net,
+            "reason": reason,
+            "time": datetime.utcnow().isoformat(),
+        })
+        if self.telegram:
+            await self.telegram.send_trade(
+                symbol, pos["side"], exit_price, pos["quantity"], reason
+            )
+        logger.success(f"Pozisyon kapatildi: {symbol} PnL: {net:.2f}")
+
     async def reconcile_positions(self):
-        """Restart sonrasi acik pozisyonlari borsadan geri yukler.
+        """Restart sonrasi acik pozisyonlari borsadan geri yukler ve drift temizler.
 
         Exchange-side SL/TP emirleri süreç ölse de borsada korumaya devam eder;
-        bu metod startup'ta `active_positions`'i o emirlerle eslestirerek takibi
-        yeniden kurar. SL/TP'siz (korunmasiz) pozisyonlar geri yuklenmez, uyarilir.
+        bu metod `active_positions`'i borsa gercegiyle hizalar:
+          - Borsada acik ama takip edilmeyen -> geri yukle
+          - Takip edilen ama borsada artik yok -> algo SL/TP kapatmis, kapanis kaydet
+        Hata durumunda tum hizalama iptal edilir (yanlis kapanis kaydi yazilmaz).
         """
         if self.paper:
             return
         try:
             positions = await self.binance.get_open_positions()
             algos = await self.binance.get_open_algo_orders()
-            if not positions:
-                return
             algo_map = {}
             for a in algos or []:
                 sym = a.get("symbol")
@@ -273,6 +285,16 @@ class AutoTrader:
                 elif order_type == "TAKE_PROFIT_MARKET":
                     entry["tp"] = float(a.get("triggerPrice") or 0) or None
                     entry["tp_id"] = a.get("algoId")
+            exchange_symbols = {p["symbol"] for p in positions}
+            for symbol, pos in list(self.active_positions.items()):
+                if symbol in exchange_symbols:
+                    continue
+                exit_price, reason = self._exchange_close_estimate(symbol, pos)
+                self.active_positions.pop(symbol, None)
+                await self._record_closed_position(symbol, pos, exit_price, reason)
+                logger.warning(
+                    f"{symbol}: borsada pozisyon yok; exchange kapanisi kaydedildi ({reason})"
+                )
             restored = 0
             for p in positions:
                 symbol = p["symbol"]
@@ -303,6 +325,21 @@ class AutoTrader:
                 logger.info(f"Borsadan {restored} pozisyon geri yuklendi")
         except Exception as e:
             logger.error(f"Pozisyon geri yukleme hatasi: {e}")
+
+    def _exchange_close_estimate(self, symbol: str, pos: dict):
+        """Algo SL/TP ile kapanmis pozisyonda en olası cikis fiyati ve nedeni."""
+        last = self.live_prices.get(symbol)
+        if pos["side"] == "BUY":
+            if pos.get("tp") and last is not None and last >= pos["tp"]:
+                return pos["tp"], "take_profit"
+            if pos.get("sl") and last is not None and last <= pos["sl"]:
+                return pos["sl"], "stop_loss"
+        else:
+            if pos.get("tp") and last is not None and last <= pos["tp"]:
+                return pos["tp"], "take_profit"
+            if pos.get("sl") and last is not None and last >= pos["sl"]:
+                return pos["sl"], "stop_loss"
+        return last or pos.get("tp") or pos.get("sl") or pos["entry_price"], "exchange_closed"
 
     async def check_positions(self, prices):
         for symbol, pos in list(self.active_positions.items()):
