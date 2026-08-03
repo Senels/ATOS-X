@@ -24,6 +24,8 @@ class _FakeTrader:
         self.max_consecutive_losses = 5
         self.daily_loss_halted = False
         self.day_pnl = 0.0
+        self.equity_halted = False
+        self.min_equity = 0.0
         self.live_prices = {}
         self.risk_events = [{"time": "2026-01-01T00:00:00", "type": "drawdown_halt",
                              "message": "test"}]

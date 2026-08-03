@@ -65,6 +65,8 @@ class AutoTrader:
         self.day_pnl = 0.0
         self.day_start_date = datetime.utcnow().date().isoformat()
         self.daily_loss_halted = False
+        self.min_equity = float(s.get("min_equity", 5000.0))
+        self.equity_halted = False
         self._conc_alerts = {"symbols": set(), "sides": set()}
         self._conc_blocks = set()
         self._last_block_state = set()
@@ -250,6 +252,7 @@ class AutoTrader:
                 await self.update_equity()
                 await self._check_concentration()
                 await self._check_drawdown()
+                await self._check_equity_floor()
                 await asyncio.sleep(self.scan_interval)
 
             except Exception as e:
@@ -278,6 +281,11 @@ class AutoTrader:
                 if self.daily_loss_halted:
                     logger.info(
                         f"{symbol}: gunluk zarar korumasi aktif, giris engellendi"
+                    )
+                    continue
+                if self.equity_halted:
+                    logger.info(
+                        f"{symbol}: equity taban korumasi aktif, giris engellendi"
                     )
                     continue
                 if len(self.active_positions) >= self.max_positions:
@@ -312,6 +320,7 @@ class AutoTrader:
         self.trailing_min_move_pct = float(s.get("trailing_min_move_pct", self.trailing_min_move_pct))
         self.breakeven_activate_pct = float(s.get("breakeven_activate_pct", self.breakeven_activate_pct))
         self.max_daily_loss_pct = float(s.get("max_daily_loss_pct", self.max_daily_loss_pct))
+        self.min_equity = float(s.get("min_equity", self.min_equity))
 
     def _projected_notional(self, price: float, sl: float) -> float:
         """Yeni bir pozisyonun boyutlandirma sonrasi nominal degeri."""
@@ -657,6 +666,40 @@ class AutoTrader:
                     f"ATOS X: Drawdown %{dd:.1f}'e geri geldi - yeni girisler serbest."
                 )
 
+    async def _check_equity_floor(self):
+        """Equity mutlak taban sinirin altina duserse girisleri durdurur.
+
+        `min_equity` (USDT) altina dusuldugunde bir kez uyarir ve
+        `equity_halted` bayragini kaldirir; equity taban sinirin uzerine
+        dondugunde otomatik serbest birakir.
+        """
+        if self.min_equity <= 0:
+            return
+        if self.equity < self.min_equity and not self.equity_halted:
+            self.equity_halted = True
+            self._log_risk_event("equity_floor",
+                                 f"Equity {self.equity:.2f} taban sinirin "
+                                 f"({self.min_equity:.2f}) altina dustu")
+            logger.warning(
+                f"Equity {self.equity:.2f} taban sinirin ({self.min_equity:.2f}) "
+                f"altina dustu - yeni girisler durduruldu"
+            )
+            if self.telegram:
+                await self.telegram.send(
+                    f"ATOS X UYARI: Equity ${self.equity:.2f} taban sinirin "
+                    f"(${self.min_equity:.2f}) altina dustu - yeni girisler durduruldu."
+                )
+        elif self.equity_halted and self.equity >= self.min_equity:
+            self.equity_halted = False
+            self._log_risk_event("equity_clear",
+                                 "Equity taban sinirin uzerine dondu, girisler serbest")
+            logger.info("Equity taban sinirin uzerine dondu - yeni girisler serbest")
+            if self.telegram:
+                await self.telegram.send(
+                    f"ATOS X: Equity ${self.equity:.2f} taban sinirin uzerine dondu "
+                    "- yeni girisler serbest."
+                )
+
     async def _notify_startup_state(self):
         """Baslangicta aktif risk esiklerini ve mevcut engelleri bildirir."""
         if not self.telegram:
@@ -668,12 +711,13 @@ class AutoTrader:
             trail = f"kar %{self.trailing_activate_pct:.0f}+, SL %{self.trailing_sl_pct:.1f} geri"
         be = f"%{self.breakeven_activate_pct:.0f}" if self.breakeven_activate_pct > 0 else "devre disi"
         dl = f"%{self.max_daily_loss_pct:.0f}" if self.max_daily_loss_pct > 0 else "devre disi"
+        eq_floor = f"${self.min_equity:.0f}" if self.min_equity > 0 else "devre disi"
         msg = (
             f"ATOS X: Motor baslatildi\n"
             f"Risk - max pos %{self.max_position_pct:.0f}, max side %{self.max_side_pct:.0f}, "
             f"max drawdown %{self.max_drawdown_pct:.0f} ({halted}), "
             f"max ardisik zarar {self.max_consecutive_losses}, "
-            f"gunluk zarar {dl}, breakeven {be}\n"
+            f"gunluk zarar {dl}, breakeven {be}, equity taban {eq_floor}\n"
             f"Max pozisyon yasi: {age} | Trailing: {trail}"
         )
         blocks = sorted(self._conc_blocks)

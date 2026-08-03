@@ -177,11 +177,13 @@ th { color:#94a3b8; font-weight:500; font-size:10px; text-transform:uppercase; }
 <input type="number" id="r_be_act" value="2" min="0" max="100" step="0.5"></div>
 <div class="setting-item"><span class="label">Max Daily Loss (%)</span>
 <input type="number" id="r_daily_loss" value="5" min="0" max="100" step="0.5"></div>
+<div class="setting-item"><span class="label">Min Equity (USDT)</span>
+<input type="number" id="r_min_equity" value="5000" min="0" max="10000000" step="100"></div>
 <div class="setting-item" style="border-bottom:none;"><span class="label">Trailing SL Distance (%)</span>
 <input type="number" id="r_trail_sl" value="1.5" min="0" max="50" step="0.5"></div>
 <div class="setting-item" style="border-bottom:none;"><span class="label">Trailing Min Move (%)</span>
 <input type="number" id="r_trail_min" value="0.1" min="0" max="20" step="0.1"></div>
-<div class="setting-item" style="border-bottom:none;"><span class="label" style="color:#64748b;font-size:11px;">Eşikler equity yüzdesidir; tek sembol veya tek yön bu değeri aşarsa Telegram uyarısı gönderilir ve yeni giriş engellenir. Drawdown peak equity'den düşüşü aşınca yeni girişler durdurulur (yarısına dönünce serbest). Max Position Age, pozisyonun maksimum açık kalma süresidir (0 = devre dışı). Trailing: pozisyon kârı Trailing Activate eşiğini aşınca SL fiyatı Trailing SL Distance kadar geriden takip eder; SL yalnızca Trailing Min Move kadar mesafe değiştiğinde güncellenir. Breakeven Activate: kâr bu eşiği aşınca SL giriş fiyatına taşınır (0 = devre dışı). Max Daily Loss: aynı gün içindeki net zarar bu equity yüzdesini aşınca yeni girişler durdurulur, yeni gün gelince otomatik serbest kalır (0 = devre dışı). Risk değerleri döngüde canlı uygulanır.</span></div>
+<div class="setting-item" style="border-bottom:none;"><span class="label" style="color:#64748b;font-size:11px;">Eşikler equity yüzdesidir; tek sembol veya tek yön bu değeri aşarsa Telegram uyarısı gönderilir ve yeni giriş engellenir. Drawdown peak equity'den düşüşü aşınca yeni girişler durdurulur (yarısına dönünce serbest). Max Position Age, pozisyonun maksimum açık kalma süresidir (0 = devre dışı). Trailing: pozisyon kârı Trailing Activate eşiğini aşınca SL fiyatı Trailing SL Distance kadar geriden takip eder; SL yalnızca Trailing Min Move kadar mesafe değiştiğinde güncellenir. Breakeven Activate: kâr bu eşiği aşınca SL giriş fiyatına taşınır (0 = devre dışı). Max Daily Loss: aynı gün içindeki net zarar bu equity yüzdesini aşınca yeni girişler durdurulur, yeni gün gelince otomatik serbest kalır (0 = devre dışı). Min Equity: equity bu mutlak değerin (USDT) altına düşerse yeni girişler durdurulur; üzerine dönünce serbest kalır (0 = devre dışı). Risk değerleri döngüde canlı uygulanır.</span></div>
 </div>
 </div>
 
@@ -263,6 +265,7 @@ trailing_sl_pct: parseFloat(getValue('r_trail_sl')) || 0,
 trailing_min_move_pct: parseFloat(getValue('r_trail_min')) || 0,
 breakeven_activate_pct: parseFloat(getValue('r_be_act')) || 0,
 max_daily_loss_pct: parseFloat(getValue('r_daily_loss')) || 0,
+min_equity: parseFloat(getValue('r_min_equity')) || 0,
 confirmations: {
 ema: getValue('c_ema'),
 '2ma': getValue('c_2ma'),
@@ -325,6 +328,7 @@ document.getElementById('r_max_losses').value = s.max_consecutive_losses || 0;
 document.getElementById('r_trail_act').value = s.trailing_activate_pct || 0;
 document.getElementById('r_be_act').value = s.breakeven_activate_pct || 0;
 document.getElementById('r_daily_loss').value = s.max_daily_loss_pct || 0;
+document.getElementById('r_min_equity').value = s.min_equity || 0;
 document.getElementById('r_trail_sl').value = s.trailing_sl_pct || 0;
 document.getElementById('r_trail_min').value = s.trailing_min_move_pct || 0;
 if (s.confirmations) {
@@ -383,6 +387,7 @@ document.getElementById('r_max_losses').value = s.max_consecutive_losses || 0;
 document.getElementById('r_trail_act').value = s.trailing_activate_pct || 0;
 document.getElementById('r_be_act').value = s.breakeven_activate_pct || 0;
 document.getElementById('r_daily_loss').value = s.max_daily_loss_pct || 0;
+document.getElementById('r_min_equity').value = s.min_equity || 0;
 document.getElementById('r_trail_sl').value = s.trailing_sl_pct || 0;
 document.getElementById('r_trail_min').value = s.trailing_min_move_pct || 0;
 if (s.confirmations) {

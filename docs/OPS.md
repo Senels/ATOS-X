@@ -17,6 +17,7 @@ koruma (SL/TP) mekanizması ve ilgili API/dashboard görünürlüğünü belgele
 | `trailing_min_move_pct` | 0.1 | SL güncellemesi için gereken min hareket (%; 0 = her seferinde) |
 | `breakeven_activate_pct` | 2 | Kâr bu eşiği aşınca SL giriş fiyatına taşınır (%; 0 = devre dışı) |
 | `max_daily_loss_pct` | 5 | Günlük net zarar bu equity yüzdesini aşınca girişler durur (0 = devre dışı) |
+| `min_equity` | 5000 | Equity bu tabanın (USDT) altına düşünce girişler durur (0 = devre dışı) |
 
 - UI üzerinden `/dashboard/settings` → Risk sekmesinde değiştirilir.
 - Canlı döngüde her taramada `_apply_risk_settings` ile uygulanır.
@@ -158,6 +159,17 @@ Açık pozisyonların anlık kâr/zararı `live_prices` üzerinden hesaplanır:
 - `/durum` yanıtı toplam gerçekleşmemiş PnL satırı içerir.
 
 Fiyat yoksa (`live_prices` boş) alanlar `null` gelir.
+
+## Equity Taban Koruması
+
+`min_equity` (USDT) mutlak alt sınırdır. Equity bu değerin altına
+düşünce `equity_halted` aktifleşir, yeni girişler engellenir (telegram
+uyarısı + risk olayı `equity_floor`). Equity taban sınırın üzerine
+dönünce koruma otomatik kalkar (`equity_clear`). `0` = devre dışı.
+
+Dashboard `EQUITY FLOOR` rozeti, `/durum` yanıtı `Equity taban: $N |
+Taban durma` satırı, `/health`, `/api/v1/status` ve `/dashboard/metrics`
+ise `equity_halted` ve `min_equity` alanlarını döndürür.
 
 ## Pozisyon Yaşı ve Yeniden Başlatma
 

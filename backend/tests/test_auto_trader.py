@@ -987,6 +987,39 @@ async def test_daily_loss_disabled_when_zero(trader):
     assert tr.daily_loss_halted is False
 
 
+async def test_equity_floor_halts_entries(trader):
+    tr, fb, db = trader
+    tr.min_equity = 8000.0
+    tr.equity = 7000.0
+    await tr._check_equity_floor()
+    assert tr.equity_halted is True
+    assert any(e["type"] == "equity_floor" for e in tr.risk_events)
+    signal = {"symbol": "ETHUSDT", "signal": "BUY", "price": 100.0,
+              "sl": 95.0, "tp": 110.0, "reason": ""}
+    await tr.process_signals([signal])
+    assert "ETHUSDT" not in tr.active_positions
+
+
+async def test_equity_floor_recovers_above_threshold(trader):
+    tr, fb, db = trader
+    tr.min_equity = 8000.0
+    tr.equity = 7000.0
+    await tr._check_equity_floor()
+    assert tr.equity_halted is True
+    tr.equity = 8500.0
+    await tr._check_equity_floor()
+    assert tr.equity_halted is False
+    assert any(e["type"] == "equity_clear" for e in tr.risk_events)
+
+
+async def test_equity_floor_disabled_when_zero(trader):
+    tr, fb, db = trader
+    tr.min_equity = 0
+    tr.equity = 1.0
+    await tr._check_equity_floor()
+    assert tr.equity_halted is False
+
+
 async def test_breakeven_moves_sl_to_entry(trader):
     tr, fb, db = trader
     tr.breakeven_activate_pct = 2.0
