@@ -741,6 +741,50 @@ async def risk_positions():
         "max_position_pct": auto_trader.max_position_pct if auto_trader else 0.0,
     }
 
+@app.post("/api/v1/positions/{symbol}/sl")
+async def position_update_sl(symbol: str, request: Request):
+    """Dashboard/API'den acik pozisyonun SL'sini gunceller."""
+    if not auto_trader:
+        return {"ok": False, "error": "not_running"}
+    try:
+        body = await request.json()
+        price = float(body.get("price"))
+    except Exception:
+        return {"ok": False, "error": "invalid_body"}
+    return await auto_trader.update_sl(symbol.upper(), price)
+
+@app.post("/api/v1/positions/{symbol}/tp")
+async def position_update_tp(symbol: str, request: Request):
+    """Dashboard/API'den acik pozisyonun TP'sini gunceller."""
+    if not auto_trader:
+        return {"ok": False, "error": "not_running"}
+    try:
+        body = await request.json()
+        price = float(body.get("price"))
+    except Exception:
+        return {"ok": False, "error": "invalid_body"}
+    return await auto_trader.update_tp(symbol.upper(), price)
+
+@app.post("/api/v1/positions/{symbol}/close")
+async def position_close(symbol: str):
+    """Dashboard/API'den acik pozisyonu canli fiyatla kapatir."""
+    if not auto_trader:
+        return {"ok": False, "error": "not_running"}
+    sym = symbol.upper()
+    if sym not in auto_trader.active_positions:
+        return {"ok": False, "error": "position_not_found"}
+    price = auto_trader.live_prices.get(sym)
+    if price is None:
+        try:
+            prices = await app.state.binance.get_all_tickers()
+            price = prices.get(sym)
+        except Exception:
+            price = None
+    if price is None:
+        return {"ok": False, "error": "price_not_found"}
+    await auto_trader.close_position(sym, price, "dashboard_close")
+    return {"ok": True, "symbol": sym, "price": price}
+
 @app.get("/dashboard/metrics")
 async def metrics():
     try:

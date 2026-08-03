@@ -81,7 +81,7 @@ tr:hover { background:rgba(59,130,246,0.05); }
 <div class="card"><h3>🛡️ Risk Events</h3><div id="riskEvents"><div style="color:#64748b;padding:10px;">-</div></div></div>
 <div class="card"><h3>📈 Equity Curve</h3><canvas id="equityChart" width="1200" height="280" style="width:100%;height:280px;"></canvas></div>
 <div class="card"><h3>💰 PnL by Symbol</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Trades</th><th>W/L</th><th>Net PnL</th></tr></thead><tbody id="pnlBody"><tr><td colspan="4" style="text-align:center;color:#64748b;padding:20px;">No closed trades yet</td></tr></tbody></table></div></div>
-<div class="card"><h3>📊 Active Positions <span id="posSummary" style="color:#64748b;font-weight:400;font-size:12px;"></span></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Qty</th><th>SL</th><th>TP</th><th>PnL</th><th>Protection</th><th>Time</th></tr></thead><tbody id="positionsBody"><tr><td colspan="9" style="text-align:center;color:#64748b;padding:20px;">No active positions</td></tr></tbody></table></div></div>
+<div class="card"><h3>📊 Active Positions <span id="posSummary" style="color:#64748b;font-weight:400;font-size:12px;"></span></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Qty</th><th>SL</th><th>TP</th><th>PnL</th><th>Protection</th><th>Time</th><th>Actions</th></tr></thead><tbody id="positionsBody"><tr><td colspan="10" style="text-align:center;color:#64748b;padding:20px;">No active positions</td></tr></tbody></table></div></div>
 <div class="card"><h3>🧮 Position Risk <span id="riskPosSummary" style="color:#64748b;font-weight:400;font-size:12px;"></span></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Notional</th><th>Size %</th><th>SL Dist %</th><th>Risk $</th><th>uPnL</th><th>Protection</th><th>Age (h)</th></tr></thead><tbody id="riskPosBody"><tr><td colspan="8" style="text-align:center;color:#64748b;padding:20px;">No active positions</td></tr></tbody></table></div></div>
 <div class="card"><h3>📋 Trade History</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Exit</th><th>PnL</th><th>Reason</th><th>Time</th></tr></thead><tbody id="tradesBody"><tr><td colspan="7" style="text-align:center;color:#64748b;padding:20px;">No trades yet</td></tr></tbody></table></div></div>
 <div class="refresh-info" id="lastUpdate">Last update: -</div>
@@ -146,7 +146,19 @@ const prot = pos.protected ? '<span class="badge-protected">KORUMALI</span>' : '
 const trail = pos.trailing ? ' <span class="badge-sell">TRAILING</span>' : '';
 const be = pos.breakeven ? ' <span class="badge-sell">BREAKEVEN</span>' : '';
 const pnlCell = (pos.upnl != null) ? '<td style="color:'+(pos.upnl>0?'#22c55e':pos.upnl<0?'#ef4444':'#94a3b8')+'">'+(pos.upnl>0?'+':'')+pos.upnl.toFixed(2)+' <span style="opacity:.7;font-size:11px;">('+(pos.upnl_pct>0?'+':'')+pos.upnl_pct.toFixed(2)+'%)</span></td>' : '<td>-</td>';
-posBody.innerHTML += '<tr><td><strong>'+symbol+'</strong></td><td><span class="badge-'+(pos.side==='BUY'?'buy':'sell')+'">'+pos.side+'</span></td><td>$'+pos.entry_price+'</td><td>'+pos.quantity+'</td><td>$'+(pos.sl||'-')+'</td><td>$'+(pos.tp||'-')+'</td>'+pnlCell+'<td>'+prot+trail+be+'</td><td>'+(pos.open_time?new Date(pos.open_time).toLocaleString():'-')+'</td></tr>';
+const inpStyle = 'width:88px;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;';
+posBody.innerHTML += '<tr>'
++ '<td><strong>'+symbol+'</strong></td>'
++ '<td><span class="badge-'+(pos.side==='BUY'?'buy':'sell')+'">'+pos.side+'</span></td>'
++ '<td>$'+pos.entry_price+'</td>'
++ '<td>'+pos.quantity+'</td>'
++ '<td><input class="sl-ed" data-sym="'+symbol+'" type="number" step="any" value="'+(pos.sl!==null&&pos.sl!==undefined?pos.sl:'')+'" style="'+inpStyle+'"></td>'
++ '<td><input class="tp-ed" data-sym="'+symbol+'" type="number" step="any" value="'+(pos.tp!==null&&pos.tp!==undefined?pos.tp:'')+'" style="'+inpStyle+'"></td>'
++ pnlCell
++ '<td>'+prot+trail+be+'</td>'
++ '<td>'+(pos.open_time?new Date(pos.open_time).toLocaleString():'-')+'</td>'
++ '<td style="white-space:nowrap;"><button class="btn" style="padding:4px 10px;font-size:11px;" onclick="applyPos(\''+symbol+'\')">Uygula</button> <button class="btn" style="padding:4px 10px;font-size:11px;background:#ef4444;" onclick="closePos(\''+symbol+'\')">Kapat</button></td>'
++ '</tr>';
 }
 const protCount = Object.keys(d.positions).filter(function(s){ return d.positions[s].protected; }).length;
 const unprotCount = Object.keys(d.positions).length - protCount;
@@ -170,6 +182,35 @@ loadSignals();
 } catch(e) { console.error(e); }
 }
 let lastSignalsLoad = 0;
+async function applyPos(sym) {
+const sl = document.querySelector('.sl-ed[data-sym="'+sym+'"]').value;
+const tp = document.querySelector('.tp-ed[data-sym="'+sym+'"]').value;
+const results = [];
+if (sl !== '') {
+try {
+const r = await fetch('/api/v1/positions/'+sym+'/sl', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({price: parseFloat(sl)})});
+results.push(await r.json());
+} catch(e) { results.push({ok:false, error:e.message}); }
+}
+if (tp !== '') {
+try {
+const r = await fetch('/api/v1/positions/'+sym+'/tp', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({price: parseFloat(tp)})});
+results.push(await r.json());
+} catch(e) { results.push({ok:false, error:e.message}); }
+}
+const errs = results.filter(function(x){ return !x.ok; });
+if (errs.length) { alert('Hata: ' + errs.map(function(e){return e.error;}).join(', ')); }
+refresh();
+}
+async function closePos(sym) {
+if (!confirm('Pozisyon kapatilsin mi: ' + sym + '?')) return;
+try {
+const r = await fetch('/api/v1/positions/'+sym+'/close', {method:'POST'});
+const d = await r.json();
+if (!d.ok) { alert('Hata: ' + (d.error || 'bilinmeyen')); }
+} catch(e) { alert('Hata: ' + e.message); }
+refresh();
+}
 async function loadSignals() {
 if (Date.now() - lastSignalsLoad < 60000) return;
 lastSignalsLoad = Date.now();

@@ -359,6 +359,17 @@ yoksa dinleyici devre dışıdır.
   `breakeven_activate_pct`, `max_position_age_hours`, `max_leverage`.
 - `/koruma` (parametresiz) mevcut değerleri ve anahtar listesini gösterir.
 
+**Dashboard'dan pozisyon SL/TP düzenleme ve kapatma:**
+- Aktif Pozisyon tablosunda her satırda SL/TP input alanları, `Uygula` ve
+  `Kapat` butonları vardır.
+- `Uygula` yalnızca dolu alanları `/api/v1/positions/<SEMBOL>/sl` ve
+  `/api/v1/positions/<SEMBOL>/tp` uçlarına gönderir; sonuçlar `AutoTrader.update_sl` /
+  `update_tp` ile aynı yön doğrulamasından geçer (hata durumunda alert).
+- `Kapat` onay sonrası `/api/v1/positions/<SEMBOL>/close` ile pozisyonu canlı
+  fiyatla kapatır (`live_prices` → `get_all_tickers` fallback; fiyat bulunamazsa
+  işlem reddedilir) ve `AutoTrader.close_position` ile SL/TP algo emirlerini iptal eder.
+- Uçlar `not_running`, `position_not_found`, `price_not_found` hataları döndürür.
+
 ## API ve Dashboard Görünürlüğü
 
 | Uç | İçerik |
@@ -369,8 +380,11 @@ yoksa dinleyici devre dışıdır.
 | `/api/v1/risk/positions` | Pozisyon bazlı risk: `notional`, `size_pct`, `sl_distance_pct`, `risk_amount`, `upnl`, `protected`/`trailing`/`breakeven`, `age_hours` + toplamlar (`total_notional`, `total_risk_amount`) |
 | `/api/v1/priority` | Tarama listesi (`scanned`) ve rank edilmiş semboller (`symbols`) |
 | `/api/v1/signals` | Tarama listesi için canlı v23 sinyalleri (`BUY`/`SELL`/`HOLD`): `symbol`, `price`, `sl`, `tp`, `reason`, `indicator`; `limit` (varsayılan 12) ve `interval` |
+| `/api/v1/positions/<S>/sl` | Dashboard/API'den açık pozisyon SL güncelleme (`AutoTrader.update_sl`) |
+| `/api/v1/positions/<S>/tp` | Dashboard/API'den açık pozisyon TP güncelleme (`AutoTrader.update_tp`) |
+| `/api/v1/positions/<S>/close` | Açık pozisyonu canlı fiyatla kapatma (`AutoTrader.close_position`) |
 | `/dashboard/metrics` | Aynı + pozisyon başına `protected` |
-| `/dashboard` | Pozisyon tablosunda `KORUMALI`/`KORUMASIZ` rozetleri + kart özeti; `🧮 Position Risk` kartında notional, size %, SL mesafesi, risk tutarı, uPnL ve pozisyon yaşı; `📡 Live Signals` kartında tarama listesinin canlı sinyalleri (60 sn'de bir yenilenir) |
+| `/dashboard` | Pozisyon tablosunda `KORUMALI`/`KORUMASIZ` rozetleri + kart özeti; `🧮 Position Risk` kartında notional, size %, SL mesafesi, risk tutarı, uPnL ve pozisyon yaşı; `📡 Live Signals` kartında tarama listesinin canlı sinyalleri (60 sn'de bir yenilenir); her satırda SL/TP düzenleme + `Uygula`/`Kapat` butonları |
 
 ## Doğrulama
 

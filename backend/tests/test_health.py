@@ -50,6 +50,35 @@ class _FakeTrader:
         self.risk_events = [{"time": "2026-01-01T00:00:00", "type": "drawdown_halt",
                              "message": "test"}]
 
+    async def update_sl(self, symbol, new_sl):
+        pos = self.active_positions.get(symbol)
+        if not pos:
+            return {"ok": False, "error": "position_not_found"}
+        entry = float(pos["entry_price"])
+        if pos["side"] == "BUY" and new_sl >= entry:
+            return {"ok": False, "error": "sl_above_entry"}
+        if pos["side"] == "SELL" and new_sl <= entry:
+            return {"ok": False, "error": "sl_below_entry"}
+        old = pos.get("sl")
+        pos["sl"] = new_sl
+        return {"ok": True, "symbol": symbol, "old_sl": old, "new_sl": new_sl}
+
+    async def update_tp(self, symbol, new_tp):
+        pos = self.active_positions.get(symbol)
+        if not pos:
+            return {"ok": False, "error": "position_not_found"}
+        entry = float(pos["entry_price"])
+        if pos["side"] == "BUY" and new_tp <= entry:
+            return {"ok": False, "error": "tp_below_entry"}
+        if pos["side"] == "SELL" and new_tp >= entry:
+            return {"ok": False, "error": "tp_above_entry"}
+        old = pos.get("tp")
+        pos["tp"] = new_tp
+        return {"ok": True, "symbol": symbol, "old_tp": old, "new_tp": new_tp}
+
+    async def close_position(self, symbol, price, reason):
+        self.active_positions.pop(symbol, None)
+
 
 def test_health():
     with TestClient(app) as client:
@@ -256,6 +285,17 @@ def test_dashboard_positions_table_has_protection():
     client.close()
 
 
+def test_dashboard_positions_table_has_actions():
+    client = TestClient(app)
+    resp = client.get("/dashboard/html")
+    assert resp.status_code == 200
+    assert "<th>Actions</th>" in resp.text
+    assert "applyPos" in resp.text
+    assert "closePos" in resp.text
+    assert "/api/v1/positions/" in resp.text
+    client.close()
+
+
 def test_risk_events_endpoint():
     client = TestClient(app)
     resp = client.get("/api/v1/risk/events")
@@ -336,6 +376,124 @@ def test_risk_positions_short_and_unprotected():
     assert eth["risk_amount"] == 10.0
     assert eth["protected"] is False
     assert eth["upnl"] == 10.0
+
+
+def test_position_sl_endpoint():
+    fake = _FakeTrader({
+        "BTCUSDT": {"side": "BUY", "entry_price": 100.0, "quantity": 2.0,
+                    "sl": 95.0, "tp": 110.0},
+    })
+    main_mod.auto_trader = fake
+    try:
+        client = TestClient(app)
+        resp = client.post("/api/v1/positions/BTCUSDT/sl",
+                           json={"price": 97.0})
+        client.close()
+    finally:
+        main_mod.auto_trader = None
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True
+    assert body["new_sl"] == 97.0
+    assert fake.active_positions["BTCUSDT"]["sl"] == 97.0
+
+
+def test_position_sl_endpoint_invalid_direction():
+    fake = _FakeTrader({
+        "BTCUSDT": {"side": "BUY", "entry_price": 100.0, "quantity": 2.0,
+                    "sl": 95.0, "tp": 110.0},
+    })
+    main_mod.auto_trader = fake
+    try:
+        client = TestClient(app)
+        resp = client.post("/api/v1/positions/BTCUSDT/sl",
+                           json={"price": 105.0})
+        client.close()
+    finally:
+        main_mod.auto_trader = None
+    assert resp.json()["ok"] is False
+    assert resp.json()["error"] == "sl_above_entry"
+
+
+def test_position_tp_endpoint():
+    fake = _FakeTrader({
+        "BTCUSDT": {"side": "BUY", "entry_price": 100.0, "quantity": 2.0,
+                    "sl": 95.0, "tp": 110.0},
+    })
+    main_mod.auto_trader = fake
+    try:
+        client = TestClient(app)
+        resp = client.post("/api/v1/positions/BTCUSDT/tp",
+                           json={"price": 115.0})
+        client.close()
+    finally:
+        main_mod.auto_trader = None
+    body = resp.json()
+    assert body["ok"] is True
+    assert body["new_tp"] == 115.0
+    assert fake.active_positions["BTCUSDT"]["tp"] == 115.0
+
+
+def test_position_close_endpoint():
+    fake = _FakeTrader({
+        "BTCUSDT": {"side": "BUY", "entry_price": 100.0, "quantity": 2.0,
+                    "sl": 95.0, "tp": 110.0},
+    })
+    fake.live_prices = {"BTCUSDT": 108.0}
+    main_mod.auto_trader = fake
+    try:
+        client = TestClient(app)
+        resp = client.post("/api/v1/positions/BTCUSDT/close")
+        client.close()
+    finally:
+        main_mod.auto_trader = None
+    body = resp.json()
+    assert body["ok"] is True
+    assert body["price"] == 108.0
+    assert "BTCUSDT" not in fake.active_positions
+
+
+def test_position_close_endpoint_missing_price():
+    fake = _FakeTrader({
+        "BTCUSDT": {"side": "BUY", "entry_price": 100.0, "quantity": 2.0,
+                    "sl": 95.0, "tp": 110.0},
+    })
+    main_mod.auto_trader = fake
+    main_mod.app.state.binance = None
+    try:
+        client = TestClient(app)
+        resp = client.post("/api/v1/positions/BTCUSDT/close")
+        client.close()
+    finally:
+        main_mod.auto_trader = None
+        main_mod.app.state.binance = None
+    assert resp.json()["ok"] is False
+    assert resp.json()["error"] == "price_not_found"
+
+
+def test_position_close_endpoint_not_found():
+    fake = _FakeTrader({})
+    main_mod.auto_trader = fake
+    try:
+        client = TestClient(app)
+        resp = client.post("/api/v1/positions/ETHUSDT/close")
+        client.close()
+    finally:
+        main_mod.auto_trader = None
+    assert resp.json()["ok"] is False
+    assert resp.json()["error"] == "position_not_found"
+
+
+def test_position_edit_endpoints_not_running():
+    main_mod.auto_trader = None
+    client = TestClient(app)
+    resp1 = client.post("/api/v1/positions/BTCUSDT/sl", json={"price": 90.0})
+    resp2 = client.post("/api/v1/positions/BTCUSDT/tp", json={"price": 120.0})
+    resp3 = client.post("/api/v1/positions/BTCUSDT/close")
+    client.close()
+    assert resp1.json() == {"ok": False, "error": "not_running"}
+    assert resp2.json() == {"ok": False, "error": "not_running"}
+    assert resp3.json() == {"ok": False, "error": "not_running"}
 
 
 def test_live_signals_endpoint():
