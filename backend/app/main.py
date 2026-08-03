@@ -91,7 +91,8 @@ def _positions_payload() -> dict:
     enriched = {
         symbol: {**pos,
                  "protected": bool(pos.get("sl_order_id") or pos.get("tp_order_id")),
-                 "trailing": bool(pos.get("trailing"))}
+                 "trailing": bool(pos.get("trailing")),
+                 "breakeven": bool(pos.get("breakeven"))}
         for symbol, pos in positions.items()
     }
     return {
@@ -136,6 +137,8 @@ def _telegram_command(text: str):
             prot = "korumali" if (pos.get("sl_order_id") or pos.get("tp_order_id")) else "KORUMASIZ"
             if pos.get("trailing"):
                 prot += " + TRAILING"
+            if pos.get("breakeven"):
+                prot += " + BREAKEVEN"
             lines.append(f"{sym} {pos['side']} qty={pos['quantity']} @ ${pos['entry_price']} {prot}")
         return "\n".join(lines)
     if cmd.startswith("/durdur") or cmd.startswith("/stop"):

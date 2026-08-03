@@ -15,6 +15,7 @@ koruma (SL/TP) mekanizması ve ilgili API/dashboard görünürlüğünü belgele
 | `trailing_activate_pct` | 3 | Pozisyon kârı bu eşiği aşınca SL takibi başlar (%) |
 | `trailing_sl_pct` | 1.5 | Takip eden SL'nin fiyata uzaklığı (%; 0 = devre dışı) |
 | `trailing_min_move_pct` | 0.1 | SL güncellemesi için gereken min hareket (%; 0 = her seferinde) |
+| `breakeven_activate_pct` | 2 | Kâr bu eşiği aşınca SL giriş fiyatına taşınır (%; 0 = devre dışı) |
 
 - UI üzerinden `/dashboard/settings` → Risk sekmesinde değiştirilir.
 - Canlı döngüde her taramada `_apply_risk_settings` ile uygulanır.
@@ -84,6 +85,14 @@ Dinleyici aracılığıyla uzaktan acil durum kontrolü:
 - Trailing ile kapanan pozisyonların trade geçmişi `trailing: true`
   taşır; dashboard Trade History tablosunda `TRAIL` rozeti gösterilir.
 - İki ayar da `0` ise özellik devre dışıdır.
+
+## Break-Even Koruması
+
+`breakeven_activate_pct` kârı aşıldığında SL giriş fiyatına taşınır
+(risk olayı `breakeven_move`); fiyat geri dönerse pozisyon zarar etmeden
+kapanır. SL zaten daha iyiyse (trailing devrede) dokunulmaz.
+`0` = devre dışı. Dashboard'da `BREAKEVEN`, Telegram `/pozisyon`
+yanıtında `+ BREAKEVEN` rozeti gösterilir.
 
 ## Risk Olay Geçmişi
 

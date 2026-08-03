@@ -54,6 +54,7 @@ class AutoTrader:
         self.trailing_activate_pct = float(s.get("trailing_activate_pct", 3.0))
         self.trailing_sl_pct = float(s.get("trailing_sl_pct", 1.5))
         self.trailing_min_move_pct = float(s.get("trailing_min_move_pct", 0.1))
+        self.breakeven_activate_pct = float(s.get("breakeven_activate_pct", 2.0))
         self.peak_equity = float(s["initial_equity"])
         self.drawdown_pct = 0.0
         self.risk_halted = False
@@ -292,6 +293,7 @@ class AutoTrader:
         self.trailing_activate_pct = float(s.get("trailing_activate_pct", self.trailing_activate_pct))
         self.trailing_sl_pct = float(s.get("trailing_sl_pct", self.trailing_sl_pct))
         self.trailing_min_move_pct = float(s.get("trailing_min_move_pct", self.trailing_min_move_pct))
+        self.breakeven_activate_pct = float(s.get("breakeven_activate_pct", self.breakeven_activate_pct))
 
     def _projected_notional(self, price: float, sl: float) -> float:
         """Yeni bir pozisyonun boyutlandirma sonrasi nominal degeri."""
@@ -415,6 +417,7 @@ class AutoTrader:
             "pnl": net,
             "reason": reason,
             "trailing": bool(pos.get("trailing")),
+            "breakeven": bool(pos.get("breakeven")),
             "time": datetime.utcnow().isoformat(),
         })
         if self.telegram:
@@ -774,6 +777,8 @@ class AutoTrader:
             if not current_price:
                 continue
             side = pos["side"]
+            if self.breakeven_activate_pct > 0:
+                await self._check_breakeven(symbol, pos, side, current_price)
             if self.trailing_activate_pct > 0 and self.trailing_sl_pct > 0:
                 await self._check_trailing(symbol, pos, side, current_price)
             sl = pos.get("sl")
@@ -786,6 +791,42 @@ class AutoTrader:
                 await self.close_position(symbol, tp, "take_profit")
             elif tp and side == "SELL" and current_price <= tp:
                 await self.close_position(symbol, tp, "take_profit")
+
+    async def _check_breakeven(self, symbol: str, pos: dict, side: str, price: float):
+        """Kar esigini asan pozisyonun SL'sini giris fiyatina tasir (zararsiz).
+
+        `breakeven_activate_pct` kari asilinca SL giris fiyatina cekilir;
+        fiyat geri donerse pozisyon zarar etmeden kapanir. SL zaten daha
+        iyi (trailing) ise dokunulmaz.
+        """
+        entry = float(pos["entry_price"])
+        if side == "BUY":
+            profit_pct = (price - entry) / entry * 100.0
+            cur_sl = pos.get("sl") or 0.0
+            need_move = cur_sl < entry
+        else:
+            profit_pct = (entry - price) / entry * 100.0
+            cur_sl = pos.get("sl") or float("inf")
+            need_move = cur_sl > entry
+        if profit_pct < self.breakeven_activate_pct or not need_move:
+            return
+        pos["sl"] = entry
+        pos["breakeven"] = True
+        self._log_risk_event("breakeven_move",
+                             f"{symbol} SL giris fiyatina tasindi ({entry:.2f})")
+        logger.info(f"{symbol}: SL giris fiyatina tasindi -> {entry:.2f} (kar %{profit_pct:.1f})")
+        if self.paper or not pos.get("sl_order_id"):
+            return
+        try:
+            await self.binance.cancel_algo_order(symbol, pos["sl_order_id"])
+            algo = await self.binance.set_tp_sl(
+                symbol, "LONG" if side == "BUY" else "SHORT", entry, 0.0
+            )
+            if algo.get("sl"):
+                pos["sl_order_id"] = algo["sl"]
+                logger.info(f"{symbol}: breakeven SL borsaya yerleştirildi")
+        except Exception as e:
+            logger.error(f"{symbol}: breakeven SL guncelleme hatasi: {e}")
 
     async def _check_trailing(self, symbol: str, pos: dict, side: str, price: float):
         """Kar esigini asan pozisyonun SL'sini fiyati takip edecek sekilde kaydirir.

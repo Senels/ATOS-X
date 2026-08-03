@@ -757,6 +757,7 @@ async def test_trailing_disabled_when_activate_zero(trader):
     tr, fb, db = trader
     tr.trailing_activate_pct = 0
     tr.trailing_sl_pct = 1.5
+    tr.breakeven_activate_pct = 0
     await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
     await tr.check_positions({"BTCUSDT": 105.0})
     pos = tr.active_positions["BTCUSDT"]
@@ -842,6 +843,7 @@ async def test_trailing_min_move_blocks_small_update(trader):
     tr.trailing_activate_pct = 3.0
     tr.trailing_sl_pct = 1.5
     tr.trailing_min_move_pct = 10.0
+    tr.breakeven_activate_pct = 0
     await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
     await tr.check_positions({"BTCUSDT": 103.0})
     pos = tr.active_positions["BTCUSDT"]
@@ -936,6 +938,61 @@ async def test_loss_halt_blocks_new_entries(trader):
               "sl": 95.0, "tp": 110.0, "reason": ""}
     await tr.process_signals([signal])
     assert "ETHUSDT" not in tr.active_positions
+
+
+async def test_breakeven_moves_sl_to_entry(trader):
+    tr, fb, db = trader
+    tr.breakeven_activate_pct = 2.0
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
+    await tr.check_positions({"BTCUSDT": 102.5})
+    pos = tr.active_positions["BTCUSDT"]
+    assert pos["breakeven"] is True
+    assert pos["sl"] == 100.0
+    assert any(e["type"] == "breakeven_move" for e in tr.risk_events)
+
+
+async def test_breakeven_ignores_small_profit(trader):
+    tr, fb, db = trader
+    tr.breakeven_activate_pct = 2.0
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
+    await tr.check_positions({"BTCUSDT": 101.0})
+    pos = tr.active_positions["BTCUSDT"]
+    assert "breakeven" not in pos
+    assert pos["sl"] == 95.0
+
+
+async def test_breakeven_disabled_when_zero(trader):
+    tr, fb, db = trader
+    tr.breakeven_activate_pct = 0
+    tr.trailing_activate_pct = 0
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
+    await tr.check_positions({"BTCUSDT": 105.0})
+    pos = tr.active_positions["BTCUSDT"]
+    assert "breakeven" not in pos
+    assert pos["sl"] == 95.0
+
+
+async def test_breakeven_for_short(trader):
+    tr, fb, db = trader
+    tr.breakeven_activate_pct = 2.0
+    tr.trailing_activate_pct = 0
+    await tr.open_position("ETHUSDT", "SELL", 100.0, 105.0, 90.0)
+    await tr.check_positions({"ETHUSDT": 97.0})
+    pos = tr.active_positions["ETHUSDT"]
+    assert pos["breakeven"] is True
+    assert pos["sl"] == 100.0
+
+
+async def test_breakeven_does_not_override_trailing(trader):
+    tr, fb, db = trader
+    tr.breakeven_activate_pct = 2.0
+    tr.trailing_activate_pct = 3.0
+    tr.trailing_sl_pct = 1.5
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
+    await tr.check_positions({"BTCUSDT": 105.0})
+    pos = tr.active_positions["BTCUSDT"]
+    assert pos["trailing"] is True
+    assert pos["sl"] > 100.0
 
 
 async def test_fetch_klines_batch(trader):
