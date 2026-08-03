@@ -97,6 +97,10 @@ Dinleyici aracılığıyla uzaktan acil durum kontrolü:
 döndürür; dashboard'da `Risk Events` kartında gösterilir.
 `/durum` Telegram yanıtı risk olay sayısını ve son olay tipini içerir.
 
+Risk olayları DB'deki `risk_events` tablosuna kalıcı yazılır; motor
+yeniden başladığında son 200 olay bellek tamponuna geri yüklenir
+(geçmiş restart'ta korunur).
+
 ## Pozisyon Yaşı ve Yeniden Başlatma
 
 `/ac` (veya motor yeniden başlatma) sonrası `reconcile_positions` geri

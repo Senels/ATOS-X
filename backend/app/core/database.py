@@ -58,6 +58,14 @@ class Database:
                 metrics_json TEXT
             )
         ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS risk_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                type TEXT NOT NULL,
+                message TEXT NOT NULL
+            )
+        ''')
         conn.commit()
         conn.close()
         print("Veritabani hazir")
@@ -110,6 +118,26 @@ class Database:
         ).fetchone()
         conn.close()
         return row[0] if row and row[0] else None
+
+    def save_risk_event(self, event_type: str, message: str, ts: str):
+        """Risk/blok olayini kalici olarak DB'ye yazar."""
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            "INSERT INTO risk_events (time, type, message) VALUES (?, ?, ?)",
+            (ts, event_type, message),
+        )
+        conn.commit()
+        conn.close()
+
+    def get_risk_events(self, limit: int = 50):
+        """En son risk/blok olaylarini zaman sirasiyla doner."""
+        conn = sqlite3.connect(self.db_path)
+        rows = conn.execute(
+            "SELECT time, type, message FROM risk_events "
+            "ORDER BY id DESC LIMIT ?", (limit,)
+        ).fetchall()
+        conn.close()
+        return [{"time": r[0], "type": r[1], "message": r[2]} for r in rows]
 
     def save_signal(self, symbol: str, signal: str, price: float, confidence: float, reason: str = ""):
         conn = sqlite3.connect(self.db_path)

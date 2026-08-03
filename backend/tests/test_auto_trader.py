@@ -865,6 +865,20 @@ async def test_trailing_min_move_zero_updates_every_time(trader):
     assert pos["sl"] == pytest.approx(105.0 * 0.985, abs=0.001)
 
 
+async def test_risk_events_persist_to_db(trader):
+    tr, fb, db = trader
+    tr._log_risk_event("test_persist", "kalici kayit")
+    rows = db.get_risk_events(10)
+    assert any(r["type"] == "test_persist" for r in rows)
+
+
+async def test_risk_events_loaded_from_db_on_init(trader):
+    tr, fb, db = trader
+    tr._log_risk_event("boot_marker", "boot")
+    tr2 = at_mod.AutoTrader(fb, paper=False)
+    assert any(e["type"] == "boot_marker" for e in tr2.risk_events)
+
+
 async def test_fetch_klines_batch(trader):
     tr, fb, db = trader
     n = 200

@@ -64,6 +64,10 @@ class AutoTrader:
         self.block_summary_interval = 3600
         self.risk_events = []
         self.risk_events_max = 200
+        try:
+            self.risk_events = list(reversed(self.db.get_risk_events(self.risk_events_max)))
+        except Exception:
+            self.risk_events = []
         self.scan_interval = 30
         self.scan_limit = 50
         self.perf_interval = 60
@@ -72,12 +76,16 @@ class AutoTrader:
         self._last_perf = 0.0
 
     def _log_risk_event(self, event_type: str, message: str, **extra):
-        """Risk/blok olaylarini son-N halka tamponuna kaydeder."""
+        """Risk/blok olaylarini son-N halka tamponuna ve DB'ye kalici yazar."""
         entry = {"time": datetime.utcnow().isoformat(), "type": event_type,
                  "message": message, **extra}
         self.risk_events.append(entry)
         if len(self.risk_events) > self.risk_events_max:
             self.risk_events = self.risk_events[-self.risk_events_max:]
+        try:
+            self.db.save_risk_event(event_type, message, entry["time"])
+        except Exception as e:
+            logger.warning(f"Risk olayi DB'ye yazilamadi: {e}")
 
     def rank_symbols(self, limit: int = 500) -> List[str]:
         """Yerel OHLCV arsivinde backtest kalitesine gore sembol siralamasi.
