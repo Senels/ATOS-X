@@ -837,6 +837,34 @@ async def test_closed_trade_defaults_trailing_false(trader):
     assert tr.trade_history[-1]["trailing"] is False
 
 
+async def test_trailing_min_move_blocks_small_update(trader):
+    tr, fb, db = trader
+    tr.trailing_activate_pct = 3.0
+    tr.trailing_sl_pct = 1.5
+    tr.trailing_min_move_pct = 10.0
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
+    await tr.check_positions({"BTCUSDT": 103.0})
+    pos = tr.active_positions["BTCUSDT"]
+    assert pos["sl"] == 95.0
+    assert "trailing" not in pos
+    await tr.check_positions({"BTCUSDT": 108.0})
+    pos = tr.active_positions["BTCUSDT"]
+    assert pos["sl"] == pytest.approx(108.0 * 0.985, abs=0.001)
+    assert pos["trailing"] is True
+
+
+async def test_trailing_min_move_zero_updates_every_time(trader):
+    tr, fb, db = trader
+    tr.trailing_activate_pct = 3.0
+    tr.trailing_sl_pct = 1.5
+    tr.trailing_min_move_pct = 0
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
+    await tr.check_positions({"BTCUSDT": 104.0})
+    await tr.check_positions({"BTCUSDT": 105.0})
+    pos = tr.active_positions["BTCUSDT"]
+    assert pos["sl"] == pytest.approx(105.0 * 0.985, abs=0.001)
+
+
 async def test_fetch_klines_batch(trader):
     tr, fb, db = trader
     n = 200

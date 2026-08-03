@@ -53,6 +53,7 @@ class AutoTrader:
         self.max_position_age_hours = float(s.get("max_position_age_hours", 8.0))
         self.trailing_activate_pct = float(s.get("trailing_activate_pct", 3.0))
         self.trailing_sl_pct = float(s.get("trailing_sl_pct", 1.5))
+        self.trailing_min_move_pct = float(s.get("trailing_min_move_pct", 0.1))
         self.peak_equity = float(s["initial_equity"])
         self.drawdown_pct = 0.0
         self.risk_halted = False
@@ -273,6 +274,7 @@ class AutoTrader:
         self.max_position_age_hours = float(s.get("max_position_age_hours", self.max_position_age_hours))
         self.trailing_activate_pct = float(s.get("trailing_activate_pct", self.trailing_activate_pct))
         self.trailing_sl_pct = float(s.get("trailing_sl_pct", self.trailing_sl_pct))
+        self.trailing_min_move_pct = float(s.get("trailing_min_move_pct", self.trailing_min_move_pct))
 
     def _projected_notional(self, price: float, sl: float) -> float:
         """Yeni bir pozisyonun boyutlandirma sonrasi nominal degeri."""
@@ -730,12 +732,16 @@ class AutoTrader:
             new_sl = price * (1.0 - self.trailing_sl_pct / 100.0)
             cur_sl = pos.get("sl") or 0.0
             better = new_sl > cur_sl
+            move_pct = (new_sl - cur_sl) / (cur_sl or 1.0) * 100.0 if better else 0.0
         else:
             profit_pct = (entry - price) / entry * 100.0
             new_sl = price * (1.0 + self.trailing_sl_pct / 100.0)
             cur_sl = pos.get("sl") or float("inf")
             better = new_sl < cur_sl
+            move_pct = (cur_sl - new_sl) / (cur_sl or 1.0) * 100.0 if better else 0.0
         if profit_pct < self.trailing_activate_pct or not better:
+            return
+        if self.trailing_min_move_pct > 0 and move_pct < self.trailing_min_move_pct:
             return
         if not pos.get("trailing"):
             self._log_risk_event("trailing_activate",
