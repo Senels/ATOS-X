@@ -43,6 +43,8 @@ tr:hover { background:rgba(59,130,246,0.05); }
 .badge-buy { background:#22c55e; color:white; padding:2px 10px; border-radius:12px; font-size:12px; }
 .badge-sell { background:#ef4444; color:white; padding:2px 10px; border-radius:12px; font-size:12px; }
 .row-btn { cursor:pointer; }
+.win { color:#22c55e; font-weight:bold; }
+.cmp-cb { width:16px; height:16px; accent-color:#3b82f6; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -107,7 +109,17 @@ tr:hover { background:rgba(59,130,246,0.05); }
 
 <div class="card">
 <h3>Gecmis Calismalar</h3>
-<div class="table-wrap"><table><thead><tr><th>ID</th><th>Time</th><th>Symbol</th><th>Interval</th><th>Source</th><th>Trades</th><th>Return %</th><th>Win Rate %</th><th>PF</th><th>DD %</th></tr></thead><tbody id="histBody"><tr><td colspan="10" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div>
+<div style="margin-bottom:8px; display:flex; align-items:center; gap:8px;">
+<span id="cmpCount" style="font-size:13px;color:#94a3b8;">2 calisma secin</span>
+<button class="btn" id="cmpBtn" onclick="compare()" disabled>Karsilastir</button>
+<button class="btn" onclick="clearCmp()">Temizle</button>
+</div>
+<div class="table-wrap"><table><thead><tr><th></th><th>ID</th><th>Time</th><th>Symbol</th><th>Interval</th><th>Source</th><th>Trades</th><th>Return %</th><th>Win Rate %</th><th>PF</th><th>DD %</th></tr></thead><tbody id="histBody"><tr><td colspan="11" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div>
+</div>
+
+<div class="card hidden" id="cmpCard">
+<h3>Karsilastirma</h3>
+<div class="table-wrap"><table><thead><tr><th>Metrik</th><th id="cmpA"></th><th id="cmpB"></th></tr></thead><tbody id="cmpBody"></tbody></table></div>
 </div>
 </div>
 <script>
@@ -209,10 +221,69 @@ const body = document.getElementById('histBody');
 body.innerHTML = '';
 (d.runs||[]).forEach(run => {
 const m = run.metrics || {};
-body.innerHTML += '<tr class="row-btn" onclick="reloadRun('+run.id+')"><td><strong>'+run.id+'</strong></td><td>'+(run.created_at||'-')+'</td><td>'+run.symbol+'</td><td>'+run.interval+'</td><td>'+run.source+'</td><td>'+(m.total_trades||0)+'</td><td style="color:'+(m.total_return_pct>=0?'#22c55e':'#ef4444')+'">'+fmt(m.total_return_pct,2)+'</td><td>'+fmt(m.win_rate,1)+'</td><td>'+fmt(m.profit_factor,2)+'</td><td>'+fmt(m.max_drawdown_pct,2)+'</td></tr>';
+body.innerHTML += '<tr class="row-btn" onclick="reloadRun('+run.id+')"><td onclick="event.stopPropagation()"><input type="checkbox" class="cmp-cb" value="'+run.id+'" onchange="toggleCmp(this)"></td><td><strong>'+run.id+'</strong></td><td>'+(run.created_at||'-')+'</td><td>'+run.symbol+'</td><td>'+run.interval+'</td><td>'+run.source+'</td><td>'+(m.total_trades||0)+'</td><td style="color:'+(m.total_return_pct>=0?'#22c55e':'#ef4444')+'">'+fmt(m.total_return_pct,2)+'</td><td>'+fmt(m.win_rate,1)+'</td><td>'+fmt(m.profit_factor,2)+'</td><td>'+fmt(m.max_drawdown_pct,2)+'</td></tr>';
 });
-if (!(d.runs||[]).length) body.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#64748b;padding:20px;">Gecmis calisma yok</td></tr>';
+if (!(d.runs||[]).length) body.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#64748b;padding:20px;">Gecmis calisma yok</td></tr>';
 } catch(e) { console.error(e); }
+}
+let selected = new Set();
+function toggleCmp(cb) {
+if (cb.checked) {
+if (selected.size >= 2) { cb.checked = false; return; }
+selected.add(cb.value);
+} else {
+selected.delete(cb.value);
+}
+updateCmpUI();
+}
+function clearCmp() {
+selected.clear();
+document.querySelectorAll('.cmp-cb').forEach(c => c.checked = false);
+updateCmpUI();
+document.getElementById('cmpCard').classList.add('hidden');
+}
+function updateCmpUI() {
+document.getElementById('cmpBtn').disabled = selected.size !== 2;
+document.getElementById('cmpCount').textContent = selected.size + '/2 calisma secildi';
+}
+async function compare() {
+const ids = Array.from(selected);
+if (ids.length !== 2) return;
+let d;
+try {
+const r = await fetch('/api/v1/backtest/compare?a='+ids[0]+'&b='+ids[1]);
+d = await r.json();
+if (d.detail) throw new Error(d.detail);
+} catch(e) { alert('Karsilastirma hatasi: ' + e.message); return; }
+const a = d.runs[ids[0]], b = d.runs[ids[1]];
+document.getElementById('cmpA').textContent = '#'+a.id+' '+a.symbol+' ('+a.interval+')';
+document.getElementById('cmpB').textContent = '#'+b.id+' '+b.symbol+' ('+b.interval+')';
+const rows = [
+['Toplam Getiri %', m=>m.total_return_pct, 'higher'],
+['Net Kar', m=>m.net_profit, 'higher'],
+['Final Equity', m=>m.final_equity, 'higher'],
+['Islem Sayisi', m=>m.total_trades, 'higher'],
+['Win Rate %', m=>m.win_rate, 'higher'],
+['Profit Factor', m=>m.profit_factor, 'higher'],
+['Sharpe', m=>m.sharpe, 'higher'],
+['Max DD %', m=>m.max_drawdown_pct, 'lower'],
+['Maruziyet %', m=>m.exposure_pct, 'lower'],
+['Buy&Hold %', m=>m.buy_hold_return_pct, 'higher'],
+['Ort R', m=>m.avg_r_multiple, 'higher'],
+['Beklenti (Expectancy)', m=>m.expectancy, 'higher'],
+];
+const body = document.getElementById('cmpBody');
+body.innerHTML = '';
+rows.forEach(([label, get, dir]) => {
+const va = get(a.metrics), vb = get(b.metrics);
+let ca = '', cb = '';
+if (va !== undefined && vb !== undefined && va !== vb) {
+ca = (dir === 'higher' ? (va > vb ? 'win' : '') : (va < vb ? 'win' : ''));
+cb = ca === 'win' ? '' : 'win';
+}
+body.innerHTML += '<tr><td>'+label+'</td><td class="'+ca+'">'+fmt(va,2)+'</td><td class="'+cb+'">'+fmt(vb,2)+'</td></tr>';
+});
+document.getElementById('cmpCard').classList.remove('hidden');
 }
 async function reloadRun(id) {
 const r = await fetch('/api/v1/backtest/history?limit=500');

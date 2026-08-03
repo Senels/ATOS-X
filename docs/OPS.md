@@ -217,6 +217,11 @@ Sharpe, max DD, exposure) + equity eğrisi + işlem tablosu gösterilir;
 geçmiş çalışmalar tablosundan kayıt yeniden yüklenebilir. Boş bırakılan
 risk alanları canlı ayarları kullanır.
 
+Geçmiş çalışmalar tablosunda iki kayıt işaretlenip **Karsilastir** ile
+`/api/v1/backtest/compare` çağrılır; metrikler yan yana tabloda
+gösterilir ve daha iyi olan (getiride yüksek, DD'de düşük) yeşil
+işaretlenir.
+
 ## Parametre Optimizasyonu (Grid Search)
 
 `GridSearch` (ProcessPoolExecutor destekli) TradeBotV23 + BacktestEngine

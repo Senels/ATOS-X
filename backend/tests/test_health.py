@@ -105,6 +105,17 @@ def test_dashboard_pages():
     client.close()
 
 
+def test_backtest_compare_ui_present():
+    client = TestClient(app)
+    resp = client.get("/backtest/html")
+    assert resp.status_code == 200
+    assert "Karsilastir" in resp.text
+    assert "cmp-cb" in resp.text
+    assert "compare?a=" in resp.text
+    assert "backtest/compare" in resp.text
+    client.close()
+
+
 def test_dashboard_has_priority_watchlist():
     client = TestClient(app)
     resp = client.get("/dashboard/html")
