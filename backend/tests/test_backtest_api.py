@@ -45,6 +45,36 @@ def test_engine_params_fall_back_to_settings(api_db):
     assert res["params"]["fee_rate"] == 0.001
 
 
+def test_backtest_risk_params_in_metrics(api_db):
+    res = asyncio.run(bt.run_backtest(
+        symbol="BTCUSDT", interval="4h", limit=100, source="csv",
+    ))
+    params = res["params"]
+    assert "max_drawdown_pct" in params
+    assert "max_consecutive_losses" in params
+    assert "trailing_activate_pct" in params
+    assert "breakeven_activate_pct" in params
+    assert "max_position_age_hours" in params
+
+
+def test_backtest_risk_override_params(api_db):
+    res = asyncio.run(bt.run_backtest(
+        symbol="BTCUSDT", interval="4h", limit=100, source="csv",
+        max_drawdown_pct=5.0, max_consecutive_losses=3,
+        trailing_activate_pct=3.0, trailing_sl_pct=1.5,
+        breakeven_activate_pct=2.0, max_position_age_hours=6,
+        min_equity=9000.0,
+    ))
+    params = res["params"]
+    assert params["max_drawdown_pct"] == 5.0
+    assert params["max_consecutive_losses"] == 3
+    assert params["trailing_activate_pct"] == 3.0
+    assert params["trailing_sl_pct"] == 1.5
+    assert params["breakeven_activate_pct"] == 2.0
+    assert params["max_position_age_hours"] == 6
+    assert params["min_equity"] == 9000.0
+
+
 def test_history(api_db):
     asyncio.run(bt.run_backtest(symbol="BTCUSDT", interval="4h", limit=100, source="csv"))
     hist = asyncio.run(bt.backtest_history(limit=10))

@@ -86,6 +86,15 @@ async def run_backtest(
     atr_fallback: Optional[bool] = None,
     atr_mult: Optional[float] = None,
     confirmations: Optional[str] = None,
+    max_drawdown_pct: Optional[float] = None,
+    max_consecutive_losses: Optional[int] = None,
+    max_daily_loss_pct: Optional[float] = None,
+    min_equity: Optional[float] = None,
+    trailing_activate_pct: Optional[float] = None,
+    trailing_sl_pct: Optional[float] = None,
+    trailing_min_move_pct: Optional[float] = None,
+    breakeven_activate_pct: Optional[float] = None,
+    max_position_age_hours: Optional[float] = None,
 ):
     try:
         df = await _load_data(symbol, interval, limit, source)
@@ -106,15 +115,15 @@ async def run_backtest(
         fee_rate=fee_rate if fee_rate is not None else engine_cfg["fee_rate"],
         slippage=0.0001,
         max_leverage=leverage if leverage is not None else engine_cfg["max_leverage"],
-        max_drawdown_pct=engine_cfg.get("max_drawdown_pct", 0.0),
-        max_consecutive_losses=engine_cfg.get("max_consecutive_losses", 0),
-        max_daily_loss_pct=engine_cfg.get("max_daily_loss_pct", 0.0),
-        min_equity=engine_cfg.get("min_equity", 0.0),
-        trailing_activate_pct=engine_cfg.get("trailing_activate_pct", 0.0),
-        trailing_sl_pct=engine_cfg.get("trailing_sl_pct", 0.0),
-        trailing_min_move_pct=engine_cfg.get("trailing_min_move_pct", 0.0),
-        breakeven_activate_pct=engine_cfg.get("breakeven_activate_pct", 0.0),
-        max_position_age_hours=engine_cfg.get("max_position_age_hours", 0.0),
+        max_drawdown_pct=max_drawdown_pct if max_drawdown_pct is not None else engine_cfg.get("max_drawdown_pct", 0.0),
+        max_consecutive_losses=max_consecutive_losses if max_consecutive_losses is not None else engine_cfg.get("max_consecutive_losses", 0),
+        max_daily_loss_pct=max_daily_loss_pct if max_daily_loss_pct is not None else engine_cfg.get("max_daily_loss_pct", 0.0),
+        min_equity=min_equity if min_equity is not None else engine_cfg.get("min_equity", 0.0),
+        trailing_activate_pct=trailing_activate_pct if trailing_activate_pct is not None else engine_cfg.get("trailing_activate_pct", 0.0),
+        trailing_sl_pct=trailing_sl_pct if trailing_sl_pct is not None else engine_cfg.get("trailing_sl_pct", 0.0),
+        trailing_min_move_pct=trailing_min_move_pct if trailing_min_move_pct is not None else engine_cfg.get("trailing_min_move_pct", 0.0),
+        breakeven_activate_pct=breakeven_activate_pct if breakeven_activate_pct is not None else engine_cfg.get("breakeven_activate_pct", 0.0),
+        max_position_age_hours=max_position_age_hours if max_position_age_hours is not None else engine_cfg.get("max_position_age_hours", 0.0),
     )
     bot = TradeBotV23(settings)
     result = bot.analyze(df)

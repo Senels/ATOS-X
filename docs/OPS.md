@@ -195,6 +195,13 @@ Tüm parametreler varsayılan olarak `0` = devre dışı; yalnızca canlı
 ayarlar sıfırdan farklıysa davranış değişir. Risk parametreleri
 `metrics.params` içinde saklanır.
 
+`/api/v1/backtest` risk ayarlarını opsiyonel query parametreleriyle ezme
+imkanı verir: `max_drawdown_pct`, `max_consecutive_losses`,
+`max_daily_loss_pct`, `min_equity`, `trailing_activate_pct`,
+`trailing_sl_pct`, `trailing_min_move_pct`, `breakeven_activate_pct`,
+`max_position_age_hours`. Verilmezse canlı ayarlar kullanılır. Grid
+search (`GridSearch`) da varsayılan olarak aynı risk ayarlarıyla çalışır.
+
 ## Pozisyon Yaşı ve Yeniden Başlatma
 
 `/ac` (veya motor yeniden başlatma) sonrası `reconcile_positions` geri

@@ -134,6 +134,15 @@ class GridSearch:
                 "risk_per_trade": s["risk_per_trade"],
                 "fee_rate": s["fee_rate"],
                 "max_leverage": s["max_leverage"],
+                "max_drawdown_pct": s.get("max_drawdown_pct", 0.0),
+                "max_consecutive_losses": s.get("max_consecutive_losses", 0),
+                "max_daily_loss_pct": s.get("max_daily_loss_pct", 0.0),
+                "min_equity": s.get("min_equity", 0.0),
+                "trailing_activate_pct": s.get("trailing_activate_pct", 0.0),
+                "trailing_sl_pct": s.get("trailing_sl_pct", 0.0),
+                "trailing_min_move_pct": s.get("trailing_min_move_pct", 0.0),
+                "breakeven_activate_pct": s.get("breakeven_activate_pct", 0.0),
+                "max_position_age_hours": s.get("max_position_age_hours", 0.0),
             }
 
         combos = [
