@@ -245,6 +245,7 @@ async def metrics():
             "paper": auto_trader.paper if auto_trader else True,
             "top_symbols": auto_trader.top_symbols if auto_trader else [],
             "positions": auto_trader.active_positions if auto_trader else {},
+            "concentration": _concentration_summary(),
             "uptime": int((datetime.utcnow() - system_status["start_time"]).total_seconds())
         }
     except Exception as e:

@@ -51,6 +51,8 @@ class AutoTrader:
         self.max_side_pct = float(s.get("max_side_pct", 150.0))
         self._conc_alerts = {"symbols": set(), "sides": set()}
         self._conc_blocks = set()
+        self._last_block_summary = 0.0
+        self.block_summary_interval = 3600
         self.scan_interval = 30
         self.scan_limit = 50
         self.perf_interval = 60
@@ -513,6 +515,16 @@ class AutoTrader:
         for s in ("LONG", "SHORT"):
             if s not in over_sides:
                 self._conc_blocks.discard(f"side:{s}")
+        if self._conc_blocks:
+            if time.time() - self._last_block_summary > self.block_summary_interval:
+                self._last_block_summary = time.time()
+                if self.telegram:
+                    await self.telegram.send(
+                        f"ATOS X: {len(self._conc_blocks)} konsantrasyon engeli aktif: "
+                        f"{', '.join(sorted(self._conc_blocks))}"
+                    )
+        else:
+            self._last_block_summary = 0.0
 
     async def _repair_protection(self, symbol: str, pos: dict, missing: list):
         """Kayip SL/TP algo emrini yeniden yerleştirir; basarisizsa uyarir."""

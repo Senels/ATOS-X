@@ -474,6 +474,65 @@ async def test_apply_risk_settings_live(trader):
     assert tr.engine.max_leverage == 20.0
 
 
+async def test_side_block_summary_sent(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    tr.equity = 10000
+    tr.max_side_pct = 50.0
+    tr.max_position_pct = 999.0
+    tr.max_positions = 10
+    tr.block_summary_interval = 0
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 99.5, 101.0)
+    await tr.process_signals([{
+        "symbol": "ETHUSDT", "signal": "BUY", "price": 100.0,
+        "sl": 99.5, "tp": 101.0, "reason": "r",
+    }])
+    await tr._check_concentration()
+    assert any("engeli aktif" in m for m in tg.sent)
+
+
+async def test_side_block_summary_throttled(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    tr.equity = 10000
+    tr.max_side_pct = 50.0
+    tr.max_position_pct = 999.0
+    tr.max_positions = 10
+    tr.block_summary_interval = 3600
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 99.5, 101.0)
+    await tr.process_signals([{
+        "symbol": "ETHUSDT", "signal": "BUY", "price": 100.0,
+        "sl": 99.5, "tp": 101.0, "reason": "r",
+    }])
+    await tr._check_concentration()
+    n = len(tg.sent)
+    await tr._check_concentration()
+    assert len(tg.sent) == n
+
+
+async def test_side_block_summary_resets_when_clear(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    tr.equity = 10000
+    tr.max_side_pct = 50.0
+    tr.max_position_pct = 999.0
+    tr.max_positions = 10
+    tr.block_summary_interval = 3600
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 99.5, 101.0)
+    await tr.process_signals([{
+        "symbol": "ETHUSDT", "signal": "BUY", "price": 100.0,
+        "sl": 99.5, "tp": 101.0, "reason": "r",
+    }])
+    await tr._check_concentration()
+    assert tr._last_block_summary != 0.0
+    tr.active_positions.clear()
+    await tr._check_concentration()
+    assert tr._last_block_summary == 0.0
+
+
 async def test_fetch_klines_batch(trader):
     tr, fb, db = trader
     n = 200
