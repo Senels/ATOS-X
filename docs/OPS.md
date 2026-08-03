@@ -91,6 +91,14 @@ Dinleyici aracılığıyla uzaktan acil durum kontrolü:
 `/api/v1/risk/events` tüm kayıtları, `/dashboard/metrics` son 10 kaydı
 döndürür; dashboard'da `Risk Events` kartında gösterilir.
 
+## Pozisyon Yaşı ve Yeniden Başlatma
+
+`/ac` (veya motor yeniden başlatma) sonrası `reconcile_positions` geri
+yüklenen pozisyonların gerçek açılış zamanını `trades.entry_time`
+kaydından okur. Böylece time-stop (pozisyon yaşı) yeniden başlatmada
+sıfırlanmaz; yaşı aşan pozisyonlar yine `time_stop` ile kapanır.
+DB'de OPEN kaydı yoksa açılış zamanı şimdi kabul edilir.
+
 ## Telegram Bildirimleri
 
 - **Başlangıç**: `_notify_startup_state` risk eşiklerini ve mevcut

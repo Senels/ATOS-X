@@ -101,6 +101,16 @@ class Database:
         conn.commit()
         conn.close()
 
+    def get_open_trade_entry_time(self, symbol: str):
+        """Sembolun en guncel OPEN kaydinin acilis zamanini doner (yoksa None)."""
+        conn = sqlite3.connect(self.db_path)
+        row = conn.execute(
+            "SELECT entry_time FROM trades WHERE symbol = ? AND status = 'OPEN' "
+            "ORDER BY entry_time DESC LIMIT 1", (symbol,)
+        ).fetchone()
+        conn.close()
+        return row[0] if row and row[0] else None
+
     def save_signal(self, symbol: str, signal: str, price: float, confidence: float, reason: str = ""):
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()

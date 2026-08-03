@@ -270,6 +270,30 @@ async def test_reconcile_restores_exchange_positions(trader):
     assert pos["restored"] is True
 
 
+async def test_reconcile_restores_db_open_time(trader):
+    tr, fb, db = trader
+    db.save_trade("BTCUSDT", "BUY", 65000.0, 0.5)
+    db_entry = db.get_open_trade_entry_time("BTCUSDT")
+    assert db_entry is not None
+    fb.open_positions = [
+        {"symbol": "BTCUSDT", "positionAmt": "0.5", "entryPrice": "65000.0"},
+    ]
+    fb.algo_orders = [
+        {"symbol": "BTCUSDT", "orderType": "STOP_MARKET", "algoId": 111, "triggerPrice": "63000"},
+    ]
+    await tr.reconcile_positions()
+    pos = tr.active_positions["BTCUSDT"]
+    assert pos["open_time"] == datetime.fromisoformat(db_entry).isoformat()
+
+
+async def test_db_open_trade_entry_time_none_when_closed(trader):
+    tr, fb, db = trader
+    assert db.get_open_trade_entry_time("BTCUSDT") is None
+    db.save_trade("BTCUSDT", "BUY", 65000.0, 0.5)
+    db.close_trade_by_symbol("BTCUSDT", 66000.0, 100.0)
+    assert db.get_open_trade_entry_time("BTCUSDT") is None
+
+
 async def test_reconcile_skips_unprotected(trader):
     tr, fb, db = trader
     fb.open_positions = [

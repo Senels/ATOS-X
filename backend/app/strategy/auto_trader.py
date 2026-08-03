@@ -466,6 +466,13 @@ class AutoTrader:
                         )
                     continue
                 amt = float(p["positionAmt"])
+                db_opened = self.db.get_open_trade_entry_time(symbol)
+                restored_open = datetime.utcnow().isoformat()
+                if db_opened:
+                    try:
+                        restored_open = datetime.fromisoformat(db_opened).isoformat()
+                    except Exception:
+                        pass
                 self.active_positions[symbol] = {
                     "side": "BUY" if amt > 0 else "SELL",
                     "entry_price": float(p.get("entryPrice", 0)),
@@ -475,7 +482,7 @@ class AutoTrader:
                     "sl_order_id": info.get("sl_id"),
                     "tp_order_id": info.get("tp_id"),
                     "entry_fee": 0.0,
-                    "open_time": datetime.utcnow().isoformat(),
+                    "open_time": restored_open,
                     "restored": True,
                 }
                 restored += 1
