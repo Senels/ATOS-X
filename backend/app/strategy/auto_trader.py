@@ -50,6 +50,7 @@ class AutoTrader:
         self.max_position_pct = float(s.get("max_position_pct", 75.0))
         self.max_side_pct = float(s.get("max_side_pct", 150.0))
         self._conc_alerts = {"symbols": set(), "sides": set()}
+        self._conc_blocks = set()
         self.scan_interval = 30
         self.scan_limit = 50
         self.perf_interval = 60
@@ -100,6 +101,17 @@ class AutoTrader:
 
     def update_price(self, symbol: str, price: float):
         self.live_prices[symbol] = float(price)
+
+    async def _fetch_klines_batch(self, candidates: list) -> dict:
+        """Aday sembollerin kline'larini paralel ceker (siralı REST gecikmesini azaltir)."""
+        async def fetch(symbol):
+            try:
+                return symbol, await self.binance.get_klines(symbol, "4h", 200)
+            except Exception:
+                return symbol, None
+
+        results = await asyncio.gather(*(fetch(s) for s in candidates))
+        return {symbol: klines for symbol, klines in results}
 
     async def _ensure_connected(self, max_attempts: int = 30, delay: int = 10) -> bool:
         """Binance baglantisi kurulana kadar sinirli sure dener (flaky network)."""
@@ -160,11 +172,10 @@ class AutoTrader:
                 candidates = ranked[: self.scan_limit] if ranked \
                     else self.trading_symbols[: self.scan_limit]
 
+                klines_map = await self._fetch_klines_batch(candidates)
+
                 for symbol in candidates:
-                    try:
-                        klines = await self.binance.get_klines(symbol, "4h", 200)
-                    except Exception:
-                        continue
+                    klines = klines_map.get(symbol)
                     if klines is None or len(klines) < 30:
                         continue
 
@@ -205,10 +216,69 @@ class AutoTrader:
             else:
                 if len(self.active_positions) >= self.max_positions:
                     continue
+                side = "LONG" if signal["signal"] == "BUY" else "SHORT"
+                notional = self._projected_notional(signal["price"], signal["sl"])
+                if await self._blocked_by_side(side, notional):
+                    logger.warning(
+                        f"{symbol}: {side} yonunde asiri pozisyon, giris engellendi"
+                    )
+                    continue
+                if await self._blocked_by_symbol(symbol, notional):
+                    logger.warning(
+                        f"{symbol}: projeksiyon pozisyonu asiri, giris engellendi"
+                    )
+                    continue
                 await self.open_position(
                     symbol, signal["signal"], signal["price"],
                     signal["sl"], signal["tp"], signal.get("reason"),
                 )
+
+    def _projected_notional(self, price: float, sl: float) -> float:
+        """Yeni bir pozisyonun boyutlandirma sonrasi nominal degeri."""
+        try:
+            sizing = self.engine.position_size(price, sl, self.equity)
+            return price * float(sizing["qty"])
+        except Exception:
+            return 0.0
+
+    def _side_total(self, side: str) -> float:
+        return sum(
+            float(p["entry_price"]) * float(p["quantity"])
+            for p in self.active_positions.values()
+            if p["side"] == side
+        )
+
+    async def _blocked_by_side(self, side: str, notional: float) -> bool:
+        """Tek yon toplam maruziyet esigi asarsa o yonde giris engellenir."""
+        pct = (self._side_total(side) + notional) / (self.equity or 1.0) * 100.0
+        if pct <= self.max_side_pct:
+            self._conc_blocks.discard(f"side:{side}")
+            return False
+        key = f"side:{side}"
+        if key not in self._conc_blocks:
+            self._conc_blocks.add(key)
+            if self.telegram:
+                await self.telegram.send(
+                    f"ATOS X: {side} yonunde toplam %{pct:.0f} equity asimi; "
+                    f"yeni {side} girisi engellendi."
+                )
+        return True
+
+    async def _blocked_by_symbol(self, symbol: str, notional: float) -> bool:
+        """Projeksiyon pozisyonu sembol esigini asarsa giris engellenir."""
+        pct = notional / (self.equity or 1.0) * 100.0
+        if pct <= self.max_position_pct:
+            self._conc_blocks.discard(f"sym:{symbol}")
+            return False
+        key = f"sym:{symbol}"
+        if key not in self._conc_blocks:
+            self._conc_blocks.add(key)
+            if self.telegram:
+                await self.telegram.send(
+                    f"ATOS X: {symbol} projeksiyon pozisyonu equity'nin "
+                    f"%{pct:.0f}'i (max %{self.max_position_pct:.0f}); giris engellendi."
+                )
+        return True
 
     async def _submit_open(self, symbol: str, side: str, qty: float):
         if self.paper:
@@ -431,6 +501,9 @@ class AutoTrader:
                         f"asiri konsantrasyon!"
                     )
         self._conc_alerts["sides"] &= set(over_sides)
+        for s in ("LONG", "SHORT"):
+            if s not in over_sides:
+                self._conc_blocks.discard(f"side:{s}")
 
     async def _repair_protection(self, symbol: str, pos: dict, missing: list):
         """Kayip SL/TP algo emrini yeniden yerleştirir; basarisizsa uyarir."""

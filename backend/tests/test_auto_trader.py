@@ -1,5 +1,6 @@
 import sqlite3
 
+import pandas as pd
 import pytest
 
 import app.strategy.auto_trader as at_mod
@@ -29,6 +30,8 @@ class FakeBinance:
         self.connect_failures = 0
         self.fail_tp_sl = False
         self.client = None
+        self.klines_calls = []
+        self.raise_on_klines = set()
 
     async def connect(self):
         if self.connect_failures:
@@ -44,6 +47,9 @@ class FakeBinance:
         return {"BTCUSDT": 65000.0, "ETHUSDT": 3000.0}
 
     async def get_klines(self, symbol, interval, limit):
+        self.klines_calls.append(symbol)
+        if symbol in self.raise_on_klines:
+            raise Exception("kline error")
         return self.klines
 
     async def get_price(self, symbol="BTCUSDT"):
@@ -386,6 +392,90 @@ async def test_concentration_alerts_on_side(trader):
     await tr._check_concentration()
     assert any("LONG" in m and "konsantrasyon" in m for m in tg.sent)
     assert not any("BTCUSDT" in m for m in tg.sent)
+
+
+async def test_side_block_prevents_open(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    tr.equity = 10000
+    tr.max_side_pct = 50.0
+    tr.max_position_pct = 999.0
+    tr.max_positions = 10
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 99.5, 101.0)
+    await tr.process_signals([{
+        "symbol": "ETHUSDT", "signal": "BUY", "price": 100.0,
+        "sl": 99.5, "tp": 101.0, "reason": "r",
+    }])
+    assert "ETHUSDT" not in tr.active_positions
+    assert any("engellendi" in m and "LONG" in m for m in tg.sent)
+
+
+async def test_side_block_no_spam(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    tr.equity = 10000
+    tr.max_side_pct = 50.0
+    tr.max_position_pct = 999.0
+    tr.max_positions = 10
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 99.5, 101.0)
+    sig = {"symbol": "ETHUSDT", "signal": "BUY", "price": 100.0,
+           "sl": 99.5, "tp": 101.0, "reason": "r"}
+    await tr.process_signals([sig])
+    n = len(tg.sent)
+    await tr.process_signals([sig])
+    assert len(tg.sent) == n
+
+
+async def test_symbol_block_prevents_open(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    tr.equity = 10000
+    tr.max_position_pct = 50.0
+    tr.max_side_pct = 999.0
+    await tr.process_signals([{
+        "symbol": "BTCUSDT", "signal": "BUY", "price": 100.0,
+        "sl": 99.5, "tp": 101.0, "reason": "r",
+    }])
+    assert "BTCUSDT" not in tr.active_positions
+    assert any("engellendi" in m and "BTCUSDT" in m for m in tg.sent)
+
+
+async def test_side_block_clears_when_under(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    tr.equity = 10000
+    tr.max_side_pct = 50.0
+    tr.max_position_pct = 999.0
+    tr.max_positions = 10
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 99.5, 101.0)
+    sig = {"symbol": "ETHUSDT", "signal": "BUY", "price": 100.0,
+           "sl": 99.5, "tp": 101.0, "reason": "r"}
+    await tr.process_signals([sig])
+    assert "ETHUSDT" not in tr.active_positions
+    assert "side:LONG" in tr._conc_blocks
+    tr.active_positions.clear()
+    await tr._check_concentration()
+    assert "side:LONG" not in tr._conc_blocks
+
+
+async def test_fetch_klines_batch(trader):
+    tr, fb, db = trader
+    n = 200
+    df = pd.DataFrame({
+        "open": [100.0] * n, "high": [101.0] * n, "low": [99.0] * n,
+        "close": [100.0] * n, "volume": [1000.0] * n,
+    })
+    fb.klines = df
+    fb.raise_on_klines = {"NOPEUSDT"}
+    m = await tr._fetch_klines_batch(["BTCUSDT", "ETHUSDT", "NOPEUSDT"])
+    assert set(m) == {"BTCUSDT", "ETHUSDT", "NOPEUSDT"}
+    assert m["NOPEUSDT"] is None
+    assert m["BTCUSDT"] is df
+    assert sorted(fb.klines_calls) == ["BTCUSDT", "ETHUSDT", "NOPEUSDT"]
 
 
 async def test_reconcile_silent_when_tracked_protected(trader):
