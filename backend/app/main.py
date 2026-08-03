@@ -218,7 +218,17 @@ async def get_signal(symbol: str, interval: str = "4h", limit: int = 400):
 
 @app.get("/api/v1/positions")
 async def get_positions():
-    return {"positions": auto_trader.active_positions if auto_trader else {}, "count": len(auto_trader.active_positions) if auto_trader else 0}
+    positions = auto_trader.active_positions if auto_trader else {}
+    enriched = {
+        symbol: {**pos, "protected": bool(pos.get("sl_order_id") or pos.get("tp_order_id"))}
+        for symbol, pos in positions.items()
+    }
+    return {
+        "positions": enriched,
+        "count": len(positions),
+        "protected": sum(1 for p in enriched.values() if p["protected"]),
+        "unprotected": sum(1 for p in enriched.values() if not p["protected"]),
+    }
 
 @app.get("/api/v1/trades")
 async def get_trades():

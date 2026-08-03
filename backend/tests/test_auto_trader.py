@@ -407,6 +407,7 @@ async def test_side_block_prevents_open(trader):
         "symbol": "ETHUSDT", "signal": "BUY", "price": 100.0,
         "sl": 99.5, "tp": 101.0, "reason": "r",
     }])
+    await tr._check_concentration()
     assert "ETHUSDT" not in tr.active_positions
     assert any("engellendi" in m and "LONG" in m for m in tg.sent)
 
@@ -423,8 +424,10 @@ async def test_side_block_no_spam(trader):
     sig = {"symbol": "ETHUSDT", "signal": "BUY", "price": 100.0,
            "sl": 99.5, "tp": 101.0, "reason": "r"}
     await tr.process_signals([sig])
+    await tr._check_concentration()
     n = len(tg.sent)
     await tr.process_signals([sig])
+    await tr._check_concentration()
     assert len(tg.sent) == n
 
 
@@ -439,6 +442,7 @@ async def test_symbol_block_prevents_open(trader):
         "symbol": "BTCUSDT", "signal": "BUY", "price": 100.0,
         "sl": 99.5, "tp": 101.0, "reason": "r",
     }])
+    await tr._check_concentration()
     assert "BTCUSDT" not in tr.active_positions
     assert any("engellendi" in m and "BTCUSDT" in m for m in tg.sent)
 
@@ -455,11 +459,13 @@ async def test_side_block_clears_when_under(trader):
     sig = {"symbol": "ETHUSDT", "signal": "BUY", "price": 100.0,
            "sl": 99.5, "tp": 101.0, "reason": "r"}
     await tr.process_signals([sig])
+    await tr._check_concentration()
     assert "ETHUSDT" not in tr.active_positions
     assert "side:LONG" in tr._conc_blocks
     tr.active_positions.clear()
     await tr._check_concentration()
     assert "side:LONG" not in tr._conc_blocks
+    assert any("kaldirildi" in m and "side:LONG" in m for m in tg.sent)
 
 
 async def test_apply_risk_settings_live(trader):
@@ -531,6 +537,60 @@ async def test_side_block_summary_resets_when_clear(trader):
     tr.active_positions.clear()
     await tr._check_concentration()
     assert tr._last_block_summary == 0.0
+
+
+async def test_sync_block_state_sends_on_add(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    tr._conc_blocks.add("side:LONG")
+    await tr._sync_block_state()
+    assert any("degisti" in m and "side:LONG" in m for m in tg.sent)
+    assert any("engellendi" in m and "side:LONG" in m for m in tg.sent)
+
+
+async def test_sync_block_state_sends_on_remove(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    tr._conc_blocks.add("side:LONG")
+    await tr._sync_block_state()
+    n = len(tg.sent)
+    tr._conc_blocks.discard("side:LONG")
+    await tr._sync_block_state()
+    assert len(tg.sent) == n + 1
+    assert any("kaldirildi" in m and "side:LONG" in m for m in tg.sent)
+
+
+async def test_sync_block_state_silent_when_unchanged(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    tr._conc_blocks.add("side:LONG")
+    await tr._sync_block_state()
+    n = len(tg.sent)
+    await tr._sync_block_state()
+    assert len(tg.sent) == n
+
+
+async def test_notify_startup_state_sends_settings(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    tr.max_position_pct = 75.0
+    tr.max_side_pct = 150.0
+    await tr._notify_startup_state()
+    assert any("Risk ayarlari" in m and "%75" in m and "%150" in m for m in tg.sent)
+    assert any("engel yok" in m for m in tg.sent)
+
+
+async def test_notify_startup_state_lists_blocks(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    tr._conc_blocks.add("side:LONG")
+    await tr._notify_startup_state()
+    assert any("engel aktif" in m and "side:LONG" in m for m in tg.sent)
 
 
 async def test_fetch_klines_batch(trader):

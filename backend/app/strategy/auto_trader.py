@@ -51,6 +51,7 @@ class AutoTrader:
         self.max_side_pct = float(s.get("max_side_pct", 150.0))
         self._conc_alerts = {"symbols": set(), "sides": set()}
         self._conc_blocks = set()
+        self._last_block_state = set()
         self._last_block_summary = 0.0
         self.block_summary_interval = 3600
         self.scan_interval = 30
@@ -149,6 +150,8 @@ class AutoTrader:
         self.trading_symbols = await self.binance.load_all_symbols()
         logger.info(f"{len(self.trading_symbols)} coin taranacak")
         await self.reconcile_positions()
+        await self._check_concentration()
+        await self._notify_startup_state()
         asyncio.create_task(self._refresh_ranking())
 
         while self.running:
@@ -268,11 +271,6 @@ class AutoTrader:
         key = f"side:{side}"
         if key not in self._conc_blocks:
             self._conc_blocks.add(key)
-            if self.telegram:
-                await self.telegram.send(
-                    f"ATOS X: {side} yonunde toplam %{pct:.0f} equity asimi; "
-                    f"yeni {side} girisi engellendi."
-                )
         return True
 
     async def _blocked_by_symbol(self, symbol: str, notional: float) -> bool:
@@ -284,11 +282,6 @@ class AutoTrader:
         key = f"sym:{symbol}"
         if key not in self._conc_blocks:
             self._conc_blocks.add(key)
-            if self.telegram:
-                await self.telegram.send(
-                    f"ATOS X: {symbol} projeksiyon pozisyonu equity'nin "
-                    f"%{pct:.0f}'i (max %{self.max_position_pct:.0f}); giris engellendi."
-                )
         return True
 
     async def _submit_open(self, symbol: str, side: str, qty: float):
@@ -464,6 +457,42 @@ class AutoTrader:
         except Exception as e:
             logger.error(f"Pozisyon geri yukleme hatasi: {e}")
 
+    async def _notify_startup_state(self):
+        """Baslangicta aktif risk esiklerini ve mevcut engelleri bildirir."""
+        if not self.telegram:
+            return
+        msg = (
+            f"ATOS X: Risk ayarlari - max pos %{self.max_position_pct:.0f}, "
+            f"max side %{self.max_side_pct:.0f}"
+        )
+        blocks = sorted(self._conc_blocks)
+        if blocks:
+            msg += f"; {len(blocks)} engel aktif: {', '.join(blocks)}"
+        else:
+            msg += "; engel yok"
+        await self.telegram.send(msg)
+
+    async def _sync_block_state(self):
+        """Engel kumesi degistiginde Telegram'dan tek bir ozet bildirimi gonderir."""
+        cur = set(self._conc_blocks)
+        prev = self._last_block_state
+        if cur == prev:
+            return
+        self._last_block_state = cur
+        if not self.telegram:
+            return
+        added = sorted(cur - prev)
+        removed = sorted(prev - cur)
+        parts = []
+        if added:
+            parts.append(f"engellendi: {', '.join(added)}")
+        if removed:
+            parts.append(f"kaldirildi: {', '.join(removed)}")
+        msg = "ATOS X: Konsantrasyon durumu degisti - " + "; ".join(parts)
+        if cur:
+            msg += f" | aktif: {', '.join(sorted(cur))}"
+        await self.telegram.send(msg)
+
     async def _check_concentration(self):
         """Tek sembol / tek yonde asiri pozisyon yogunlugunu izler ve uyarir.
 
@@ -525,6 +554,7 @@ class AutoTrader:
                     )
         else:
             self._last_block_summary = 0.0
+        await self._sync_block_state()
 
     async def _repair_protection(self, symbol: str, pos: dict, missing: list):
         """Kayip SL/TP algo emrini yeniden yerleştirir; basarisizsa uyarir."""

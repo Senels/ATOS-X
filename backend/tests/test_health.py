@@ -1,6 +1,12 @@
 from fastapi.testclient import TestClient
 
+from app import main as main_mod
 from app.main import app
+
+
+class _FakeTrader:
+    def __init__(self, positions):
+        self.active_positions = positions
 
 
 def test_health():
@@ -85,3 +91,26 @@ def test_trades_summary_endpoint():
     assert isinstance(body["symbols"], list)
     assert "count" in body
     client.close()
+
+
+def test_positions_protection_status():
+    fake = _FakeTrader({
+        "BTCUSDT": {"side": "BUY", "sl_order_id": "SL_1", "tp_order_id": "TP_1"},
+        "ETHUSDT": {"side": "SELL", "sl_order_id": None, "tp_order_id": None},
+        "SOLUSDT": {"side": "BUY", "sl_order_id": None, "tp_order_id": "TP_3"},
+    })
+    main_mod.auto_trader = fake
+    try:
+        client = TestClient(app)
+        resp = client.get("/api/v1/positions")
+        client.close()
+    finally:
+        main_mod.auto_trader = None
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["count"] == 3
+    assert body["protected"] == 2
+    assert body["unprotected"] == 1
+    assert body["positions"]["BTCUSDT"]["protected"] is True
+    assert body["positions"]["ETHUSDT"]["protected"] is False
+    assert body["positions"]["SOLUSDT"]["protected"] is True
