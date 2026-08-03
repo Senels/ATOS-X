@@ -117,6 +117,10 @@ async def test_opposite_signal_closes(trader):
 
 
 def test_rank_symbols_skips_missing_data(tmp_path, monkeypatch):
+    from app.data import loader
+
+    if not (loader.DEFAULT_DATA_DIR / "futures_4h_data" / "BTCUSDT_4h.csv").exists():
+        pytest.skip("BTCUSDT_4h.csv yok; rank testi atlandi")
     db = Database(str(tmp_path / "at.db"))
     monkeypatch.setattr(at_mod, "Database", lambda *a, **k: db)
     tr = at_mod.AutoTrader(FakeBinance())

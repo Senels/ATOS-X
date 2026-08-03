@@ -1,15 +1,8 @@
 """v23 strateji + backtest motoru icin temel dogrulama testleri."""
-import pandas as pd
 import pytest
 
 from app.backtest.engine import BacktestEngine
-from app.data import loader
 from app.strategy.tradebot_v23 import TradeBotV23
-
-
-@pytest.fixture(scope="module")
-def btc_df():
-    return loader.load_csv("BTCUSDT", "4h")
 
 
 def test_analyze_produces_orders(btc_df):

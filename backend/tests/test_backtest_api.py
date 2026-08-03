@@ -4,6 +4,15 @@ import pytest
 
 from app.api import backtest as bt
 from app.core.database import Database
+from app.data import loader
+
+
+@pytest.fixture(scope="module", autouse=True)
+def skip_without_data():
+    data_dir = loader.DEFAULT_DATA_DIR / "futures_4h_data"
+    if not (data_dir / "BTCUSDT_4h.csv").exists():
+        pytest.skip("BTCUSDT_4h.csv yok; backtest API testleri atlandi")
+    yield
 
 
 @pytest.fixture
