@@ -61,6 +61,10 @@ class AutoTrader:
         self.max_consecutive_losses = int(s.get("max_consecutive_losses", 5))
         self.consecutive_losses = 0
         self.loss_halted = False
+        self.max_daily_loss_pct = float(s.get("max_daily_loss_pct", 5.0))
+        self.day_pnl = 0.0
+        self.day_start_date = datetime.utcnow().date().isoformat()
+        self.daily_loss_halted = False
         self._conc_alerts = {"symbols": set(), "sides": set()}
         self._conc_blocks = set()
         self._last_block_state = set()
@@ -260,6 +264,7 @@ class AutoTrader:
                 if signal["signal"] != self.active_positions[symbol]["side"]:
                     await self.close_position(symbol, signal["price"], "signal_exit")
             else:
+                self._rollover_day()
                 if self.risk_halted:
                     logger.info(
                         f"{symbol}: drawdown korumasi aktif, giris engellendi"
@@ -268,6 +273,11 @@ class AutoTrader:
                 if self.loss_halted:
                     logger.info(
                         f"{symbol}: ardısık zarar korumasi aktif, giris engellendi"
+                    )
+                    continue
+                if self.daily_loss_halted:
+                    logger.info(
+                        f"{symbol}: gunluk zarar korumasi aktif, giris engellendi"
                     )
                     continue
                 if len(self.active_positions) >= self.max_positions:
@@ -301,6 +311,7 @@ class AutoTrader:
         self.trailing_sl_pct = float(s.get("trailing_sl_pct", self.trailing_sl_pct))
         self.trailing_min_move_pct = float(s.get("trailing_min_move_pct", self.trailing_min_move_pct))
         self.breakeven_activate_pct = float(s.get("breakeven_activate_pct", self.breakeven_activate_pct))
+        self.max_daily_loss_pct = float(s.get("max_daily_loss_pct", self.max_daily_loss_pct))
 
     def _projected_notional(self, price: float, sl: float) -> float:
         """Yeni bir pozisyonun boyutlandirma sonrasi nominal degeri."""
@@ -432,6 +443,7 @@ class AutoTrader:
                 symbol, pos["side"], exit_price, pos["quantity"], reason
             )
         await self._update_consecutive_losses()
+        await self._update_daily_pnl(net)
         logger.success(f"Pozisyon kapatildi: {symbol} PnL: {net:.2f}")
 
     async def reconcile_positions(self):
@@ -567,6 +579,47 @@ class AutoTrader:
                     "- yeni girisler serbest."
                 )
 
+    def _rollover_day(self):
+        """Gun degisti ise gunluk PnL sayacini sifirlar ve halt'i kaldirir."""
+        today = datetime.utcnow().date().isoformat()
+        if self.day_start_date == today:
+            return
+        self.day_start_date = today
+        self.day_pnl = 0.0
+        if self.daily_loss_halted:
+            self.daily_loss_halted = False
+            self._log_risk_event("daily_loss_clear", "Yeni gun - gunluk zarar korumasi serbest")
+            logger.info("Yeni gun - gunluk zarar korumasi kaldirildi")
+
+    async def _update_daily_pnl(self, net: float):
+        """Gunluk toplam PnL'i isler; esik asilinca girisleri durdurur.
+
+        `max_daily_loss_pct`, `_record_closed_position` anindaki equity'nin
+        %'si olarak gunluk net zarar siniri belirler. Asildiginda bir kez
+        uyarir ve `daily_loss_halted` bayragini kaldirir; yeni gun
+        `_rollover_day` ile otomatik serbest birakir.
+        """
+        self._rollover_day()
+        self.day_pnl += net
+        if self.max_daily_loss_pct <= 0:
+            return
+        limit = self.equity * self.max_daily_loss_pct / 100.0
+        if self.day_pnl <= -limit and not self.daily_loss_halted:
+            self.daily_loss_halted = True
+            self._log_risk_event("daily_loss_halt",
+                                 f"Gunluk zarar {self.day_pnl:.2f} esigi asti "
+                                 f"(-%{self.max_daily_loss_pct:.1f}) - girisler durduruldu")
+            logger.warning(
+                f"Gunluk zarar {self.day_pnl:.2f} esigi asti "
+                f"(-%{self.max_daily_loss_pct:.1f}) - girisler durduruldu"
+            )
+            if self.telegram:
+                await self.telegram.send(
+                    f"ATOS X UYARI: Gunluk zarar {self.day_pnl:.2f} USDT - "
+                    f"gunluk sinir (-%{self.max_daily_loss_pct:.1f}) asildi, "
+                    f"yeni girisler durduruldu. Yeni gun korumayi acar."
+                )
+
     async def _check_drawdown(self):
         """Peak equity'den düşüş esigi asilinca yeni girisleri durdurur.
 
@@ -613,11 +666,14 @@ class AutoTrader:
         trail = "devre disi"
         if self.trailing_activate_pct > 0 and self.trailing_sl_pct > 0:
             trail = f"kar %{self.trailing_activate_pct:.0f}+, SL %{self.trailing_sl_pct:.1f} geri"
+        be = f"%{self.breakeven_activate_pct:.0f}" if self.breakeven_activate_pct > 0 else "devre disi"
+        dl = f"%{self.max_daily_loss_pct:.0f}" if self.max_daily_loss_pct > 0 else "devre disi"
         msg = (
             f"ATOS X: Motor baslatildi\n"
             f"Risk - max pos %{self.max_position_pct:.0f}, max side %{self.max_side_pct:.0f}, "
             f"max drawdown %{self.max_drawdown_pct:.0f} ({halted}), "
-            f"max ardisik zarar {self.max_consecutive_losses}\n"
+            f"max ardisik zarar {self.max_consecutive_losses}, "
+            f"gunluk zarar {dl}, breakeven {be}\n"
             f"Max pozisyon yasi: {age} | Trailing: {trail}"
         )
         blocks = sorted(self._conc_blocks)

@@ -16,6 +16,7 @@ koruma (SL/TP) mekanizması ve ilgili API/dashboard görünürlüğünü belgele
 | `trailing_sl_pct` | 1.5 | Takip eden SL'nin fiyata uzaklığı (%; 0 = devre dışı) |
 | `trailing_min_move_pct` | 0.1 | SL güncellemesi için gereken min hareket (%; 0 = her seferinde) |
 | `breakeven_activate_pct` | 2 | Kâr bu eşiği aşınca SL giriş fiyatına taşınır (%; 0 = devre dışı) |
+| `max_daily_loss_pct` | 5 | Günlük net zarar bu equity yüzdesini aşınca girişler durur (0 = devre dışı) |
 
 - UI üzerinden `/dashboard/settings` → Risk sekmesinde değiştirilir.
 - Canlı döngüde her taramada `_apply_risk_settings` ile uygulanır.
@@ -133,6 +134,18 @@ kalkar (`loss_streak_clear`). `0` = devre dışı.
 Dashboard `LOSS HALT` rozeti, `/durum` yanıtı `Ardisik zarar: N/esik`
 satırı, `/health`, `/api/v1/status` ve `/dashboard/metrics` ise
 `loss_halted` ve `consecutive_losses` alanlarını döndürür.
+
+## Günlük Zarar Koruması
+
+`max_daily_loss_pct`, `_record_closed_position` anındaki equity'nin %'si
+olarak günlük net zarar sınırı belirler. Sınır aşılınca `daily_loss_halted`
+aktifleşir, yeni girişler engellenir (telegram uyarısı + risk olayı
+`daily_loss_halt`). Yeni gün UTC'ye göre başlayınca sayaç sıfırlanır ve
+koruma otomatik kalkar (`daily_loss_clear`). `0` = devre dışı.
+
+Dashboard `DAILY HALT` rozeti, `/durum` yanıtı `Gunluk zarar: N USDT |
+Gunluk durma` satırı, `/health`, `/api/v1/status` ve `/dashboard/metrics`
+ise `daily_loss_halted` ve `day_pnl` alanlarını döndürür.
 
 ## Pozisyon Yaşı ve Yeniden Başlatma
 

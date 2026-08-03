@@ -167,6 +167,7 @@ def _telegram_command(text: str):
         last_evt = events[-1] if events else None
         evt_line = f"{last_evt['type']} ({last_evt['time'][:16].replace('T',' ')})" if last_evt else "yok"
         loss_line = "AKTIF" if auto_trader.loss_halted else "yok"
+        daily_line = "AKTIF" if auto_trader.daily_loss_halted else "yok"
         return (
             f"ATOS X durum\n"
             f"Trade motoru: {trading}\n"
@@ -176,6 +177,7 @@ def _telegram_command(text: str):
             f"Engeller: {', '.join(blocks) if blocks else 'yok'}\n"
             f"Drawdown: %{auto_trader.drawdown_pct} | Durma: {halt_line}\n"
             f"Ardisik zarar: {auto_trader.consecutive_losses}/{auto_trader.max_consecutive_losses} | Zarar durma: {loss_line}\n"
+            f"Gunluk zarar: {auto_trader.day_pnl:.2f} USDT | Gunluk durma: {daily_line}\n"
             f"Risk olayi: {len(events)} (son: {evt_line})"
         )
     return None
@@ -245,6 +247,8 @@ async def health():
         "risk_halted": auto_trader.risk_halted if auto_trader else False,
         "loss_halted": auto_trader.loss_halted if auto_trader else False,
         "consecutive_losses": auto_trader.consecutive_losses if auto_trader else 0,
+        "daily_loss_halted": auto_trader.daily_loss_halted if auto_trader else False,
+        "day_pnl": auto_trader.day_pnl if auto_trader else 0.0,
         "trading": auto_trader.running if auto_trader else False,
         "uptime": int((datetime.utcnow() - system_status["start_time"]).total_seconds())
     }
@@ -263,6 +267,8 @@ async def get_status():
         "risk_halted": auto_trader.risk_halted if auto_trader else False,
         "loss_halted": auto_trader.loss_halted if auto_trader else False,
         "consecutive_losses": auto_trader.consecutive_losses if auto_trader else 0,
+        "daily_loss_halted": auto_trader.daily_loss_halted if auto_trader else False,
+        "day_pnl": auto_trader.day_pnl if auto_trader else 0.0,
         "paper": auto_trader.paper if auto_trader else True,
         "top_symbols": auto_trader.top_symbols if auto_trader else [],
         "equity": auto_trader.equity if auto_trader else 10000
@@ -363,6 +369,8 @@ async def metrics():
             "risk_halted": auto_trader.risk_halted if auto_trader else False,
             "loss_halted": auto_trader.loss_halted if auto_trader else False,
             "consecutive_losses": auto_trader.consecutive_losses if auto_trader else 0,
+            "daily_loss_halted": auto_trader.daily_loss_halted if auto_trader else False,
+            "day_pnl": auto_trader.day_pnl if auto_trader else 0.0,
             "trading": auto_trader.running if auto_trader else False,
             "risk_events": auto_trader.risk_events[-10:] if auto_trader else [],
             "uptime": int((datetime.utcnow() - system_status["start_time"]).total_seconds())

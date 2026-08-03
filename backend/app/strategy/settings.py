@@ -37,6 +37,7 @@ DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
     "trailing_sl_pct": 1.5,        # Takip eden SL'nin fiyata uzakligi (%; 0 = devre disi)
     "trailing_min_move_pct": 0.1,  # SL'nin guncellenmesi icin gereken min hareket (%; 0 = her seferinde)
     "breakeven_activate_pct": 2.0, # Bu kar esiginde SL giris fiyatina tasinir (%; 0 = devre disi)
+    "max_daily_loss_pct": 5.0,     # Gunluk toplam zarar siniri (% equity; asilinca girisler durur; 0 = devre disi)
     # Strateji parametreleri
     "rr_ratio": 1.5,             # TP = SL mesafesi * rr_ratio
     "sl_lookback": 5,            # pivot swing uzunlugu

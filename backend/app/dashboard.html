@@ -73,6 +73,7 @@ tr:hover { background:rgba(59,130,246,0.05); }
 <div><span class="label" style="font-size:11px;color:#94a3b8;text-transform:uppercase;">Entry Blocks</span><div id="blockChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">-</div></div>
 <div id="haltBadge" style="display:none;"><span class="badge-unprotected">RISK HALT</span></div>
 <div id="lossHaltBadge" style="display:none;"><span class="badge-unprotected">LOSS HALT</span></div>
+<div id="dailyHaltBadge" style="display:none;"><span class="badge-unprotected">DAILY HALT</span></div>
 <div id="tradingOffBadge" style="display:none;"><span class="badge-unprotected">TRADING OFF</span></div>
 </div></div>
 <div class="card"><h3>🛡️ Risk Events</h3><div id="riskEvents"><div style="color:#64748b;padding:10px;">-</div></div></div>
@@ -117,6 +118,7 @@ ddEl.textContent = (d.drawdown_pct != null ? d.drawdown_pct + '%' : '-');
 ddEl.style.color = d.risk_halted ? '#ef4444' : '#22c55e';
 document.getElementById('haltBadge').style.display = d.risk_halted ? 'inline' : 'none';
 document.getElementById('lossHaltBadge').style.display = d.loss_halted ? 'inline' : 'none';
+document.getElementById('dailyHaltBadge').style.display = d.daily_loss_halted ? 'inline' : 'none';
 document.getElementById('tradingOffBadge').style.display = d.trading === false ? 'inline' : 'none';
 const re = document.getElementById('riskEvents');
 if (d.risk_events && d.risk_events.length) {

@@ -953,6 +953,40 @@ async def test_loss_halt_blocks_new_entries(trader):
     assert "ETHUSDT" not in tr.active_positions
 
 
+async def test_daily_loss_halts_entries(trader):
+    tr, fb, db = trader
+    tr.max_daily_loss_pct = 5.0
+    tr.day_start_date = tr.day_start_date
+    tr.day_pnl = -600.0
+    await tr._update_daily_pnl(0.0)
+    assert tr.daily_loss_halted is True
+    assert any(e["type"] == "daily_loss_halt" for e in tr.risk_events)
+    signal = {"symbol": "ETHUSDT", "signal": "BUY", "price": 100.0,
+              "sl": 95.0, "tp": 110.0, "reason": ""}
+    await tr.process_signals([signal])
+    assert "ETHUSDT" not in tr.active_positions
+
+
+async def test_daily_loss_reset_on_new_day(trader):
+    tr, fb, db = trader
+    tr.max_daily_loss_pct = 5.0
+    tr.day_start_date = "2000-01-01"
+    tr.day_pnl = -500.0
+    tr.daily_loss_halted = True
+    tr._rollover_day()
+    assert tr.day_pnl == 0.0
+    assert tr.daily_loss_halted is False
+    assert any(e["type"] == "daily_loss_clear" for e in tr.risk_events)
+
+
+async def test_daily_loss_disabled_when_zero(trader):
+    tr, fb, db = trader
+    tr.max_daily_loss_pct = 0
+    tr.day_pnl = -999999.0
+    await tr._update_daily_pnl(0.0)
+    assert tr.daily_loss_halted is False
+
+
 async def test_breakeven_moves_sl_to_entry(trader):
     tr, fb, db = trader
     tr.breakeven_activate_pct = 2.0
