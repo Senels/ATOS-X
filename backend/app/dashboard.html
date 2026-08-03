@@ -148,7 +148,8 @@ const tradeBody = document.getElementById('tradesBody');
 if (td.trades && td.trades.length > 0) {
 tradeBody.innerHTML = '';
 td.trades.slice(0,20).forEach(function(t) {
-tradeBody.innerHTML += '<tr><td><strong>'+(t.symbol||'-')+'</strong></td><td><span class="badge-'+(t.side==='BUY'?'buy':'sell')+'">'+(t.side||'-')+'</span></td><td>$'+(t.entry?t.entry.toFixed(2):'-')+'</td><td>$'+(t.exit?t.exit.toFixed(2):'-')+'</td><td style="color:'+(t.pnl>0?'#22c55e':'#ef4444')+'">'+(t.pnl?'$'+t.pnl.toFixed(2):'-')+'</td><td>'+(t.reason||'-')+'</td><td>'+(t.time?new Date(t.time).toLocaleString():'-')+'</td></tr>';
+const trailT = t.trailing ? ' <span class="badge-sell">TRAIL</span>' : '';
+tradeBody.innerHTML += '<tr><td><strong>'+(t.symbol||'-')+'</strong></td><td><span class="badge-'+(t.side==='BUY'?'buy':'sell')+'">'+(t.side||'-')+'</span></td><td>$'+(t.entry?t.entry.toFixed(2):'-')+'</td><td>$'+(t.exit?t.exit.toFixed(2):'-')+'</td><td style="color:'+(t.pnl>0?'#22c55e':'#ef4444')+'">'+(t.pnl?'$'+t.pnl.toFixed(2):'-')+'</td><td>'+(t.reason||'-')+trailT+'</td><td>'+(t.time?new Date(t.time).toLocaleString():'-')+'</td></tr>';
 });
 }
 document.getElementById('lastUpdate').textContent = 'Last update: ' + new Date().toLocaleString();

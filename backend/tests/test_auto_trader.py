@@ -819,6 +819,24 @@ async def test_risk_events_ring_buffer(trader):
     assert tr.risk_events[0]["type"] == "type2"
 
 
+async def test_closed_trade_records_trailing_flag(trader):
+    tr, fb, db = trader
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
+    tr.active_positions["BTCUSDT"]["trailing"] = True
+    await tr.close_position("BTCUSDT", 99.0, "stop_loss")
+    assert tr.trade_history
+    last = tr.trade_history[-1]
+    assert last["trailing"] is True
+
+
+async def test_closed_trade_defaults_trailing_false(trader):
+    tr, fb, db = trader
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
+    await tr.close_position("BTCUSDT", 99.0, "stop_loss")
+    assert tr.trade_history
+    assert tr.trade_history[-1]["trailing"] is False
+
+
 async def test_fetch_klines_batch(trader):
     tr, fb, db = trader
     n = 200

@@ -160,6 +160,9 @@ def _telegram_command(text: str):
         halt = auto_trader.risk_halted
         halt_line = "AKTIF - girisler durduruldu" if halt else "yok"
         trading = "DURDURULDU" if not auto_trader.running else "calisiyor"
+        events = auto_trader.risk_events
+        last_evt = events[-1] if events else None
+        evt_line = f"{last_evt['type']} ({last_evt['time'][:16].replace('T',' ')})" if last_evt else "yok"
         return (
             f"ATOS X durum\n"
             f"Trade motoru: {trading}\n"
@@ -167,7 +170,8 @@ def _telegram_command(text: str):
             f"Acik pozisyon: {len(auto_trader.active_positions)} (korumali: {_protected_count()})\n"
             f"Maruziyet - LONG: %{conc['long_pct']} SHORT: %{conc['short_pct']}\n"
             f"Engeller: {', '.join(blocks) if blocks else 'yok'}\n"
-            f"Drawdown: %{auto_trader.drawdown_pct} | Durma: {halt_line}"
+            f"Drawdown: %{auto_trader.drawdown_pct} | Durma: {halt_line}\n"
+            f"Risk olayi: {len(events)} (son: {evt_line})"
         )
     return None
 

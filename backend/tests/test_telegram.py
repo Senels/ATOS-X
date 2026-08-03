@@ -11,6 +11,8 @@ class _FakeTrader:
         self.drawdown_pct = 0.0
         self.risk_halted = False
         self.running = True
+        self.risk_events = [{"time": "2026-08-03T10:00:00", "type": "block_add",
+                             "message": "Engel: side:LONG"}]
         self._conc_blocks = {"side:LONG"}
         self.active_positions = {
             "BTCUSDT": {"side": "BUY", "entry_price": 65000.0, "quantity": 0.5,
@@ -77,6 +79,8 @@ def test_command_status_shows_halt():
     assert reply is not None
     assert "AKTIF" in reply
     assert "%25.5" in reply
+    assert "Risk olayi" in reply
+    assert "block_add" in reply
 
 
 def test_command_blocks():

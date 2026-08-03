@@ -77,6 +77,8 @@ Dinleyici aracılığıyla uzaktan acil durum kontrolü:
   modda yalnızca bellekteki SL güncellenir.
 - Takibe giren pozisyonlar dashboard'da `TRAILING` rozeti, Telegram
   `/pozisyon` yanıtında `+ TRAILING` ile işaretlenir.
+- Trailing ile kapanan pozisyonların trade geçmişi `trailing: true`
+  taşır; dashboard Trade History tablosunda `TRAIL` rozeti gösterilir.
 - İki ayar da `0` ise özellik devre dışıdır.
 
 ## Risk Olay Geçmişi
@@ -90,6 +92,7 @@ Dinleyici aracılığıyla uzaktan acil durum kontrolü:
 
 `/api/v1/risk/events` tüm kayıtları, `/dashboard/metrics` son 10 kaydı
 döndürür; dashboard'da `Risk Events` kartında gösterilir.
+`/durum` Telegram yanıtı risk olay sayısını ve son olay tipini içerir.
 
 ## Pozisyon Yaşı ve Yeniden Başlatma
 

@@ -395,6 +395,7 @@ class AutoTrader:
             "qty": pos["quantity"],
             "pnl": net,
             "reason": reason,
+            "trailing": bool(pos.get("trailing")),
             "time": datetime.utcnow().isoformat(),
         })
         if self.telegram:
