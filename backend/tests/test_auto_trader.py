@@ -153,6 +153,7 @@ async def test_paper_mode_skips_exchange(tmp_path, monkeypatch):
 async def test_update_equity_throttles(trader):
     tr, fb, db = trader
     tr.perf_interval = 3600
+    tr._last_perf = -3600.0
     await tr.update_equity()
     await tr.update_equity()
     await tr.update_equity()
