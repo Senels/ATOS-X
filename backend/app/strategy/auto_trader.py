@@ -327,6 +327,24 @@ class AutoTrader:
             exchange_symbols = {p["symbol"] for p in positions}
             for symbol, pos in list(self.active_positions.items()):
                 if symbol in exchange_symbols:
+                    if pos.get("sl_order_id") or pos.get("tp_order_id"):
+                        info = algo_map.get(symbol, {})
+                        missing = []
+                        if info.get("sl_id") is None:
+                            missing.append("SL")
+                        if info.get("tp_id") is None:
+                            missing.append("TP")
+                        if missing:
+                            logger.warning(
+                                f"{symbol}: izlenen pozisyon korumasi borsada yok "
+                                f"({'/'.join(missing)} emri kayip)"
+                            )
+                            if self.telegram:
+                                await self.telegram.send(
+                                    f"ATOS X UYARI: {symbol} pozisyonunun "
+                                    f"{'/'.join(missing)} emri borsada yok! "
+                                    f"Koruma kayboldu, manuel müdahale gerekebilir."
+                                )
                     continue
                 exit_price, reason = self._exchange_close_estimate(symbol, pos)
                 self.active_positions.pop(symbol, None)

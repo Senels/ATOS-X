@@ -282,6 +282,49 @@ async def test_reconcile_alerts_on_unprotected(trader):
     assert any("korumasiz" in m and "ETHUSDT" in m for m in tg.sent)
 
 
+async def test_reconcile_alerts_when_tracked_loses_algo(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    tr.active_positions["BTCUSDT"] = {
+        "side": "BUY", "entry_price": 65000, "quantity": 0.5,
+        "sl": 63000, "tp": 69000,
+        "sl_order_id": 111, "tp_order_id": 222,
+        "entry_fee": 0.0, "open_time": "x",
+    }
+    fb.open_positions = [
+        {"symbol": "BTCUSDT", "positionAmt": "0.5", "entryPrice": "65000"},
+    ]
+    fb.algo_orders = [
+        {"symbol": "BTCUSDT", "orderType": "TAKE_PROFIT_MARKET", "algoId": 222, "triggerPrice": "69000"},
+    ]
+    await tr.reconcile_positions()
+    assert "BTCUSDT" in tr.active_positions
+    assert any("SL" in m and "BTCUSDT" in m for m in tg.sent)
+
+
+async def test_reconcile_silent_when_tracked_protected(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    tr.active_positions["BTCUSDT"] = {
+        "side": "BUY", "entry_price": 65000, "quantity": 0.5,
+        "sl": 63000, "tp": 69000,
+        "sl_order_id": 111, "tp_order_id": 222,
+        "entry_fee": 0.0, "open_time": "x",
+    }
+    fb.open_positions = [
+        {"symbol": "BTCUSDT", "positionAmt": "0.5", "entryPrice": "65000"},
+    ]
+    fb.algo_orders = [
+        {"symbol": "BTCUSDT", "orderType": "STOP_MARKET", "algoId": 111, "triggerPrice": "63000"},
+        {"symbol": "BTCUSDT", "orderType": "TAKE_PROFIT_MARKET", "algoId": 222, "triggerPrice": "69000"},
+    ]
+    await tr.reconcile_positions()
+    assert "BTCUSDT" in tr.active_positions
+    assert tg.sent == []
+
+
 async def test_reconcile_paper_skips_exchange(tmp_path, monkeypatch):
     db = Database(str(tmp_path / "at.db"))
     monkeypatch.setattr(at_mod, "Database", lambda *a, **k: db)
