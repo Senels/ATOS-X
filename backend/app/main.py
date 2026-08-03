@@ -44,6 +44,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     else:
         system_status["status"] = "degraded"
         logger.error("Binance baglantisi kurulamadi; AutoTrader yeniden denemeye devam edecek")
+        await telegram.send("ATOS X: Binance baglantisi kurulamadi, degrade modda basladi")
     app.state.db = Database()
 
     auto_trader = AutoTrader(app.state.binance, telegram=telegram)
@@ -72,6 +73,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 async def on_price_update(symbol: str, price: float):
     if auto_trader:
         auto_trader.update_price(symbol, price)
+
+def _protected_count() -> int:
+    """Exchange-side SL/TP ile korunan acik pozisyon sayisi."""
+    if not auto_trader:
+        return 0
+    return sum(
+        1 for p in auto_trader.active_positions.values()
+        if p.get("sl_order_id") or p.get("tp_order_id")
+    )
+
+def _is_connected() -> bool:
+    return bool(auto_trader and auto_trader.binance and auto_trader.binance.client)
 
 async def _daily_report_loop():
     """Her gun `DAILY_REPORT_HOUR` saatinde (yerel) ozet raporu gonderir."""
@@ -105,7 +118,9 @@ async def root():
 async def health():
     return {
         "status": system_status["status"],
+        "connected": _is_connected(),
         "positions": len(auto_trader.active_positions) if auto_trader else 0,
+        "protected_positions": _protected_count(),
         "trades": len(auto_trader.trade_history) if auto_trader else 0,
         "uptime": int((datetime.utcnow() - system_status["start_time"]).total_seconds())
     }
@@ -114,8 +129,10 @@ async def health():
 async def get_status():
     return {
         "status": system_status["status"],
+        "connected": _is_connected(),
         "symbols": len(auto_trader.trading_symbols) if auto_trader else 0,
         "positions": len(auto_trader.active_positions) if auto_trader else 0,
+        "protected_positions": _protected_count(),
         "trades": len(auto_trader.trade_history) if auto_trader else 0,
         "paper": auto_trader.paper if auto_trader else True,
         "top_symbols": auto_trader.top_symbols if auto_trader else [],

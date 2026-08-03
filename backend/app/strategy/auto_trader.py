@@ -101,12 +101,20 @@ class AutoTrader:
     async def _ensure_connected(self, max_attempts: int = 30, delay: int = 10) -> bool:
         """Binance baglantisi kurulana kadar sinirli sure dener (flaky network)."""
         attempts = 0
+        failed = False
         while self.running:
             if await self.binance.connect():
+                if failed and self.telegram:
+                    await self.telegram.send("ATOS X: Binance baglantisi yeniden kuruldu")
                 return True
+            failed = True
             attempts += 1
             if max_attempts and attempts >= max_attempts:
                 logger.error(f"Binance baglantisi {attempts} denemede kurulamadi")
+                if self.telegram:
+                    await self.telegram.send(
+                        f"ATOS X: Binance baglantisi {attempts} denemede kurulamadi!"
+                    )
                 return False
             logger.warning(
                 f"Binance baglantisi yok; {delay}s sonra tekrar deneniyor ({attempts})"

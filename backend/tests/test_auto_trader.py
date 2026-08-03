@@ -7,6 +7,14 @@ from app.backtest.engine import BacktestEngine
 from app.core.database import Database
 
 
+class FakeTelegram:
+    def __init__(self):
+        self.sent = []
+
+    async def send(self, message):
+        self.sent.append(message)
+
+
 class FakeBinance:
     def __init__(self):
         self.open_calls = []
@@ -339,3 +347,23 @@ async def test_ensure_connected_gives_up(trader):
     fb.connect_failures = 100
     assert await tr._ensure_connected(max_attempts=3, delay=0) is False
     assert fb.client is None
+
+
+async def test_ensure_connected_alerts_on_recovery():
+    fb = FakeBinance()
+    tg = FakeTelegram()
+    tr = at_mod.AutoTrader(fb, telegram=tg, paper=False)
+    tr.running = True
+    fb.connect_failures = 2
+    assert await tr._ensure_connected(max_attempts=5, delay=0) is True
+    assert any("yeniden kuruldu" in m for m in tg.sent)
+
+
+async def test_ensure_connected_alerts_on_give_up():
+    fb = FakeBinance()
+    tg = FakeTelegram()
+    tr = at_mod.AutoTrader(fb, telegram=tg, paper=False)
+    tr.running = True
+    fb.connect_failures = 100
+    assert await tr._ensure_connected(max_attempts=2, delay=0) is False
+    assert any("kurulamadi" in m for m in tg.sent)
