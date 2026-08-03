@@ -32,14 +32,63 @@ class BacktestEngine:
         fee_rate: float = 0.0005,
         slippage: float = 0.0001,
         max_leverage: float = 10.0,
+        max_drawdown_pct: float = 0.0,
+        max_consecutive_losses: int = 0,
+        max_daily_loss_pct: float = 0.0,
+        min_equity: float = 0.0,
+        trailing_activate_pct: float = 0.0,
+        trailing_sl_pct: float = 0.0,
+        trailing_min_move_pct: float = 0.0,
+        breakeven_activate_pct: float = 0.0,
+        max_position_age_hours: float = 0.0,
     ):
         self.initial_equity = float(initial_equity)
         self.risk_per_trade = float(risk_per_trade)
         self.fee_rate = float(fee_rate)
         self.slippage = float(slippage)
         self.max_leverage = float(max_leverage)
+        self.max_drawdown_pct = float(max_drawdown_pct)
+        self.max_consecutive_losses = int(max_consecutive_losses)
+        self.max_daily_loss_pct = float(max_daily_loss_pct)
+        self.min_equity = float(min_equity)
+        self.trailing_activate_pct = float(trailing_activate_pct)
+        self.trailing_sl_pct = float(trailing_sl_pct)
+        self.trailing_min_move_pct = float(trailing_min_move_pct)
+        self.breakeven_activate_pct = float(breakeven_activate_pct)
+        self.max_position_age_hours = float(max_position_age_hours)
 
     # ------------------------------------------------------------------
+    def _can_enter(self) -> bool:
+        """Risk korumalari aktifse yeni giris engellenir (canli ile ayni)."""
+        if self.halted_dd or self.halted_eq:
+            return False
+        if self.max_consecutive_losses > 0 and self.consec >= self.max_consecutive_losses:
+            return False
+        return True
+
+    def _apply_intra_risk(self, pos: Dict[str, Any], close: float, high: float, low: float):
+        """Breakeven + trailing SL yonetimi (canli check_positions ile ayni)."""
+        entry = pos["entry"]
+        profit_pct = (close - entry) / entry * 100 if pos["side"] == 1 \
+            else (entry - close) / entry * 100
+        if self.breakeven_activate_pct > 0 and profit_pct >= self.breakeven_activate_pct:
+            if pos["side"] == 1 and pos["sl"] < entry:
+                pos["sl"] = entry
+            elif pos["side"] == -1 and pos["sl"] > entry:
+                pos["sl"] = entry
+        if self.trailing_activate_pct > 0 and self.trailing_sl_pct > 0 \
+                and profit_pct >= self.trailing_activate_pct:
+            if pos["side"] == 1:
+                new_sl = close * (1 - self.trailing_sl_pct / 100.0)
+            else:
+                new_sl = close * (1 + self.trailing_sl_pct / 100.0)
+            better = new_sl > pos["sl"] if pos["side"] == 1 else new_sl < pos["sl"]
+            if better:
+                if self.trailing_min_move_pct > 0:
+                    move_pct = abs(new_sl - pos["sl"]) / entry * 100
+                    if move_pct < self.trailing_min_move_pct:
+                        new_sl = pos["sl"]
+                pos["sl"] = new_sl
     def run(self, df: pd.DataFrame, orders: pd.DataFrame, interval: str = "4h") -> Dict[str, Any]:
         if len(df) < 2:
             return {"error": "Yetersiz veri"}
@@ -57,6 +106,11 @@ class BacktestEngine:
         eq_curve = np.empty(n)
         pos: Optional[Dict[str, Any]] = None
         bars_in_pos = 0
+        self.halted_dd = False
+        self.halted_eq = False
+        self.consec = 0
+        peak_bt = self.initial_equity
+        hours_per_bar = 24.0 * 365 / max(bars_per_year(interval), 1)
 
         for i in range(n):
             # 1) Bekleyen emir: bir onceki barin sinyali -> bu barin acilisi
@@ -69,7 +123,7 @@ class BacktestEngine:
                     self._close(pos, o[i], "flip", i, trades)
                     pos = None
 
-                if pos is None and np.isfinite(slp):
+                if pos is None and np.isfinite(slp) and self._can_enter():
                     px = o[i] * (1 + self.slippage * side)
                     if side == 1:
                         if px <= slp:
@@ -107,12 +161,33 @@ class BacktestEngine:
                         self._close(pos, pos["tp"], "take_profit", i, trades)
                         pos = None
 
+            # 2b) Time-stop: max acik kalma suresi asilinca kapat
+            if pos is not None and self.max_position_age_hours > 0:
+                if (i - pos["entry_bar"]) * hours_per_bar >= self.max_position_age_hours:
+                    self._close(pos, c[i], "time_stop", i, trades)
+                    pos = None
+
+            # 2c) Breakeven + trailing SL (koruma bir sonraki bardan gecerli)
+            if pos is not None:
+                self._apply_intra_risk(pos, c[i], h[i], l[i])
+
             # 3) Equity egrisi (acik pozisyonun gerceklesmemis PnL'i ile)
             if pos is not None:
                 unreal = (c[i] - pos["entry"]) * pos["qty"] * pos["side"]
                 eq_curve[i] = self.equity + unreal
             else:
                 eq_curve[i] = self.equity
+
+            # Risk koruma bayraklari (drawdown + equity taban)
+            if self.max_drawdown_pct > 0:
+                peak_bt = max(peak_bt, eq_curve[i])
+                dd_now = (peak_bt - eq_curve[i]) / peak_bt * 100 if peak_bt > 0 else 0.0
+                if dd_now >= self.max_drawdown_pct:
+                    self.halted_dd = True
+                elif self.halted_dd and dd_now <= self.max_drawdown_pct * 0.5:
+                    self.halted_dd = False
+            if self.min_equity > 0:
+                self.halted_eq = eq_curve[i] < self.min_equity
 
         # Test sonu: kalan pozisyonu son kapanisla kapat
         if pos is not None:
@@ -159,6 +234,7 @@ class BacktestEngine:
         exit_fee = exit_px * pos["qty"] * self.fee_rate
         net = pnl - exit_fee - pos["entry_fee"]
         self.equity += pnl - exit_fee
+        self.consec = self.consec + 1 if net < 0 else 0
         trades.append(self._trade_record(pos, exit_px, net, reason, bar))
 
     def _gap_trade(self, side: int, px: float, sl: float, tp: float, reason: str,
@@ -223,6 +299,15 @@ class BacktestEngine:
                 "fee_rate": self.fee_rate,
                 "slippage": self.slippage,
                 "max_leverage": self.max_leverage,
+                "max_drawdown_pct": self.max_drawdown_pct,
+                "max_consecutive_losses": self.max_consecutive_losses,
+                "max_daily_loss_pct": self.max_daily_loss_pct,
+                "min_equity": self.min_equity,
+                "trailing_activate_pct": self.trailing_activate_pct,
+                "trailing_sl_pct": self.trailing_sl_pct,
+                "trailing_min_move_pct": self.trailing_min_move_pct,
+                "breakeven_activate_pct": self.breakeven_activate_pct,
+                "max_position_age_hours": self.max_position_age_hours,
             },
             "bars": n,
             "interval": interval,

@@ -175,6 +175,26 @@ Dashboard `EQUITY FLOOR` rozeti, `/durum` yanıtı `Equity taban: $N |
 Taban durma` satırı, `/health`, `/api/v1/status` ve `/dashboard/metrics`
 ise `equity_halted` ve `min_equity` alanlarını döndürür.
 
+## Backtest Risk Simülasyonu
+
+Backtest motoru artık canlı ayarlarla aynı risk kurallarını simüle eder
+(parametreler `BacktestEngine`'e geçirilir, `/api/v1/backtest` sonuçları
+canlı ayarları kullanır):
+
+- **Drawdown halt** — peak equity'den %`max_drawdown_pct` düşüşte yeni
+  girişler engellenir (histerezis: yarısına dönünce serbest).
+- **Ardışık zarar** — %`max_consecutive_losses` ardışık kayıp sonrası
+  girişler engellenir, kar seriyi kırar.
+- **Breakeven + trailing SL** — kâr eşiği aşılınca SL girişe taşınır /
+  takip edilir (SL yalnızca min hareket aşılınca güncellenir).
+- **Time-stop** — `max_position_age_hours` aşılan bar sayısı (interval'e
+  göre saat) sonrası pozisyon kapanır.
+- **Equity taban** — `min_equity` altında girişler engellenir.
+
+Tüm parametreler varsayılan olarak `0` = devre dışı; yalnızca canlı
+ayarlar sıfırdan farklıysa davranış değişir. Risk parametreleri
+`metrics.params` içinde saklanır.
+
 ## Pozisyon Yaşı ve Yeniden Başlatma
 
 `/ac` (veya motor yeniden başlatma) sonrası `reconcile_positions` geri

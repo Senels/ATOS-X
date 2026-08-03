@@ -88,3 +88,88 @@ def test_open_uses_position_size(btc_df):
     m = engine.run(btc_df, orders, "4h")
     for t in m["trades"]:
         assert t["qty"] > 0
+
+
+# -- risk korumalari (canli ayarlarla ayni davranis) -------------------------
+def _frame(prices, signals=None, sls=None, tps=None):
+    import numpy as np
+    import pandas as pd
+    df = pd.DataFrame(prices, columns=["open", "high", "low", "close"])
+    n = len(df)
+    sig = signals if signals is not None else [0] * n
+    sls = sls if sls is not None else [np.nan] * n
+    tps = tps if tps is not None else [np.nan] * n
+    orders = pd.DataFrame({"signal": sig, "sl": sls, "tp": tps})
+    return df, orders
+
+
+def test_backtest_trailing_raises_stop():
+    df, orders = _frame([
+        [100.0, 101.0, 99.0, 100.0],
+        [100.5, 103.0, 100.0, 103.0],
+        [103.0, 107.0, 102.5, 106.5],
+        [106.0, 108.0, 104.0, 107.0],
+    ], signals=[1, 0, 0, 0], sls=[95.0, None, None, None], tps=[110.0, None, None, None])
+    engine = BacktestEngine(initial_equity=10000, risk_per_trade=0.02,
+                            trailing_activate_pct=3.0, trailing_sl_pct=1.5)
+    m = engine.run(df, orders, "4h")
+    sl_stop = [t for t in m["trades"] if t["reason"] == "stop_loss"]
+    assert sl_stop, "trailing SL yukseltilmemis"
+    assert sl_stop[0]["exit"] > 100.0
+
+
+def test_backtest_trailing_disabled_no_trail():
+    df, orders = _frame([
+        [100.0, 101.0, 99.0, 100.0],
+        [100.5, 103.0, 100.0, 103.0],
+        [103.0, 107.0, 102.5, 106.5],
+        [106.0, 108.0, 104.0, 107.0],
+    ], signals=[1, 0, 0, 0], sls=[95.0, None, None, None], tps=[110.0, None, None, None])
+    engine = BacktestEngine(initial_equity=10000, risk_per_trade=0.02)
+    m = engine.run(df, orders, "4h")
+    assert all(t["reason"] != "stop_loss" for t in m["trades"])
+
+
+def test_backtest_time_stop_closes():
+    df, orders = _frame([
+        [100.0, 101.0, 99.0, 100.0],
+        [100.5, 101.0, 100.0, 100.8],
+        [100.8, 101.5, 100.5, 101.0],
+    ], signals=[1, 0, 0], sls=[95.0, None, None], tps=[110.0, None, None])
+    engine = BacktestEngine(initial_equity=10000, risk_per_trade=0.02,
+                            max_position_age_hours=2)
+    m = engine.run(df, orders, "4h")
+    assert any(t["reason"] == "time_stop" for t in m["trades"])
+
+
+def test_backtest_consecutive_losses_block_entry():
+    df, orders = _frame([
+        [100.0, 101.0, 99.0, 100.0],
+        [100.5, 101.0, 100.0, 100.5],
+        [99.5, 100.0, 95.5, 96.0],
+        [96.0, 97.0, 94.0, 95.0],
+        [100.0, 101.0, 99.0, 100.0],
+        [100.5, 101.0, 100.0, 100.5],
+        [101.0, 105.0, 100.0, 104.0],
+    ], signals=[1, 0, 0, 0, 1, 0, 0], sls=[95.0, None, None, None, 95.0, None, None],
+       tps=[110.0, None, None, None, 110.0, None, None])
+    engine = BacktestEngine(initial_equity=10000, risk_per_trade=0.02,
+                            max_consecutive_losses=1)
+    m = engine.run(df, orders, "4h")
+    assert len(m["trades"]) == 1
+    assert m["trades"][0]["reason"] == "stop_loss"
+
+
+def test_backtest_breakeven_moves_sl_to_entry():
+    df, orders = _frame([
+        [100.0, 101.0, 99.0, 100.0],
+        [100.5, 103.0, 100.0, 102.6],
+        [103.0, 106.0, 102.0, 101.0],
+        [101.0, 101.5, 99.5, 100.0],
+    ], signals=[1, 0, 0, 0], sls=[95.0, None, None, None], tps=[110.0, None, None, None])
+    engine = BacktestEngine(initial_equity=10000, risk_per_trade=0.02,
+                            breakeven_activate_pct=2.0)
+    m = engine.run(df, orders, "4h")
+    sl_stop = [t for t in m["trades"] if t["reason"] == "stop_loss"]
+    assert sl_stop
+    assert sl_stop[0]["exit"] > 98.0

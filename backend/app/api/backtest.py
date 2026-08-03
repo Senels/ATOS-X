@@ -106,6 +106,15 @@ async def run_backtest(
         fee_rate=fee_rate if fee_rate is not None else engine_cfg["fee_rate"],
         slippage=0.0001,
         max_leverage=leverage if leverage is not None else engine_cfg["max_leverage"],
+        max_drawdown_pct=engine_cfg.get("max_drawdown_pct", 0.0),
+        max_consecutive_losses=engine_cfg.get("max_consecutive_losses", 0),
+        max_daily_loss_pct=engine_cfg.get("max_daily_loss_pct", 0.0),
+        min_equity=engine_cfg.get("min_equity", 0.0),
+        trailing_activate_pct=engine_cfg.get("trailing_activate_pct", 0.0),
+        trailing_sl_pct=engine_cfg.get("trailing_sl_pct", 0.0),
+        trailing_min_move_pct=engine_cfg.get("trailing_min_move_pct", 0.0),
+        breakeven_activate_pct=engine_cfg.get("breakeven_activate_pct", 0.0),
+        max_position_age_hours=engine_cfg.get("max_position_age_hours", 0.0),
     )
     bot = TradeBotV23(settings)
     result = bot.analyze(df)
