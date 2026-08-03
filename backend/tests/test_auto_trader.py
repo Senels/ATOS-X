@@ -18,6 +18,15 @@ class FakeBinance:
         self.open_positions = []
         self.algo_orders = []
         self.raise_on_positions = False
+        self.connect_failures = 0
+        self.client = None
+
+    async def connect(self):
+        if self.connect_failures:
+            self.connect_failures -= 1
+            return False
+        self.client = True
+        return True
 
     async def load_all_symbols(self):
         return ["BTCUSDT", "ETHUSDT"]
@@ -314,3 +323,19 @@ async def test_reconcile_empty_is_noop(trader):
     tr, fb, db = trader
     await tr.reconcile_positions()
     assert tr.active_positions == {}
+
+
+async def test_ensure_connected_retries(trader):
+    tr, fb, db = trader
+    tr.running = True
+    fb.connect_failures = 2
+    assert await tr._ensure_connected(max_attempts=5, delay=0) is True
+    assert fb.client is True
+
+
+async def test_ensure_connected_gives_up(trader):
+    tr, fb, db = trader
+    tr.running = True
+    fb.connect_failures = 100
+    assert await tr._ensure_connected(max_attempts=3, delay=0) is False
+    assert fb.client is None

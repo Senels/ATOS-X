@@ -36,7 +36,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     strat_settings.load()
 
     app.state.binance = BinanceClient()
-    await app.state.binance.connect()
+    for attempt in range(1, 6):
+        if await app.state.binance.connect():
+            break
+        logger.warning(f"Binance baglanti denemesi {attempt}/5 basarisiz, 10s sonra tekrar")
+        await asyncio.sleep(10)
+    else:
+        system_status["status"] = "degraded"
+        logger.error("Binance baglantisi kurulamadi; AutoTrader yeniden denemeye devam edecek")
     app.state.db = Database()
 
     auto_trader = AutoTrader(app.state.binance, telegram=telegram)
@@ -49,7 +56,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         ws.subscribe(symbol, on_price_update)
     await ws.start(symbols)
 
-    system_status["status"] = "online"
+    if system_status["status"] != "degraded":
+        system_status["status"] = "online"
     daily_report_task = asyncio.create_task(_daily_report_loop())
     await telegram.send(f"ATOS X v{settings.APP_VERSION} baslatildi!")
 

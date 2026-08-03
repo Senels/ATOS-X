@@ -33,6 +33,8 @@ class BinanceClient:
         self.symbol_filters = {}
 
     async def connect(self):
+        if self.client:
+            return True
         try:
             self.client = _FuturesOnlyClient(
                 self.api_key,

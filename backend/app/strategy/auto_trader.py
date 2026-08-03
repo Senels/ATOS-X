@@ -98,9 +98,29 @@ class AutoTrader:
     def update_price(self, symbol: str, price: float):
         self.live_prices[symbol] = float(price)
 
+    async def _ensure_connected(self, max_attempts: int = 30, delay: int = 10) -> bool:
+        """Binance baglantisi kurulana kadar sinirli sure dener (flaky network)."""
+        attempts = 0
+        while self.running:
+            if await self.binance.connect():
+                return True
+            attempts += 1
+            if max_attempts and attempts >= max_attempts:
+                logger.error(f"Binance baglantisi {attempts} denemede kurulamadi")
+                return False
+            logger.warning(
+                f"Binance baglantisi yok; {delay}s sonra tekrar deneniyor ({attempts})"
+            )
+            await asyncio.sleep(delay)
+        return False
+
     async def start(self):
         self.running = True
         logger.info("Otomatik islem motoru baslatildi")
+        if not await self._ensure_connected():
+            logger.error("Binance baglantisi kurulamadi; motor baslatilamiyor")
+            self.running = False
+            return
         self.trading_symbols = await self.binance.load_all_symbols()
         logger.info(f"{len(self.trading_symbols)} coin taranacak")
         await self.reconcile_positions()
@@ -110,6 +130,17 @@ class AutoTrader:
             try:
                 bot = TradeBotV23(strat_settings.get_settings())
                 all_prices = await self.binance.get_all_tickers()
+                if not all_prices:
+                    # Baglanti koptuysa yeniden kur, fallback sembollerde kaldiysa tazele
+                    logger.warning("Borsa fiyatlari alinamadi; baglanti yeniden deneniyor")
+                    await self.binance.connect()
+                    if self.binance.client and len(self.trading_symbols) < 10:
+                        self.trading_symbols = await self.binance.load_all_symbols()
+                        logger.info(
+                            f"{len(self.trading_symbols)} coin taranacak (yeniden yuklendi)"
+                        )
+                    await asyncio.sleep(self.scan_interval)
+                    continue
                 signals = []
 
                 if self.priority and time.time() - self._last_rank > 1800:
