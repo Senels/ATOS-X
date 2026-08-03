@@ -155,11 +155,17 @@ th { color:#94a3b8; font-weight:500; font-size:10px; text-transform:uppercase; }
 <div id="tab-risk" class="panel">
 <div class="settings-card">
 <h3>🛡️ Risk Management</h3>
+<div class="setting-item"><span class="label">Risk per Trade (%)</span>
+<input type="number" id="r_risk_per_trade" value="2" min="0.1" max="10" step="0.1"></div>
+<div class="setting-item"><span class="label">Max Leverage</span>
+<input type="number" id="r_max_leverage" value="10" min="1" max="50"></div>
+<div class="setting-item"><span class="label">Max Open Positions</span>
+<input type="number" id="r_max_positions" value="3" min="1" max="20"></div>
 <div class="setting-item"><span class="label">Max Position per Symbol (%)</span>
 <input type="number" id="r_max_position_pct" value="75" min="1" max="1000" step="5"></div>
 <div class="setting-item"><span class="label">Max Exposure per Side (%)</span>
 <input type="number" id="r_max_side_pct" value="150" min="1" max="2000" step="10"></div>
-<div class="setting-item" style="border-bottom:none;"><span class="label" style="color:#64748b;font-size:11px;">Eşikler equity yüzdesidir; tek sembol veya tek yön bu değeri aşarsa Telegram uyarısı gönderilir.</span></div>
+<div class="setting-item" style="border-bottom:none;"><span class="label" style="color:#64748b;font-size:11px;">Eşikler equity yüzdesidir; tek sembol veya tek yön bu değeri aşarsa Telegram uyarısı gönderilir ve yeni giriş engellenir. Risk değerleri döngüde canlı uygulanır.</span></div>
 </div>
 </div>
 
@@ -228,6 +234,9 @@ rr_ratio: parseFloat(getValue('s_rr')) || 1.5,
 sl_lookback: parseInt(getValue('s_sl_lookback')) || 5,
 atr_fallback: getValue('s_atr_fallback'),
 atr_mult: parseFloat(getValue('s_atr_mult')) || 1.5,
+risk_per_trade: parseFloat(getValue('r_risk_per_trade')) || 0.02,
+max_leverage: parseFloat(getValue('r_max_leverage')) || 10,
+max_open_positions: parseInt(getValue('r_max_positions')) || 3,
 max_position_pct: parseFloat(getValue('r_max_position_pct')) || 75,
 max_side_pct: parseFloat(getValue('r_max_side_pct')) || 150,
 confirmations: {
@@ -281,6 +290,9 @@ document.getElementById('s_rr').value = s.rr_ratio || 1.5;
 document.getElementById('s_sl_lookback').value = s.sl_lookback || 5;
 setToggle('s_atr_fallback', s.atr_fallback);
 document.getElementById('s_atr_mult').value = s.atr_mult || 1.5;
+document.getElementById('r_risk_per_trade').value = (s.risk_per_trade || 0.02) * 100;
+document.getElementById('r_max_leverage').value = s.max_leverage || 10;
+document.getElementById('r_max_positions').value = s.max_open_positions || 3;
 document.getElementById('r_max_position_pct').value = s.max_position_pct || 75;
 document.getElementById('r_max_side_pct').value = s.max_side_pct || 150;
 if (s.confirmations) {
@@ -328,6 +340,9 @@ document.getElementById('s_rr').value = s.rr_ratio || 1.5;
 document.getElementById('s_sl_lookback').value = s.sl_lookback || 5;
 setToggle('s_atr_fallback', s.atr_fallback);
 document.getElementById('s_atr_mult').value = s.atr_mult || 1.5;
+document.getElementById('r_risk_per_trade').value = (s.risk_per_trade || 0.02) * 100;
+document.getElementById('r_max_leverage').value = s.max_leverage || 10;
+document.getElementById('r_max_positions').value = s.max_open_positions || 3;
 document.getElementById('r_max_position_pct').value = s.max_position_pct || 75;
 document.getElementById('r_max_side_pct').value = s.max_side_pct || 150;
 if (s.confirmations) {

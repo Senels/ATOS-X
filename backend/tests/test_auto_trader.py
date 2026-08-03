@@ -462,6 +462,18 @@ async def test_side_block_clears_when_under(trader):
     assert "side:LONG" not in tr._conc_blocks
 
 
+async def test_apply_risk_settings_live(trader):
+    tr, fb, db = trader
+    tr._apply_risk_settings({
+        "max_open_positions": 5,
+        "risk_per_trade": 0.05,
+        "max_leverage": 20.0,
+    })
+    assert tr.max_positions == 5
+    assert tr.engine.risk_per_trade == 0.05
+    assert tr.engine.max_leverage == 20.0
+
+
 async def test_fetch_klines_batch(trader):
     tr, fb, db = trader
     n = 200

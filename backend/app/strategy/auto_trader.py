@@ -151,7 +151,10 @@ class AutoTrader:
 
         while self.running:
             try:
-                bot = TradeBotV23(strat_settings.get_settings())
+                s = strat_settings.get_settings()
+                bot = TradeBotV23(s)
+                # Risk ayarlari UI'dan degistirilirse sonraki dongude gecerli olur
+                self._apply_risk_settings(s)
                 all_prices = await self.binance.get_all_tickers()
                 if not all_prices:
                     # Baglanti koptuysa yeniden kur, fallback sembollerde kaldiysa tazele
@@ -232,6 +235,12 @@ class AutoTrader:
                     symbol, signal["signal"], signal["price"],
                     signal["sl"], signal["tp"], signal.get("reason"),
                 )
+
+    def _apply_risk_settings(self, s: dict):
+        """Risk ayarlarini canli uygular (UI'dan degisimler bir sonraki dongude)."""
+        self.max_positions = int(s["max_open_positions"])
+        self.engine.risk_per_trade = float(s["risk_per_trade"])
+        self.engine.max_leverage = float(s["max_leverage"])
 
     def _projected_notional(self, price: float, sl: float) -> float:
         """Yeni bir pozisyonun boyutlandirma sonrasi nominal degeri."""

@@ -12,6 +12,26 @@ def test_health():
     assert "uptime" in body
 
 
+def test_health_has_concentration():
+    with TestClient(app) as client:
+        resp = client.get("/health")
+    assert resp.status_code == 200
+    conc = resp.json()["concentration"]
+    assert "long_pct" in conc
+    assert "short_pct" in conc
+    assert "blocks" in conc
+    assert "max_position_pct" in conc
+    assert "max_side_pct" in conc
+
+
+def test_status_has_concentration():
+    client = TestClient(app)
+    resp = client.get("/api/v1/status")
+    assert resp.status_code == 200
+    assert "concentration" in resp.json()
+    client.close()
+
+
 def test_dashboard_pages():
     client = TestClient(app)
     cases = [

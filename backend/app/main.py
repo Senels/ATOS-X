@@ -86,6 +86,27 @@ def _protected_count() -> int:
 def _is_connected() -> bool:
     return bool(auto_trader and auto_trader.binance and auto_trader.binance.client)
 
+def _concentration_summary() -> dict:
+    """Maruziyet ve aktif konsantrasyon engelleri (ops gorunurlugu)."""
+    if not auto_trader:
+        return {"long_pct": 0.0, "short_pct": 0.0, "blocks": [],
+                "max_position_pct": 0.0, "max_side_pct": 0.0}
+    equity = auto_trader.equity or 1.0
+    long_n = short_n = 0.0
+    for p in auto_trader.active_positions.values():
+        notional = float(p["entry_price"]) * float(p["quantity"])
+        if p["side"] == "BUY":
+            long_n += notional
+        else:
+            short_n += notional
+    return {
+        "long_pct": round(long_n / equity * 100.0, 1),
+        "short_pct": round(short_n / equity * 100.0, 1),
+        "blocks": sorted(auto_trader._conc_blocks),
+        "max_position_pct": auto_trader.max_position_pct,
+        "max_side_pct": auto_trader.max_side_pct,
+    }
+
 async def _daily_report_loop():
     """Her gun `DAILY_REPORT_HOUR` saatinde (yerel) ozet raporu gonderir."""
     while True:
@@ -121,6 +142,7 @@ async def health():
         "connected": _is_connected(),
         "positions": len(auto_trader.active_positions) if auto_trader else 0,
         "protected_positions": _protected_count(),
+        "concentration": _concentration_summary(),
         "trades": len(auto_trader.trade_history) if auto_trader else 0,
         "uptime": int((datetime.utcnow() - system_status["start_time"]).total_seconds())
     }
@@ -133,6 +155,7 @@ async def get_status():
         "symbols": len(auto_trader.trading_symbols) if auto_trader else 0,
         "positions": len(auto_trader.active_positions) if auto_trader else 0,
         "protected_positions": _protected_count(),
+        "concentration": _concentration_summary(),
         "trades": len(auto_trader.trade_history) if auto_trader else 0,
         "paper": auto_trader.paper if auto_trader else True,
         "top_symbols": auto_trader.top_symbols if auto_trader else [],
