@@ -253,3 +253,55 @@ def test_risk_events_type_filter():
     assert r1.json()["count"] == 1
     assert r1.json()["events"][0]["type"] == "drawdown_halt"
     assert r2.json()["count"] == 0
+
+
+def test_risk_positions_endpoint():
+    fake = _FakeTrader({
+        "BTCUSDT": {"side": "BUY", "entry_price": 100.0, "quantity": 2.0,
+                    "sl": 95.0, "tp": 110.0,
+                    "sl_order_id": "SL_1", "tp_order_id": "TP_1",
+                    "open_time": "2026-08-03T10:00:00"},
+    })
+    fake.live_prices = {"BTCUSDT": 105.0}
+    main_mod.auto_trader = fake
+    try:
+        client = TestClient(app)
+        resp = client.get("/api/v1/risk/positions")
+        client.close()
+    finally:
+        main_mod.auto_trader = None
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["count"] == 1
+    btc = body["positions"]["BTCUSDT"]
+    assert btc["notional"] == 200.0
+    assert btc["sl_distance_pct"] == 5.0
+    assert btc["risk_amount"] == 10.0
+    assert btc["protected"] is True
+    assert btc["upnl"] == 10.0
+    assert btc["size_pct"] == 2.0
+    assert btc["age_hours"] is not None
+    assert body["total_notional"] == 200.0
+    assert body["total_risk_amount"] == 10.0
+
+
+def test_risk_positions_short_and_unprotected():
+    fake = _FakeTrader({
+        "ETHUSDT": {"side": "SELL", "entry_price": 200.0, "quantity": 1.0,
+                    "sl": 210.0, "tp": 180.0,
+                    "sl_order_id": None, "tp_order_id": None},
+    })
+    fake.live_prices = {"ETHUSDT": 190.0}
+    main_mod.auto_trader = fake
+    try:
+        client = TestClient(app)
+        resp = client.get("/api/v1/risk/positions")
+        client.close()
+    finally:
+        main_mod.auto_trader = None
+    body = resp.json()
+    eth = body["positions"]["ETHUSDT"]
+    assert eth["sl_distance_pct"] == 5.0
+    assert eth["risk_amount"] == 10.0
+    assert eth["protected"] is False
+    assert eth["upnl"] == 10.0

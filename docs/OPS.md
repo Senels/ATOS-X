@@ -293,6 +293,7 @@ yoksa dinleyici devre dışıdır.
 | `/health` | `protected_positions`, `concentration` |
 | `/api/v1/status` | `protected_positions`, `concentration`, pozisyon sayısı |
 | `/api/v1/positions` | Pozisyon başına `protected` bayrağı + `protected`/`unprotected` sayıları |
+| `/api/v1/risk/positions` | Pozisyon bazlı risk: `notional`, `size_pct`, `sl_distance_pct`, `risk_amount`, `upnl`, `protected`/`trailing`/`breakeven`, `age_hours` + toplamlar (`total_notional`, `total_risk_amount`) |
 | `/dashboard/metrics` | Aynı + pozisyon başına `protected` |
 | `/dashboard` | Pozisyon tablosunda `KORUMALI`/`KORUMASIZ` rozetleri + kart özeti |
 

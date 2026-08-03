@@ -404,6 +404,68 @@ async def risk_events(limit: int = 50, type: str = ""):
         events = [e for e in events if e["type"] == type]
     return {"events": events[-limit:], "count": len(events[-limit:])}
 
+@app.get("/api/v1/risk/positions")
+async def risk_positions():
+    """Acik pozisyonlarin pozisyon bazli risk metrikleri."""
+    positions = auto_trader.active_positions if auto_trader else {}
+    equity = auto_trader.equity if auto_trader else 1.0
+    out = {}
+    for symbol, pos in positions.items():
+        mark = auto_trader.live_prices.get(symbol) if auto_trader else None
+        upnl, pct = _position_upnl(pos, mark)
+        entry = float(pos["entry_price"])
+        qty = float(pos["quantity"])
+        notional = entry * qty
+        side = pos["side"]
+        sl = pos.get("sl")
+        if sl:
+            sl_val = float(sl)
+            if side == "BUY":
+                sl_dist = (entry - sl_val) / entry * 100.0
+                risk_amt = qty * max(entry - sl_val, 0.0)
+            else:
+                sl_dist = (sl_val - entry) / entry * 100.0
+                risk_amt = qty * max(sl_val - entry, 0.0)
+        else:
+            sl_val, sl_dist, risk_amt = None, None, None
+        age_h = None
+        if pos.get("open_time"):
+            try:
+                opened = datetime.fromisoformat(pos["open_time"].replace("Z", "+00:00"))
+                if opened.tzinfo:
+                    opened = opened.replace(tzinfo=None)
+                age_h = (datetime.utcnow() - opened).total_seconds() / 3600.0
+            except Exception:
+                age_h = None
+        out[symbol] = {
+            "side": side,
+            "quantity": qty,
+            "entry": entry,
+            "sl": sl_val,
+            "tp": pos.get("tp"),
+            "notional": round(notional, 2),
+            "size_pct": round(notional / equity * 100.0, 2),
+            "sl_distance_pct": round(sl_dist, 2) if sl_dist is not None else None,
+            "risk_amount": round(risk_amt, 2) if risk_amt is not None else None,
+            "mark": mark,
+            "upnl": upnl,
+            "upnl_pct": pct,
+            "protected": bool(pos.get("sl_order_id") or pos.get("tp_order_id")),
+            "trailing": bool(pos.get("trailing")),
+            "breakeven": bool(pos.get("breakeven")),
+            "age_hours": round(age_h, 2) if age_h is not None else None,
+        }
+    return {
+        "positions": out,
+        "count": len(positions),
+        "equity": round(equity, 2),
+        "total_notional": round(sum(p["notional"] for p in out.values()), 2),
+        "total_risk_amount": round(
+            sum(p["risk_amount"] for p in out.values() if p["risk_amount"] is not None), 2
+        ),
+        "max_position_pct": auto_trader.max_position_pct if auto_trader else 0.0,
+    }
+
 @app.get("/dashboard/metrics")
 async def metrics():
     try:
