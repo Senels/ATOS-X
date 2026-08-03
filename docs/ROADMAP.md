@@ -4,18 +4,18 @@
 
 | # | Sprint | İçerik | Durum |
 |---|---|---|---|
-| # | Sprint | İçerik | Durum |
-|---|---|---|---|
 | 1 | Core Foundation | config, FastAPI iskeleti, sqlite DB | ✅ |
 | 2 | Backtest | gerçek OHLCV motoru, toplu tarama, optimizasyon | ✅ |
 | 3 | Binance Connector | async REST (signed), websocket akışları | ✅ |
 | 4 | Market Collector | kline/mark price toplama, backfill | ⏳ |
-| 5 | Dashboard | canlı PnL/pozisyon | ⏳ |
+| 5 | Dashboard | canlı PnL/pozisyon, risk kartı, koruma rozetleri | 🔶 |
 | 6 | Market Intelligence | rejim tespiti, volatilite, likidite analizi | ⏳ |
 | 7 | Coin Intelligence | sembol seçimi, momentum/score motoru | ⏳ |
 | 8 | Decision Council | çoklu sinyal oylaması, açıklanabilir karar | ⏳ |
-| 9 | Governor | risk limitleri, kill-switch, pozisyon boyutlandırma | ⏳ |
+| 9 | Governor | risk limitleri, konsantrasyon engelleri, koruma tamiri | 🔶 |
 | 10 | Trading | emir yönetimi, TP/SL/trailing, portföy senkronu | ⏳ |
+
+> 🔶 = kısmi: ilgili özellikler docs/OPS.md içinde belgelenmiştir.
 
 ## Veri
 

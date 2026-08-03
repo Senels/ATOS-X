@@ -43,8 +43,11 @@ backend/        ATOS X
 ├── scripts/      tarama (scan_backtest) + optimizasyon (optimize)
 └── tests/        pytest (31 test)
 legacy/data/    backtest için yerel OHLCV CSV arşivi (futures_4h/30m/15m/2h)
-docs/           mimari dokümanlar
+docs/           mimari dokümanlar (ROADMAP, OPS — operasyon/risk rehberi)
 ```
+
+Operasyon ve risk özellikleri (konsantrasyon engelleri, Telegram
+komutları, koruma/SL-TP) için bkz. [docs/OPS.md](docs/OPS.md).
 
 ## Başlatma
 
