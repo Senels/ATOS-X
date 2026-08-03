@@ -75,6 +75,8 @@ def test_dashboard_pages():
     cases = [
         ("/dashboard/html", "ATOS X Dashboard"),
         ("/dashboard/settings", "ATOS X - Strategy Manager"),
+        ("/optimize/html", "Parametre Optimizasyonu"),
+        ("/backtest/html", "ATOS X Backtest"),
     ]
     for path, marker in cases:
         resp = client.get(path)

@@ -202,6 +202,14 @@ imkanı verir: `max_drawdown_pct`, `max_consecutive_losses`,
 `max_position_age_hours`. Verilmezse canlı ayarlar kullanılır. Grid
 search (`GridSearch`) da varsayılan olarak aynı risk ayarlarıyla çalışır.
 
+`/backtest/html` web arayüzü backtesti çalıştırır: sembol, interval,
+limit, kaynak (CSV/Binance), strateji override'ları (leading indicator,
+signal expiry, RR, SL lookback, ATR, confirmations) ve motor/risk
+override'ları. Sonuç metrikleri (return, net profit, win rate, PF,
+Sharpe, max DD, exposure) + equity eğrisi + işlem tablosu gösterilir;
+geçmiş çalışmalar tablosundan kayıt yeniden yüklenebilir. Boş bırakılan
+risk alanları canlı ayarları kullanır.
+
 ## Parametre Optimizasyonu (Grid Search)
 
 `GridSearch` (ProcessPoolExecutor destekli) TradeBotV23 + BacktestEngine

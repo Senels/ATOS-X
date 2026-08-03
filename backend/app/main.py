@@ -452,3 +452,11 @@ async def optimize_html():
     except:
         return HTMLResponse(content="<h1>Optimize not found</h1>")
 
+@app.get("/backtest/html")
+async def backtest_html():
+    try:
+        with open(_APP_DIR / "backtest.html", "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    except:
+        return HTMLResponse(content="<h1>Backtest not found</h1>")
+
