@@ -95,7 +95,8 @@ Dinleyici aracılığıyla uzaktan acil durum kontrolü:
 - `system_stop` — motor durdurma.
 
 `/api/v1/risk/events` tüm kayıtları, `/dashboard/metrics` son 10 kaydı
-döndürür; dashboard'da `Risk Events` kartında gösterilir.
+döndürür; dashboard'da `Risk Events` kartında gösterilir. Endpoint
+`limit` ve `type` (ör. `?type=drawdown_halt`) filtrelerini destekler.
 `/durum` Telegram yanıtı risk olay sayısını ve son olay tipini içerir.
 
 Risk olayları DB'deki `risk_events` tablosuna kalıcı yazılır; motor

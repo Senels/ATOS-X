@@ -330,9 +330,11 @@ async def emergency_stop():
     return {"status": "error", "message": "Not running"}
 
 @app.get("/api/v1/risk/events")
-async def risk_events(limit: int = 50):
-    events = auto_trader.risk_events[-limit:] if auto_trader else []
-    return {"events": events, "count": len(events)}
+async def risk_events(limit: int = 50, type: str = ""):
+    events = auto_trader.risk_events if auto_trader else []
+    if type:
+        events = [e for e in events if e["type"] == type]
+    return {"events": events[-limit:], "count": len(events[-limit:])}
 
 @app.get("/dashboard/metrics")
 async def metrics():

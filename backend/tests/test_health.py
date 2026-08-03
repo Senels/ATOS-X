@@ -169,3 +169,22 @@ def test_risk_events_endpoint():
     assert isinstance(body["events"], list)
     assert "count" in body
     client.close()
+
+
+def test_risk_events_type_filter():
+    fake = _FakeTrader({})
+    fake.risk_events = [
+        {"time": "2026-08-03T10:00:00", "type": "drawdown_halt", "message": "a"},
+        {"time": "2026-08-03T11:00:00", "type": "block_add", "message": "b"},
+    ]
+    main_mod.auto_trader = fake
+    try:
+        client = TestClient(app)
+        r1 = client.get("/api/v1/risk/events?type=drawdown_halt")
+        r2 = client.get("/api/v1/risk/events?type=trailing_move")
+        client.close()
+    finally:
+        main_mod.auto_trader = None
+    assert r1.json()["count"] == 1
+    assert r1.json()["events"][0]["type"] == "drawdown_halt"
+    assert r2.json()["count"] == 0
