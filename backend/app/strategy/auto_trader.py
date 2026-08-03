@@ -1000,9 +1000,13 @@ class AutoTrader:
     async def stop(self):
         self.running = False
         self._log_risk_event("system_stop", "Motor durduruldu - tum pozisyonlar kapatiliyor")
+        before = len(self.trade_history)
         for symbol in list(self.active_positions.keys()):
             price = self.live_prices.get(symbol)
             if not price:
                 price = await self.binance.get_price(symbol)
             await self.close_position(symbol, price, "system_stop")
+        closed = self.trade_history[before:]
+        if self.telegram:
+            await self.telegram.send_stop_summary(closed)
         logger.info("Otomatik islem motoru durduruldu")

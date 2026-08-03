@@ -1,5 +1,5 @@
 from app import main as main_mod
-from app.notifications.telegram import TelegramNotifier, _process_updates
+from app.notifications.telegram import TelegramNotifier, _process_updates, format_stop_summary
 
 
 class _FakeTrader:
@@ -254,3 +254,21 @@ def test_listener_disabled_returns_none():
     nt = TelegramNotifier.__new__(TelegramNotifier)
     nt.enabled = False
     assert nt.start_listener(lambda t: None) is None
+
+
+def test_format_stop_summary():
+    closed = [
+        {"symbol": "BTCUSDT", "pnl": 120.0},
+        {"symbol": "ETHUSDT", "pnl": -50.0},
+    ]
+    msg = format_stop_summary(closed)
+    assert "Kapanan pozisyon: 2" in msg
+    assert "Kar: 1 / Zarar: 1" in msg
+    assert "+70.00" in msg
+    assert "BTCUSDT" in msg and "ETHUSDT" in msg
+
+
+def test_format_stop_summary_empty():
+    msg = format_stop_summary([])
+    assert "Kapanan pozisyon: 0" in msg
+    assert "Kar: 0 / Zarar: 0" in msg

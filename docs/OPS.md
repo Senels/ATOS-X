@@ -65,6 +65,9 @@ Dinleyici aracılığıyla uzaktan acil durum kontrolü:
 - `/durdur` — motoru durdurur; **tüm açık pozisyonları** `emergency_stop`
   nedeniyle kapatır. `running` bayrağı `False` olur, dashboard'da
   `TRADING OFF` rozeti görünür.
+- `/durdur` sonrası Telegram'a kapanış özeti gönderilir: kapanan pozisyon
+  sayısı, kar/zarar dağılımı, gerçekleşen net PnL ve en iyi/en kötü
+  pozisyon (pozisyon yoksa `Kapanan pozisyon: 0`).
 - `/kapat <SEMBOL>` — tek pozisyonu güncel fiyattan `manual_close`
   nedeniyle kapatır; sembol açık değilse ya da fiyat yoksa iptal edilir.
 - `/ac` — motoru yeniden başlatır (sembolleri yükler, pozisyonları

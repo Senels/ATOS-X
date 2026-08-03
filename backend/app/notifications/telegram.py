@@ -61,6 +61,9 @@ class TelegramNotifier:
     async def send_daily_summary(self, trades, equity, open_positions, top_symbols=None):
         await self.send(format_daily_summary(trades, equity, open_positions, top_symbols))
 
+    async def send_stop_summary(self, closed):
+        await self.send(format_stop_summary(closed))
+
     def start_listener(self, handler):
         """Arka planda komut mesajlarini dinler; task doner (disabled ise None)."""
         if not self.enabled:
@@ -142,4 +145,26 @@ def format_daily_summary(trades, equity, open_positions, top_symbols=None) -> st
     msg += f"Acik pozisyon: {len(open_positions) if open_positions else 0}"
     if top_symbols:
         msg += f"\nTarama: {', '.join(top_symbols[:8])}"
+    return msg
+
+
+def format_stop_summary(closed: list) -> str:
+    """Durdurma sonrasi kapanan pozisyonlarin ozetini kurar.
+
+    `closed` trade_history formatindadir (symbol, side, entry, exit, qty,
+    pnl, reason, trailing, breakeven, time).
+    """
+    pnl = sum(t.get("pnl", 0.0) for t in closed)
+    wins = sum(1 for t in closed if t.get("pnl", 0) > 0)
+    losses = sum(1 for t in closed if t.get("pnl", 0) < 0)
+
+    msg = "🛑 <b>ATOS X Durdurma Ozeti</b>\n"
+    msg += f"Kapanan pozisyon: {len(closed)}\n"
+    msg += f"Kar: {wins} / Zarar: {losses}\n"
+    msg += f"Gerceklesen PnL: <b>{'+' if pnl >= 0 else ''}{pnl:.2f}</b>"
+    if closed:
+        best = max(closed, key=lambda t: t.get("pnl", 0.0))
+        worst = min(closed, key=lambda t: t.get("pnl", 0.0))
+        msg += f"\nEn iyi: {best['symbol']} ({'+' if best['pnl'] >= 0 else ''}{best['pnl']:.2f})"
+        msg += f"\nEn kotu: {worst['symbol']} ({'+' if worst['pnl'] >= 0 else ''}{worst['pnl']:.2f})"
     return msg

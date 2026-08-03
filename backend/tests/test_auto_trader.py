@@ -12,9 +12,13 @@ from app.core.database import Database
 class FakeTelegram:
     def __init__(self):
         self.sent = []
+        self.stop_summaries = []
 
     async def send(self, message):
         self.sent.append(message)
+
+    async def send_stop_summary(self, closed):
+        self.stop_summaries.append(closed)
 
 
 class FakeBinance:
@@ -809,6 +813,28 @@ async def test_risk_event_log_system_stop(trader):
     tr, fb, db = trader
     await tr.stop()
     assert tr.risk_events[-1]["type"] == "system_stop"
+
+
+async def test_stop_sends_stop_summary(trader):
+    tr, fb, db = trader
+    tr.telegram = FakeTelegram()
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
+    assert tr.active_positions
+    await tr.stop()
+    assert tr.active_positions == {}
+    assert len(tr.trade_history) == 1
+    assert len(tr.telegram.stop_summaries) == 1
+    assert tr.telegram.stop_summaries[0][0]["symbol"] == "BTCUSDT"
+    assert tr.telegram.stop_summaries[0][0]["reason"] == "system_stop"
+
+
+async def test_stop_summary_empty_when_no_positions(trader):
+    tr, fb, db = trader
+    tr.telegram = FakeTelegram()
+    await tr.stop()
+    assert len(tr.telegram.stop_summaries) == 1
+    assert tr.telegram.stop_summaries[0] == []
+
 
 
 async def test_risk_events_ring_buffer(trader):
