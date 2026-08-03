@@ -265,6 +265,12 @@ async def _daily_report_loop():
                     auto_trader.equity,
                     auto_trader.active_positions,
                     auto_trader.top_symbols,
+                    marks=auto_trader.live_prices,
+                    risk_events=auto_trader.risk_events,
+                    loss_halted=auto_trader.loss_halted,
+                    daily_loss_halted=auto_trader.daily_loss_halted,
+                    equity_halted=auto_trader.equity_halted,
+                    day_pnl=auto_trader.day_pnl,
                 )
         except Exception as e:
             logger.error(f"Gunluk rapor hatasi: {e}")

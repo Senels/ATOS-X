@@ -58,8 +58,14 @@ class TelegramNotifier:
         msg += f"Status: {metrics.get('status', 'unknown')}"
         await self.send(msg)
 
-    async def send_daily_summary(self, trades, equity, open_positions, top_symbols=None):
-        await self.send(format_daily_summary(trades, equity, open_positions, top_symbols))
+    async def send_daily_summary(self, trades, equity, open_positions, top_symbols=None,
+                                 marks=None, risk_events=None, loss_halted=False,
+                                 daily_loss_halted=False, equity_halted=False,
+                                 day_pnl=None):
+        await self.send(format_daily_summary(
+            trades, equity, open_positions, top_symbols, marks, risk_events,
+            loss_halted, daily_loss_halted, equity_halted, day_pnl,
+        ))
 
     async def send_stop_summary(self, closed):
         await self.send(format_stop_summary(closed))
@@ -126,7 +132,10 @@ def _process_updates(updates: list, handler) -> tuple:
     return offset, replies
 
 
-def format_daily_summary(trades, equity, open_positions, top_symbols=None) -> str:
+def format_daily_summary(trades, equity, open_positions, top_symbols=None,
+                         marks=None, risk_events=None, loss_halted=False,
+                         daily_loss_halted=False, equity_halted=False,
+                         day_pnl=None) -> str:
     """Gunluk ozet rapor metnini kurar. trades satirlari DB trades kolonlaridir."""
     closed = [t for t in trades if t[6] is not None]
     wins = sum(1 for t in closed if t[6] > 0)
@@ -135,16 +144,44 @@ def format_daily_summary(trades, equity, open_positions, top_symbols=None) -> st
     win_rate = wins / len(closed) * 100 if closed else 0.0
     best = max(closed, key=lambda t: t[6]) if closed else None
 
+    upnl = 0.0
+    if open_positions and marks:
+        for sym, pos in open_positions.items():
+            mark = marks.get(sym)
+            if mark is None:
+                continue
+            if pos.get("side") == "BUY":
+                upnl += (mark - pos["entry_price"]) * pos["quantity"]
+            else:
+                upnl += (pos["entry_price"] - mark) * pos["quantity"]
+
     msg = "📊 <b>ATOS X Gunluk Ozet</b>\n"
     msg += f"Equity: <b>${equity:.2f}</b>\n"
     msg += f"Kapanan islem: {len(closed)} ({wins}W/{losses}L)\n"
     msg += f"Win Rate: {win_rate:.1f}%\n"
     msg += f"Gunluk PnL: <b>{'+' if pnl >= 0 else ''}{pnl:.2f}</b>\n"
+    if day_pnl is not None:
+        msg += f"Gunluk net (kapanan): {'+' if day_pnl >= 0 else ''}{day_pnl:.2f}\n"
+    if open_positions and marks:
+        msg += f"Gerceklesmemis PnL: <b>{'+' if upnl >= 0 else ''}{upnl:.2f}</b>\n"
     if best:
         msg += f"En iyi: {best[1]} {('+' if best[6] >= 0 else '')}{best[6]:.2f}\n"
     msg += f"Acik pozisyon: {len(open_positions) if open_positions else 0}"
     if top_symbols:
         msg += f"\nTarama: {', '.join(top_symbols[:8])}"
+    halts = []
+    if loss_halted:
+        halts.append("ARDISIK ZARAR")
+    if daily_loss_halted:
+        halts.append("GUNLUK ZARAR")
+    if equity_halted:
+        halts.append("EQUITY TABAN")
+    if halts:
+        msg += f"\nDurmalar: {', '.join(halts)}"
+    if risk_events:
+        last_evt = risk_events[-1]
+        evt_line = f"{last_evt['type']} ({last_evt['time'][:16].replace('T', ' ')})"
+        msg += f"\nRisk olayi: {len(risk_events)} (son: {evt_line})"
     return msg
 
 

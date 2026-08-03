@@ -28,3 +28,29 @@ def test_daily_summary_empty():
 def test_daily_summary_top_symbols():
     msg = format_daily_summary([], equity=10000.0, open_positions={}, top_symbols=["BTCUSDT", "ETHUSDT"])
     assert "Tarama: BTCUSDT, ETHUSDT" in msg
+
+
+def test_daily_summary_unrealized_pnl():
+    positions = {
+        "BTCUSDT": {"side": "BUY", "entry_price": 100.0, "quantity": 2.0},
+        "ETHUSDT": {"side": "SELL", "entry_price": 200.0, "quantity": 1.0},
+    }
+    marks = {"BTCUSDT": 110.0, "ETHUSDT": 180.0}
+    msg = format_daily_summary([], equity=10000.0, open_positions=positions, marks=marks)
+    assert "Gerceklesmemis PnL: <b>+40.00</b>" in msg
+
+
+def test_daily_summary_halt_statuses():
+    msg = format_daily_summary([], equity=10000.0, open_positions={},
+                               loss_halted=True, daily_loss_halted=True,
+                               equity_halted=True)
+    assert "Durmalar: ARDISIK ZARAR, GUNLUK ZARAR, EQUITY TABAN" in msg
+    assert "Durmalar" not in format_daily_summary([], equity=10000.0, open_positions={})
+
+
+def test_daily_summary_risk_events_and_day_pnl():
+    events = [{"time": "2026-08-03T10:00:00", "type": "drawdown_halt", "message": "x"}]
+    msg = format_daily_summary([], equity=10000.0, open_positions={},
+                               risk_events=events, day_pnl=-123.45)
+    assert "Risk olayi: 1 (son: drawdown_halt (2026-08-03 10:00))" in msg
+    assert "Gunluk net (kapanan): -123.45" in msg

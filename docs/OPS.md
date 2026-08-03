@@ -253,7 +253,11 @@ DB'de OPEN kaydı yoksa açılış zamanı şimdi kabul edilir.
   `N konsantrasyon engeli aktif: ...` hatırlatması.
 - **Koruma**: Kayıp SL/TP algo emri borsada yoksa tamir edilir;
   edilemezse `ATOS X UYARI` ile manuel müdahale çağrısı yapılır.
-- **Günlük rapor**: `DAILY_REPORT_HOUR`'da özet rapor gönderilir.
+- **Günlük rapor**: `DAILY_REPORT_HOUR`'da özet rapor gönderilir. Rapor;
+  kapanan işlem (W/L), win rate, günlük PnL, günlük net (kapanan),
+  gerçekleşmemiş PnL, en iyi işlem, açık pozisyon sayısı, aktif
+  durmalar (ardışık/günlük zarar, equity taban) ve son risk olayını
+  içerir.
 
 ## Telegram Komutları
 
