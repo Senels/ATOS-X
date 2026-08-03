@@ -548,3 +548,34 @@ def test_dashboard_has_live_signals_card():
     assert resp.status_code == 200
     assert "Live Signals" in resp.text
     client.close()
+
+
+def test_dashboard_has_signals_interval_selector():
+    client = TestClient(app)
+    resp = client.get("/dashboard/html")
+    assert resp.status_code == 200
+    assert 'id="signalsInterval"' in resp.text
+    assert "signalsIntervalChange" in resp.text
+    assert "localStorage.getItem('signalsInterval')" in resp.text
+    assert "/api/v1/signals?limit=10&interval=" in resp.text
+    for iv in ("15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d"):
+        assert 'value="' + iv + '"' in resp.text
+    client.close()
+
+
+def test_live_signals_interval_param():
+    fake_klines = _FakeKlines()
+    main_mod.app.state.binance = fake_klines
+    ft = _FakeTrader({})
+    ft.priority = ["BTCUSDT", "ETHUSDT"]
+    main_mod.auto_trader = ft
+    try:
+        client = TestClient(app)
+        resp = client.get("/api/v1/signals?limit=5&interval=1h")
+        client.close()
+    finally:
+        main_mod.auto_trader = None
+        main_mod.app.state.binance = None
+    assert resp.status_code == 200
+    assert ("BTCUSDT", "1h", 400) in fake_klines.calls
+    assert ("ETHUSDT", "1h", 400) in fake_klines.calls
