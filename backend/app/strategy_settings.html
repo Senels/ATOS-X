@@ -167,7 +167,9 @@ th { color:#94a3b8; font-weight:500; font-size:10px; text-transform:uppercase; }
 <input type="number" id="r_max_side_pct" value="150" min="1" max="2000" step="10"></div>
 <div class="setting-item"><span class="label">Max Drawdown (%)</span>
 <input type="number" id="r_max_drawdown_pct" value="20" min="1" max="100" step="1"></div>
-<div class="setting-item" style="border-bottom:none;"><span class="label" style="color:#64748b;font-size:11px;">Eşikler equity yüzdesidir; tek sembol veya tek yön bu değeri aşarsa Telegram uyarısı gönderilir ve yeni giriş engellenir. Drawdown peak equity'den düşüşü aşınca yeni girişler durdurulur (yarısına dönünce serbest). Risk değerleri döngüde canlı uygulanır.</span></div>
+<div class="setting-item"><span class="label">Max Position Age (hours)</span>
+<input type="number" id="r_max_age" value="8" min="0" max="720" step="1"></div>
+<div class="setting-item" style="border-bottom:none;"><span class="label" style="color:#64748b;font-size:11px;">Eşikler equity yüzdesidir; tek sembol veya tek yön bu değeri aşarsa Telegram uyarısı gönderilir ve yeni giriş engellenir. Drawdown peak equity'den düşüşü aşınca yeni girişler durdurulur (yarısına dönünce serbest). Max Position Age, pozisyonun maksimum açık kalma süresidir (0 = devre dışı). Risk değerleri döngüde canlı uygulanır.</span></div>
 </div>
 </div>
 
@@ -242,6 +244,7 @@ max_open_positions: parseInt(getValue('r_max_positions')) || 3,
 max_position_pct: parseFloat(getValue('r_max_position_pct')) || 75,
 max_side_pct: parseFloat(getValue('r_max_side_pct')) || 150,
 max_drawdown_pct: parseFloat(getValue('r_max_drawdown_pct')) || 20,
+max_position_age_hours: parseFloat(getValue('r_max_age')) || 8,
 confirmations: {
 ema: getValue('c_ema'),
 '2ma': getValue('c_2ma'),
@@ -299,6 +302,7 @@ document.getElementById('r_max_positions').value = s.max_open_positions || 3;
 document.getElementById('r_max_position_pct').value = s.max_position_pct || 75;
 document.getElementById('r_max_side_pct').value = s.max_side_pct || 150;
 document.getElementById('r_max_drawdown_pct').value = s.max_drawdown_pct || 20;
+document.getElementById('r_max_age').value = s.max_position_age_hours || 8;
 if (s.confirmations) {
 const map = {'ema':'c_ema','2ma':'c_2ma','3ma':'c_3ma','rf':'c_rf','rqk':'c_rqk','st':'c_st','ht':'c_ht','rsi':'c_rsi','macd':'c_macd','stoch':'c_stoch','ichi':'c_ichi','ce':'c_ce'};
 for (const [key,val] of Object.entries(map)) {
@@ -350,6 +354,7 @@ document.getElementById('r_max_positions').value = s.max_open_positions || 3;
 document.getElementById('r_max_position_pct').value = s.max_position_pct || 75;
 document.getElementById('r_max_side_pct').value = s.max_side_pct || 150;
 document.getElementById('r_max_drawdown_pct').value = s.max_drawdown_pct || 20;
+document.getElementById('r_max_age').value = s.max_position_age_hours || 8;
 if (s.confirmations) {
 const map = {'ema':'c_ema','2ma':'c_2ma','3ma':'c_3ma','rf':'c_rf','rqk':'c_rqk','st':'c_st','ht':'c_ht','rsi':'c_rsi','macd':'c_macd','stoch':'c_stoch','ichi':'c_ichi','ce':'c_ce'};
 for (const [key,val] of Object.entries(map)) {

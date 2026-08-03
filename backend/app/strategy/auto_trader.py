@@ -50,6 +50,7 @@ class AutoTrader:
         self.max_position_pct = float(s.get("max_position_pct", 75.0))
         self.max_side_pct = float(s.get("max_side_pct", 150.0))
         self.max_drawdown_pct = float(s.get("max_drawdown_pct", 20.0))
+        self.max_position_age_hours = float(s.get("max_position_age_hours", 8.0))
         self.peak_equity = float(s["initial_equity"])
         self.drawdown_pct = 0.0
         self.risk_halted = False
@@ -257,6 +258,7 @@ class AutoTrader:
         self.engine.risk_per_trade = float(s["risk_per_trade"])
         self.engine.max_leverage = float(s["max_leverage"])
         self.max_drawdown_pct = float(s.get("max_drawdown_pct", self.max_drawdown_pct))
+        self.max_position_age_hours = float(s.get("max_position_age_hours", self.max_position_age_hours))
 
     def _projected_notional(self, price: float, sl: float) -> float:
         """Yeni bir pozisyonun boyutlandirma sonrasi nominal degeri."""
@@ -650,7 +652,23 @@ class AutoTrader:
         return last or pos.get("tp") or pos.get("sl") or pos["entry_price"], "exchange_closed"
 
     async def check_positions(self, prices):
+        now = datetime.utcnow()
         for symbol, pos in list(self.active_positions.items()):
+            if self.max_position_age_hours > 0:
+                try:
+                    opened = datetime.fromisoformat(pos["open_time"])
+                    age_hours = (now - opened).total_seconds() / 3600.0
+                except Exception:
+                    age_hours = 0.0
+                if age_hours > self.max_position_age_hours:
+                    price = self.live_prices.get(symbol) or prices.get(symbol)
+                    if price:
+                        logger.info(
+                            f"{symbol}: pozisyon {age_hours:.1f} saat acik "
+                            f"(max {self.max_position_age_hours:.0f}); time_stop"
+                        )
+                        await self.close_position(symbol, price, "time_stop")
+                    continue
             current_price = self.live_prices.get(symbol) or prices.get(symbol)
             if not current_price:
                 continue

@@ -10,6 +10,7 @@ koruma (SL/TP) mekanizması ve ilgili API/dashboard görünürlüğünü belgele
 | `max_position_pct` | 75 | Tek sembol projeksiyon pozisyonu (% equity) |
 | `max_side_pct` | 150 | Tek yön (LONG/SHORT) toplam maruziyet (% equity) |
 | `max_drawdown_pct` | 20 | Peak equity'den düşüş eşiği; aşılınca yeni girişler durur |
+| `max_position_age_hours` | 8 | Pozisyonun maksimum açık kalma süresi (0 = devre dışı) |
 
 - UI üzerinden `/dashboard/settings` → Risk sekmesinde değiştirilir.
 - Canlı döngüde her taramada `_apply_risk_settings` ile uygulanır.
@@ -40,6 +41,15 @@ koruma (SL/TP) mekanizması ve ilgili API/dashboard görünürlüğünü belgele
   (histerezis, flap'ı önler).
 - Dashboard Risk Exposure kartında `Drawdown %` değeri ve durma durumunda
   `RISK HALT` rozeti gösterilir.
+
+## Pozisyon Yaşı (Time-Stop)
+
+`check_positions` her döngüde pozisyon yaşını kontrol eder:
+
+- `max_position_age_hours` sınırını aşan pozisyon `time_stop` nedeniyle
+  otomatik kapatılır (SL/TP beklentisi yoksa sermaye boşa bağlanmaz).
+- `0` değeri özelliği devre dışı bırakır.
+- Kapanış `reason` olarak iş geçmişine ve Telegram trade bildirimine yansır.
 
 ## Telegram Bildirimleri
 

@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime, timedelta
 
 import pandas as pd
 import pytest
@@ -659,6 +660,37 @@ async def test_drawdown_disabled_when_threshold_zero(trader):
     await tr._check_drawdown()
     assert tr.risk_halted is False
     assert tg.sent == []
+
+
+async def test_time_stop_closes_expired_position(trader):
+    tr, fb, db = trader
+    tr.max_position_age_hours = 8
+    await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
+    tr.active_positions["BTCUSDT"]["open_time"] = (
+        datetime.utcnow() - timedelta(hours=10)
+    ).isoformat()
+    await tr.check_positions({"BTCUSDT": 64000.0})
+    assert "BTCUSDT" not in tr.active_positions
+    assert any(t["reason"] == "time_stop" for t in tr.trade_history)
+
+
+async def test_time_stop_disabled_when_zero(trader):
+    tr, fb, db = trader
+    tr.max_position_age_hours = 0
+    await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
+    tr.active_positions["BTCUSDT"]["open_time"] = (
+        datetime.utcnow() - timedelta(hours=100)
+    ).isoformat()
+    await tr.check_positions({"BTCUSDT": 64000.0})
+    assert "BTCUSDT" in tr.active_positions
+
+
+async def test_time_stop_fresh_position_stays(trader):
+    tr, fb, db = trader
+    tr.max_position_age_hours = 8
+    await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
+    await tr.check_positions({"BTCUSDT": 64000.0})
+    assert "BTCUSDT" in tr.active_positions
 
 
 async def test_fetch_klines_batch(trader):
