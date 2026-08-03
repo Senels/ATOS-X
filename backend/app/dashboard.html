@@ -81,6 +81,7 @@ tr:hover { background:rgba(59,130,246,0.05); }
 <div class="card"><h3>📈 Equity Curve</h3><canvas id="equityChart" width="1200" height="280" style="width:100%;height:280px;"></canvas></div>
 <div class="card"><h3>💰 PnL by Symbol</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Trades</th><th>W/L</th><th>Net PnL</th></tr></thead><tbody id="pnlBody"><tr><td colspan="4" style="text-align:center;color:#64748b;padding:20px;">No closed trades yet</td></tr></tbody></table></div></div>
 <div class="card"><h3>📊 Active Positions <span id="posSummary" style="color:#64748b;font-weight:400;font-size:12px;"></span></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Qty</th><th>SL</th><th>TP</th><th>PnL</th><th>Protection</th><th>Time</th></tr></thead><tbody id="positionsBody"><tr><td colspan="9" style="text-align:center;color:#64748b;padding:20px;">No active positions</td></tr></tbody></table></div></div>
+<div class="card"><h3>🧮 Position Risk <span id="riskPosSummary" style="color:#64748b;font-weight:400;font-size:12px;"></span></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Notional</th><th>Size %</th><th>SL Dist %</th><th>Risk $</th><th>uPnL</th><th>Protection</th><th>Age (h)</th></tr></thead><tbody id="riskPosBody"><tr><td colspan="8" style="text-align:center;color:#64748b;padding:20px;">No active positions</td></tr></tbody></table></div></div>
 <div class="card"><h3>📋 Trade History</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Exit</th><th>PnL</th><th>Reason</th><th>Time</th></tr></thead><tbody id="tradesBody"><tr><td colspan="7" style="text-align:center;color:#64748b;padding:20px;">No trades yet</td></tr></tbody></table></div></div>
 <div class="refresh-info" id="lastUpdate">Last update: -</div>
 </div>
@@ -163,6 +164,30 @@ tradeBody.innerHTML += '<tr><td><strong>'+(t.symbol||'-')+'</strong></td><td><sp
 document.getElementById('lastUpdate').textContent = 'Last update: ' + new Date().toLocaleString();
 loadEquity();
 loadPnl();
+loadRiskPositions();
+} catch(e) { console.error(e); }
+}
+async function loadRiskPositions() {
+try {
+const r = await fetch('/api/v1/risk/positions');
+const d = await r.json();
+const body = document.getElementById('riskPosBody');
+const summary = document.getElementById('riskPosSummary');
+if (d.positions && Object.keys(d.positions).length > 0) {
+body.innerHTML = '';
+for (const [symbol, p] of Object.entries(d.positions)) {
+const prot = p.protected ? '<span class="badge-protected">KORUMALI</span>' : '<span class="badge-unprotected">KORUMASIZ</span>';
+const trail = p.trailing ? ' <span class="badge-sell">TRAILING</span>' : '';
+const be = p.breakeven ? ' <span class="badge-sell">BREAKEVEN</span>' : '';
+const upnlCell = (p.upnl != null) ? '<td style="color:'+(p.upnl>0?'#22c55e':p.upnl<0?'#ef4444':'#94a3b8')+'">'+(p.upnl>0?'+':'')+p.upnl.toFixed(2)+'</td>' : '<td>-</td>';
+const slCell = (p.sl_distance_pct != null) ? p.sl_distance_pct.toFixed(2)+'%' : '-';
+const riskCell = (p.risk_amount != null) ? '$'+p.risk_amount.toFixed(2) : '-';
+const ageCell = (p.age_hours != null) ? p.age_hours.toFixed(1) : '-';
+body.innerHTML += '<tr><td><strong>'+symbol+'</strong></td><td>$'+p.notional.toFixed(2)+'</td><td>'+p.size_pct+'%</td><td>'+slCell+'</td><td>'+riskCell+'</td>'+upnlCell+'<td>'+prot+trail+be+'</td><td>'+ageCell+'</td></tr>';
+}
+const riskSum = d.total_risk_amount != null ? ' | Toplam Risk: $'+d.total_risk_amount.toFixed(2) : '';
+summary.textContent = '(' + d.count + ' pozisyon' + (d.total_notional!=null ? ' | Notional: $'+d.total_notional.toFixed(2) : '') + riskSum + ')';
+} else { body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#64748b;padding:20px;">No active positions</td></tr>'; summary.textContent = ''; }
 } catch(e) { console.error(e); }
 }
 async function loadEquity() {

@@ -140,3 +140,34 @@ def persist() -> Dict[str, Any]:
     with _STRATEGY_FILE.open("w", encoding="utf-8") as f:
         json.dump(_state, f, indent=2, ensure_ascii=False)
     return get_settings()
+
+
+# Optimizasyon sonucu dosyasindan uygulanabilir parametre anahtarlari
+_OPTIMIZED_KEYS = ("rangefilt_length", "range_filt_mult", "signal_expiry", "rr_ratio", "sl_lookback")
+
+
+def load_optimized() -> Dict[str, Any]:
+    """optimized_settings.json icerigini doner (yoksa bos dict)."""
+    if not _OPTIMIZED_FILE.exists():
+        return {}
+    try:
+        with _OPTIMIZED_FILE.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def apply_optimized() -> Dict[str, Any]:
+    """Kayitli optimize edilmis parametreleri canli duruma uygular ve kalici yazar.
+
+    Dosyada olmayan anahtarlar degismez; `_` on ekli meta alanlari yok sayilir.
+    """
+    payload = load_optimized()
+    applied = []
+    for key in _OPTIMIZED_KEYS:
+        if key in payload:
+            update_settings({key: payload[key]})
+            applied.append(key)
+    if applied:
+        persist()
+    return {"applied": applied, "settings": get_settings()}

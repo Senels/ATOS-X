@@ -2,6 +2,11 @@ from app import main as main_mod
 from app.notifications.telegram import TelegramNotifier, _process_updates, format_stop_summary
 
 
+class _FakeDB:
+    def get_closed_trades_since(self, days=1):
+        return []
+
+
 class _FakeTrader:
     def __init__(self):
         self.equity = 10000.0
@@ -19,6 +24,9 @@ class _FakeTrader:
         self.equity_halted = False
         self.min_equity = 0.0
         self.live_prices = {}
+        self.db = _FakeDB()
+        self.top_symbols = ["BTCUSDT", "ETHUSDT"]
+        self.trade_history = []
         self.risk_events = [{"time": "2026-08-03T10:00:00", "type": "block_add",
                              "message": "Engel: side:LONG"}]
         self._conc_blocks = {"side:LONG"}
@@ -272,3 +280,95 @@ def test_format_stop_summary_empty():
     msg = format_stop_summary([])
     assert "Kapanan pozisyon: 0" in msg
     assert "Kar: 0 / Zarar: 0" in msg
+
+
+def test_command_report_schedules_daily_summary(monkeypatch):
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+
+    def fake_run_later(coro):
+        coro.close()
+        return True
+
+    monkeypatch.setattr(main_mod, "_run_later", fake_run_later)
+    try:
+        reply = main_mod._telegram_command("/rapor")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "gunluk rapor gonderiliyor" in reply
+
+
+def test_command_report_requires_trader():
+    main_mod.auto_trader = None
+    assert "motor calismiyor" in main_mod._telegram_command("/rapor")
+
+
+def test_command_risk():
+    fake = _FakeTrader()
+    fake.day_pnl = -25.5
+    fake.drawdown_pct = 3.5
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/risk")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "Equity" in reply
+    assert "Maruziyet" in reply
+    assert "Drawdown" in reply
+    assert "Risk olayi" in reply
+    assert "side:LONG" in reply
+
+
+def test_command_risk_shows_halts():
+    fake = _FakeTrader()
+    fake.risk_halted = True
+    fake.loss_halted = True
+    fake.daily_loss_halted = True
+    fake.equity_halted = True
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/risk")
+    finally:
+        main_mod.auto_trader = None
+    assert reply.count("AKTIF") == 4
+
+
+def test_command_history_empty():
+    main_mod.auto_trader = _FakeTrader()
+    try:
+        reply = main_mod._telegram_command("/gecmis")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "kapanis gecmisi yok" in reply
+
+
+def test_command_history_lists_trades():
+    fake = _FakeTrader()
+    fake.trade_history = [
+        {"symbol": "BTCUSDT", "side": "BUY", "pnl": 120.0, "reason": "take_profit"},
+        {"symbol": "ETHUSDT", "side": "SELL", "pnl": -50.0, "reason": "stop_loss"},
+    ]
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/gecmis")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "son islemler" in reply
+    assert "BTCUSDT" in reply and "ETHUSDT" in reply
+    assert "+120.00" in reply and "-50.00" in reply
+
+
+def test_command_history_bad_n():
+    fake = _FakeTrader()
+    fake.trade_history = [{"symbol": "BTCUSDT", "side": "BUY", "pnl": 1.0, "reason": "x"}]
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/gecmis abc")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "kullanim" in reply

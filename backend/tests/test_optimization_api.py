@@ -89,3 +89,60 @@ def test_defaults():
     res = asyncio.run(opt.optimize_defaults())
     assert "rangefilt_length" in res["grid"]
     assert "combined" in res["objectives"]
+
+
+def test_apply_optimized_applies_and_persists(monkeypatch):
+    import app.strategy.settings as ss
+
+    monkeypatch.setattr(ss, "load_optimized",
+                        lambda: {"rangefilt_length": 4, "range_filt_mult": 2.0,
+                                 "signal_expiry": 2, "rr_ratio": 2.0, "sl_lookback": 3,
+                                 "_objective_score": 1.5, "_symbols_count": 10})
+    persisted = []
+    monkeypatch.setattr(ss, "persist",
+                        lambda: persisted.append(True) or ss.get_settings())
+    prev = ss.get_settings()
+    try:
+        result = ss.apply_optimized()
+        assert set(result["applied"]) == {"rangefilt_length", "range_filt_mult",
+                                          "signal_expiry", "rr_ratio", "sl_lookback"}
+        assert ss.get_settings()["rangefilt_length"] == 4
+        assert ss.get_settings()["range_filt_mult"] == 2.0
+        assert persisted == [True]
+    finally:
+        ss.update_settings(prev)
+
+
+def test_apply_optimized_empty_no_persist(monkeypatch):
+    import app.strategy.settings as ss
+
+    monkeypatch.setattr(ss, "load_optimized", lambda: {})
+    persisted = []
+    monkeypatch.setattr(ss, "persist",
+                        lambda: persisted.append(True) or ss.get_settings())
+    prev = ss.get_settings()
+    try:
+        result = ss.apply_optimized()
+        assert result["applied"] == []
+        assert persisted == []
+    finally:
+        ss.update_settings(prev)
+
+
+def test_optimize_apply_endpoint_applies(monkeypatch):
+    import app.strategy.settings as ss
+
+    monkeypatch.setattr(ss, "apply_optimized",
+                        lambda: {"applied": ["rr_ratio"], "settings": {"rr_ratio": 2.0}})
+    res = asyncio.run(opt.optimize_apply())
+    assert res["status"] == "ok"
+    assert res["applied"] == ["rr_ratio"]
+
+
+def test_optimize_apply_endpoint_empty_raises(monkeypatch):
+    import app.strategy.settings as ss
+
+    monkeypatch.setattr(ss, "apply_optimized",
+                        lambda: {"applied": [], "settings": {}})
+    with pytest.raises(Exception):
+        asyncio.run(opt.optimize_apply())

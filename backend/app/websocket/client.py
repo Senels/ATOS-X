@@ -1,6 +1,7 @@
 ﻿import asyncio
 import json
 import websockets
+from websockets.exceptions import ConnectionClosed
 from loguru import logger
 
 class BinanceWebSocket:
@@ -10,6 +11,7 @@ class BinanceWebSocket:
         self.running = False
         self.base_url = "wss://stream.binancefuture.com/ws"
         self.reconnect_delay = 5
+        self._removed = set()
 
     async def connect(self, symbol: str):
         stream = f"{symbol.lower()}@trade"
@@ -40,7 +42,10 @@ class BinanceWebSocket:
                                 await cb(symbol, price)
                             except Exception as e:
                                 logger.error(f"Callback hatası {symbol}: {e}")
-        except websockets.exceptions.ConnectionClosed:
+        except ConnectionClosed:
+            if symbol in self._removed:
+                logger.info(f"WebSocket kapatildi: {symbol}")
+                return
             logger.warning(f"⚠️ WebSocket kapandı: {symbol}, yeniden bağlanılıyor...")
             await self.connect(symbol)
         except Exception as e:
@@ -52,6 +57,34 @@ class BinanceWebSocket:
             self.callbacks[symbol] = []
         self.callbacks[symbol].append(callback)
 
+    async def add(self, symbol: str, callback):
+        """Sembol icin baglanti + callback ekler (yoksa)."""
+        self._removed.discard(symbol)
+        self.subscribe(symbol, callback)
+        if symbol not in self.connections:
+            await self.connect(symbol)
+
+    async def remove(self, symbol: str):
+        """Sembol icin baglanti ve callback'leri kapatir (yeniden baglanmaz)."""
+        self._removed.add(symbol)
+        ws = self.connections.pop(symbol, None)
+        if ws:
+            try:
+                await ws.close()
+            except Exception:
+                pass
+        self.callbacks.pop(symbol, None)
+
+    async def sync(self, symbols: list, callback):
+        """Aktif abonelik setini hedef sembol seti ile hizalar."""
+        targets = set(symbols)
+        for s in targets:
+            if s not in self.callbacks:
+                await self.add(s, callback)
+        for existing in list(self.connections.keys()):
+            if existing not in targets:
+                await self.remove(existing)
+
     async def start(self, symbols: list):
         self.running = True
         for s in symbols:
@@ -59,6 +92,8 @@ class BinanceWebSocket:
 
     async def stop(self):
         self.running = False
+        for sym in self.connections:
+            self._removed.add(sym)
         for ws in self.connections.values():
             await ws.close()
         logger.info("🔴 WebSocket kapatıldı")

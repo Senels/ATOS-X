@@ -236,6 +236,10 @@ ortalama skora göre sıralanır.
 - `/api/v1/optimize/defaults` — varsayılan grid ve objective seçenekleri.
 - `/optimize/html` — parametre optimizasyonu web arayüzü (grid boyutları,
   semboller, objective, dosyaya kaydet; sonuçlar detay tablosu).
+- `/api/v1/optimize/apply` (POST) — kayıtlı en iyi kombinasyonu
+  (`optimized_settings.json`) canlı ayarlara uygular ve `settings.json`'a
+  kalıcı yazar. `rangefilt_length`, `range_filt_mult`, `signal_expiry`,
+  `rr_ratio`, `sl_lookback` anahtarlarını uygular; dosya yoksa `404`.
 - Arama, canlı ayarlardaki risk parametrelerini `BacktestEngine`'e geçirir;
   risk simülasyonu backtest ile aynıdır.
 
@@ -246,6 +250,16 @@ yüklenen pozisyonların gerçek açılış zamanını `trades.entry_time`
 kaydından okur. Böylece time-stop (pozisyon yaşı) yeniden başlatmada
 sıfırlanmaz; yaşı aşan pozisyonlar yine `time_stop` ile kapanır.
 DB'de OPEN kaydı yoksa açılış zamanı şimdi kabul edilir.
+
+## WebSocket Canlı Fiyat Aboneliği
+
+- Başlangıçta 5 temel sembol (`BTCUSDT`, `ETHUSDT`, `BNBUSDT`, `SOLUSDT`,
+  `ADAUSDT`) `@trade` stream'ine abone olunur.
+- Arka planda `_ws_sync_loop` (60 sn) abonelik setini tarama listesine
+  (`top_symbols`) hizalar: listede yeni çıkan semboller bağlanır, düşenler
+  kapatılır. `top_symbols` boşsa mevcut abonelikler korunur.
+- Kaldırılan sembolün bağlantısı bilinçli kapatılır ve yeniden bağlanmaz
+  (`_removed`); `stop` tüm bağlantıları aynı şekilde kapatır.
 
 ## Telegram Bildirimleri
 
@@ -273,6 +287,12 @@ yoksa dinleyici devre dışıdır.
 | `/durum` veya `/status` | Equity, açık pozisyon + korumalı sayısı, LONG/SHORT maruziyeti, aktif engeller, drawdown ve durma durumu |
 | `/blok` | Aktif konsantrasyon engelleri (veya `yok`) |
 | `/pozisyon` | Her pozisyon: sembol, taraf, qty, fiyat + `korumali`/`KORUMASIZ` |
+| `/kapat <SEMBOL>` | Tek pozisyonu manuel kapatır (canlı fiyat ile) |
+| `/durdur` veya `/stop` | Acil durdurma; tüm pozisyonları kapatır + kapanış özeti gönderir |
+| `/ac` veya `/resume` | Motoru yeniden başlatır |
+| `/rapor` veya `/report` | Günlük raporu anında gönderir (gerçekleşmemiş PnL, durmalar, risk olayları) |
+| `/risk` | Risk durumu: equity, LONG/SHORT maruziyeti, drawdown, ardışık/günlük zarar, equity tabanı ve tüm durma durumları |
+| `/gecmis [N]` | Son N kapanış işlemi (varsayılan 5, en fazla 20) |
 | `/yardim` veya `/help` | Komut listesi |
 
 ## Koruma (SL/TP)
@@ -295,7 +315,7 @@ yoksa dinleyici devre dışıdır.
 | `/api/v1/positions` | Pozisyon başına `protected` bayrağı + `protected`/`unprotected` sayıları |
 | `/api/v1/risk/positions` | Pozisyon bazlı risk: `notional`, `size_pct`, `sl_distance_pct`, `risk_amount`, `upnl`, `protected`/`trailing`/`breakeven`, `age_hours` + toplamlar (`total_notional`, `total_risk_amount`) |
 | `/dashboard/metrics` | Aynı + pozisyon başına `protected` |
-| `/dashboard` | Pozisyon tablosunda `KORUMALI`/`KORUMASIZ` rozetleri + kart özeti |
+| `/dashboard` | Pozisyon tablosunda `KORUMALI`/`KORUMASIZ` rozetleri + kart özeti; `🧮 Position Risk` kartında notional, size %, SL mesafesi, risk tutarı, uPnL ve pozisyon yaşı |
 
 ## Doğrulama
 

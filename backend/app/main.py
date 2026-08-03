@@ -61,6 +61,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if system_status["status"] != "degraded":
         system_status["status"] = "online"
     daily_report_task = asyncio.create_task(_daily_report_loop())
+    ws_sync_task = asyncio.create_task(_ws_sync_loop())
     telegram.start_listener(_telegram_command)
     await telegram.send(f"ATOS X v{settings.APP_VERSION} baslatildi!")
 
@@ -68,6 +69,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     system_status["status"] = "shutting_down"
     if daily_report_task:
         daily_report_task.cancel()
+    ws_sync_task.cancel()
     telegram.stop_listener()
     await auto_trader.stop()
     await ws.stop()
@@ -76,6 +78,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 async def on_price_update(symbol: str, price: float):
     if auto_trader:
         auto_trader.update_price(symbol, price)
+
+async def _ws_sync_loop():
+    """WebSocket fiyat aboneliklerini tarama listesine (top_symbols) gore hizalar."""
+    while True:
+        await asyncio.sleep(60)
+        try:
+            if auto_trader:
+                target = auto_trader.top_symbols or []
+                if target:
+                    await ws.sync(target, on_price_update)
+        except Exception as e:
+            logger.error(f"WebSocket sembol senkronizasyonu hatasi: {e}")
 
 def _protected_count() -> int:
     """Exchange-side SL/TP ile korunan acik pozisyon sayisi."""
@@ -142,6 +156,9 @@ def _telegram_command(text: str):
                 "/kapat <SEMBOL> - tek pozisyonu kapatir\n"
                 "/durdur - acil durdurma (tum pozisyonlari kapatir)\n"
                 "/ac - motoru yeniden baslatir\n"
+                "/rapor - gunluk rapor gonder\n"
+                "/risk - risk durumu\n"
+                "/gecmis [N] - son N islem\n"
                 "/yardim - bu liste")
     if cmd.startswith("/blok"):
         blocks = sorted(auto_trader._conc_blocks) if auto_trader else []
@@ -223,6 +240,64 @@ def _telegram_command(text: str):
             f"Equity taban: ${auto_trader.min_equity:.0f} | Taban durma: {eq_line}\n"
             f"Risk olayi: {len(events)} (son: {evt_line})"
         )
+    if cmd.startswith("/rapor") or cmd.startswith("/report"):
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        trades = auto_trader.db.get_closed_trades_since(days=1)
+        if not _run_later(telegram.send_daily_summary(
+                trades, auto_trader.equity, auto_trader.active_positions,
+                auto_trader.top_symbols, marks=auto_trader.live_prices,
+                risk_events=auto_trader.risk_events,
+                loss_halted=auto_trader.loss_halted,
+                daily_loss_halted=auto_trader.daily_loss_halted,
+                equity_halted=auto_trader.equity_halted,
+                day_pnl=auto_trader.day_pnl)):
+            return "ATOS X: komut arka planda calistirilamadi"
+        return "ATOS X: gunluk rapor gonderiliyor"
+    if cmd.startswith("/risk"):
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        conc = _concentration_summary()
+        blocks = conc["blocks"]
+        halt = auto_trader.risk_halted
+        halt_line = "AKTIF - girisler durduruldu" if halt else "yok"
+        loss_line = "AKTIF" if auto_trader.loss_halted else "yok"
+        daily_line = "AKTIF" if auto_trader.daily_loss_halted else "yok"
+        eq_line = "AKTIF" if auto_trader.equity_halted else "yok"
+        return (
+            f"ATOS X risk\n"
+            f"Equity: ${auto_trader.equity:.2f}\n"
+            f"Maruziyet - LONG: %{conc['long_pct']} SHORT: %{conc['short_pct']}\n"
+            f"Engeller: {', '.join(blocks) if blocks else 'yok'}\n"
+            f"Drawdown: %{auto_trader.drawdown_pct} | Durma: {halt_line}\n"
+            f"Ardisik zarar: {auto_trader.consecutive_losses}/{auto_trader.max_consecutive_losses} | Zarar durma: {loss_line}\n"
+            f"Gunluk zarar: {auto_trader.day_pnl:.2f} USDT | Gunluk durma: {daily_line}\n"
+            f"Equity taban: ${auto_trader.min_equity:.0f} | Taban durma: {eq_line}\n"
+            f"Risk olayi: {len(auto_trader.risk_events)}"
+        )
+    if cmd.startswith("/gecmis") or cmd.startswith("/history"):
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        parts = text.strip().split()
+        n = 5
+        if len(parts) > 1:
+            try:
+                n = int(parts[1])
+            except ValueError:
+                return "ATOS X: kullanim /gecmis [N]"
+        n = max(1, min(n, 20))
+        history = auto_trader.trade_history[-n:]
+        if not history:
+            return "ATOS X: kapanis gecmisi yok"
+        lines = ["ATOS X son islemler:"]
+        for t in reversed(history):
+            pnl = t.get("pnl", 0) or 0
+            sign = "+" if pnl >= 0 else ""
+            lines.append(
+                f"{t['symbol']} {t['side']} {sign}{pnl:.2f} "
+                f"({t.get('reason', '')})"
+            )
+        return "\n".join(lines)
     return None
 
 def _is_connected() -> bool:

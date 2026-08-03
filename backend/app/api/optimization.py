@@ -108,3 +108,14 @@ async def run_optimize(
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Dosya yazma hatasi: {e}")
     return payload
+
+
+@router.post("/optimize/apply")
+async def optimize_apply():
+    """Kayitli en iyi kombinasyonu (optimized_settings.json) canli ayarlara uygular."""
+    from app.strategy import settings as strat_settings
+
+    result = strat_settings.apply_optimized()
+    if not result["applied"]:
+        raise HTTPException(status_code=404, detail="Uygulanacak optimize edilmis ayar yok")
+    return {"status": "ok", **result}
