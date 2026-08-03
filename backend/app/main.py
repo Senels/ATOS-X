@@ -60,12 +60,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if system_status["status"] != "degraded":
         system_status["status"] = "online"
     daily_report_task = asyncio.create_task(_daily_report_loop())
+    telegram.start_listener(_telegram_command)
     await telegram.send(f"ATOS X v{settings.APP_VERSION} baslatildi!")
 
     yield
     system_status["status"] = "shutting_down"
     if daily_report_task:
         daily_report_task.cancel()
+    telegram.stop_listener()
     await auto_trader.stop()
     await ws.stop()
     await app.state.binance.close()
@@ -96,6 +98,44 @@ def _positions_payload() -> dict:
         "protected": sum(1 for p in enriched.values() if p["protected"]),
         "unprotected": sum(1 for p in enriched.values() if not p["protected"]),
     }
+
+def _telegram_command(text: str):
+    """Telegram komutlarini yanitlar; bilinmeyen komutlar None doner."""
+    cmd = text.strip().lower()
+    if not cmd.startswith("/"):
+        return None
+    if cmd.startswith("/yardim") or cmd.startswith("/help"):
+        return ("ATOS X komutlari:\n"
+                "/durum - sistem durumu\n"
+                "/blok - aktif engeller\n"
+                "/pozisyon - acik pozisyonlar\n"
+                "/yardim - bu liste")
+    if cmd.startswith("/blok"):
+        blocks = sorted(auto_trader._conc_blocks) if auto_trader else []
+        return f"ATOS X aktif engeller: {', '.join(blocks) if blocks else 'yok'}"
+    if cmd.startswith("/pozisyon"):
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        if not auto_trader.active_positions:
+            return "ATOS X: acik pozisyon yok"
+        lines = ["ATOS X pozisyonlar:"]
+        for sym, pos in auto_trader.active_positions.items():
+            prot = "korumali" if (pos.get("sl_order_id") or pos.get("tp_order_id")) else "KORUMASIZ"
+            lines.append(f"{sym} {pos['side']} qty={pos['quantity']} @ ${pos['entry_price']} {prot}")
+        return "\n".join(lines)
+    if cmd.startswith("/durum") or cmd.startswith("/status"):
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        conc = _concentration_summary()
+        blocks = conc["blocks"]
+        return (
+            f"ATOS X durum\n"
+            f"Equity: ${auto_trader.equity:.2f}\n"
+            f"Acik pozisyon: {len(auto_trader.active_positions)} (korumali: {_protected_count()})\n"
+            f"Maruziyet - LONG: %{conc['long_pct']} SHORT: %{conc['short_pct']}\n"
+            f"Engeller: {', '.join(blocks) if blocks else 'yok'}"
+        )
+    return None
 
 def _is_connected() -> bool:
     return bool(auto_trader and auto_trader.binance and auto_trader.binance.client)
