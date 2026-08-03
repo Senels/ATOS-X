@@ -195,36 +195,54 @@ class AutoTrader:
                 self.db.save_signal(symbol, side, price, 0.0, reason or "auto")
                 if self.telegram:
                     await self.telegram.send_signal(symbol, side, price, reason)
+                if not self.paper:
+                    position_side = "LONG" if side == "BUY" else "SHORT"
+                    algo = await self.binance.set_tp_sl(symbol, position_side, sl, tp)
+                    self.active_positions[symbol]["sl_order_id"] = algo.get("sl")
+                    self.active_positions[symbol]["tp_order_id"] = algo.get("tp")
                 logger.success(f"Pozisyon acildi: {symbol} {side} {qty:.4f} @ {price}")
         except Exception as e:
             logger.error(f"Pozisyon acma hatasi {symbol}: {e}")
 
     async def close_position(self, symbol: str, price: float, reason: str):
         try:
+            pos = self.active_positions.get(symbol)
+            if not pos:
+                return
             order = await self._submit_close(symbol)
-            if order:
-                pos = self.active_positions.pop(symbol, None)
-                if pos:
-                    pnl = (price - pos["entry_price"]) * pos["quantity"] \
-                        if pos["side"] == "BUY" \
-                        else (pos["entry_price"] - price) * pos["quantity"]
-                    exit_fee = price * pos["quantity"] * self.engine.fee_rate
-                    net = pnl - exit_fee - pos.get("entry_fee", 0.0)
-                    self.equity += pnl - exit_fee
-                    self.db.close_trade_by_symbol(symbol, price, net)
-                    self.trade_history.append({
-                        "symbol": symbol,
-                        "side": pos["side"],
-                        "entry": pos["entry_price"],
-                        "exit": price,
-                        "qty": pos["quantity"],
-                        "pnl": net,
-                        "reason": reason,
-                        "time": datetime.utcnow().isoformat(),
-                    })
-                    if self.telegram:
-                        await self.telegram.send_trade(symbol, pos["side"], price, pos["quantity"], reason)
-                    logger.success(f"Pozisyon kapatildi: {symbol} PnL: {net:.2f}")
+            if self.paper or order:
+                self.active_positions.pop(symbol, None)
+            elif order is None:
+                # Borsadaki pozisyon zaten yok: exchange-side SL/TP tetiklenmis.
+                self.active_positions.pop(symbol, None)
+                order = {"symbol": symbol, "algo_closed": True}
+            else:
+                return
+            if not self.paper:
+                if pos.get("sl_order_id"):
+                    await self.binance.cancel_algo_order(symbol, pos["sl_order_id"])
+                if pos.get("tp_order_id"):
+                    await self.binance.cancel_algo_order(symbol, pos["tp_order_id"])
+            pnl = (price - pos["entry_price"]) * pos["quantity"] \
+                if pos["side"] == "BUY" \
+                else (pos["entry_price"] - price) * pos["quantity"]
+            exit_fee = price * pos["quantity"] * self.engine.fee_rate
+            net = pnl - exit_fee - pos.get("entry_fee", 0.0)
+            self.equity += pnl - exit_fee
+            self.db.close_trade_by_symbol(symbol, price, net)
+            self.trade_history.append({
+                "symbol": symbol,
+                "side": pos["side"],
+                "entry": pos["entry_price"],
+                "exit": price,
+                "qty": pos["quantity"],
+                "pnl": net,
+                "reason": reason,
+                "time": datetime.utcnow().isoformat(),
+            })
+            if self.telegram:
+                await self.telegram.send_trade(symbol, pos["side"], price, pos["quantity"], reason)
+            logger.success(f"Pozisyon kapatildi: {symbol} PnL: {net:.2f}")
         except Exception as e:
             logger.error(f"Kapatma hatasi {symbol}: {e}")
 

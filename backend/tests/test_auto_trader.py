@@ -11,7 +11,10 @@ class FakeBinance:
     def __init__(self):
         self.open_calls = []
         self.close_calls = []
+        self.tp_sl_calls = []
+        self.cancel_calls = []
         self.klines = None
+        self.no_position = False
 
     async def load_all_symbols(self):
         return ["BTCUSDT", "ETHUSDT"]
@@ -30,8 +33,18 @@ class FakeBinance:
         return {"symbol": symbol, "side": side, "quantity": quantity}
 
     async def close_position(self, symbol):
+        if self.no_position:
+            return None
         self.close_calls.append(symbol)
         return {"symbol": symbol}
+
+    async def set_tp_sl(self, symbol, position_side, sl_price, tp_price):
+        self.tp_sl_calls.append((symbol, position_side, sl_price, tp_price))
+        return {"sl": "SL_1", "tp": "TP_1"}
+
+    async def cancel_algo_order(self, symbol, algo_id):
+        self.cancel_calls.append((symbol, algo_id))
+        return {"symbol": symbol, "algoId": algo_id}
 
 
 @pytest.fixture
@@ -139,6 +152,7 @@ async def test_paper_mode_skips_exchange(tmp_path, monkeypatch):
 
     assert "BTCUSDT" in tr.active_positions
     assert fb.open_calls == []  # emir borsaya gitmedi
+    assert fb.tp_sl_calls == []  # exchange SL/TP de gitmedi
     rows = db.get_trades(limit=10)
     assert len(rows) == 1
     assert rows[0][7] == "OPEN"
@@ -171,3 +185,28 @@ async def test_update_equity_computes_win_rate(trader):
     rows = db.get_performance(limit=10)
     assert len(rows) == 1
     assert rows[0][5] == pytest.approx(66.67, abs=0.01)  # 2/3 kazancli
+
+
+async def test_real_mode_places_exchange_sl_tp(trader):
+    tr, fb, db = trader
+    await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
+    assert fb.tp_sl_calls == [("BTCUSDT", "LONG", 63000.0, 69000.0)]
+    assert tr.active_positions["BTCUSDT"]["sl_order_id"] == "SL_1"
+    assert tr.active_positions["BTCUSDT"]["tp_order_id"] == "TP_1"
+
+
+async def test_close_cancels_algo_orders(trader):
+    tr, fb, db = trader
+    await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
+    await tr.close_position("BTCUSDT", 64000.0, "signal_exit")
+    assert fb.cancel_calls == [("BTCUSDT", "SL_1"), ("BTCUSDT", "TP_1")]
+
+
+async def test_close_when_exchange_already_closed(trader):
+    tr, fb, db = trader
+    await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
+    fb.no_position = True  # exchange-side SL/TP zaten kapatti
+    await tr.close_position("BTCUSDT", 63000.0, "stop_loss")
+    assert "BTCUSDT" not in tr.active_positions
+    assert tr.trade_history[0]["reason"] == "stop_loss"
+    assert tr.trade_history[0]["exit"] == 63000.0
