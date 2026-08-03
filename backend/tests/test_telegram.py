@@ -16,6 +16,7 @@ class _FakeTrader:
         self.max_consecutive_losses = 5
         self.daily_loss_halted = False
         self.day_pnl = 0.0
+        self.live_prices = {}
         self.risk_events = [{"time": "2026-08-03T10:00:00", "type": "block_add",
                              "message": "Engel: side:LONG"}]
         self._conc_blocks = {"side:LONG"}
@@ -117,6 +118,19 @@ def test_command_positions_shows_protection():
     assert reply is not None
     assert "BTCUSDT" in reply and "korumali" in reply
     assert "ETHUSDT" in reply and "KORUMASIZ" in reply
+
+
+def test_command_positions_shows_unrealized_pnl():
+    fake = _FakeTrader()
+    fake.live_prices = {"BTCUSDT": 70000.0}
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/pozisyon")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "PnL:" in reply
+    assert "+" in reply
 
 
 def test_command_help():

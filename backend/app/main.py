@@ -85,21 +85,38 @@ def _protected_count() -> int:
         if p.get("sl_order_id") or p.get("tp_order_id")
     )
 
+def _position_upnl(pos: dict, mark: float | None):
+    """Pozisyonun gerceklesmemis PnL'i ve yuzdesi (fiyat yoksa None)."""
+    if mark is None:
+        return None, None
+    if pos["side"] == "BUY":
+        upnl = (mark - pos["entry_price"]) * pos["quantity"]
+    else:
+        upnl = (pos["entry_price"] - mark) * pos["quantity"]
+    notional = pos["entry_price"] * pos["quantity"]
+    pct = (upnl / notional * 100.0) if notional else 0.0
+    return upnl, pct
+
 def _positions_payload() -> dict:
-    """Acil pozisyonlari koruma durumu isaretli olarak doner."""
+    """Acil pozisyonlari koruma durumu ve gerceklesmemis PnL isaretli doner."""
     positions = auto_trader.active_positions if auto_trader else {}
-    enriched = {
-        symbol: {**pos,
-                 "protected": bool(pos.get("sl_order_id") or pos.get("tp_order_id")),
-                 "trailing": bool(pos.get("trailing")),
-                 "breakeven": bool(pos.get("breakeven"))}
-        for symbol, pos in positions.items()
-    }
+    enriched = {}
+    for symbol, pos in positions.items():
+        mark = auto_trader.live_prices.get(symbol) if auto_trader else None
+        upnl, pct = _position_upnl(pos, mark)
+        enriched[symbol] = {**pos,
+                            "protected": bool(pos.get("sl_order_id") or pos.get("tp_order_id")),
+                            "trailing": bool(pos.get("trailing")),
+                            "breakeven": bool(pos.get("breakeven")),
+                            "mark": mark,
+                            "upnl": upnl,
+                            "upnl_pct": pct}
     return {
         "positions": enriched,
         "count": len(positions),
         "protected": sum(1 for p in enriched.values() if p["protected"]),
         "unprotected": sum(1 for p in enriched.values() if not p["protected"]),
+        "total_upnl": sum(p["upnl"] for p in enriched.values() if p["upnl"] is not None),
     }
 
 def _run_later(coro) -> bool:
@@ -139,7 +156,13 @@ def _telegram_command(text: str):
                 prot += " + TRAILING"
             if pos.get("breakeven"):
                 prot += " + BREAKEVEN"
-            lines.append(f"{sym} {pos['side']} qty={pos['quantity']} @ ${pos['entry_price']} {prot}")
+            mark = auto_trader.live_prices.get(sym)
+            upnl, pct = _position_upnl(pos, mark)
+            line = f"{sym} {pos['side']} qty={pos['quantity']} @ ${pos['entry_price']} {prot}"
+            if upnl is not None:
+                sign = "+" if upnl >= 0 else ""
+                line += f" | PnL: {sign}{upnl:.2f} ({sign}{pct:.2f}%)"
+            lines.append(line)
         return "\n".join(lines)
     if cmd.startswith("/durdur") or cmd.startswith("/stop"):
         if not auto_trader or not auto_trader.running:
@@ -173,6 +196,7 @@ def _telegram_command(text: str):
             f"Trade motoru: {trading}\n"
             f"Equity: ${auto_trader.equity:.2f}\n"
             f"Acik pozisyon: {len(auto_trader.active_positions)} (korumali: {_protected_count()})\n"
+            f"Gerceklesmemis PnL: {_positions_payload()['total_upnl']:.2f}\n"
             f"Maruziyet - LONG: %{conc['long_pct']} SHORT: %{conc['short_pct']}\n"
             f"Engeller: {', '.join(blocks) if blocks else 'yok'}\n"
             f"Drawdown: %{auto_trader.drawdown_pct} | Durma: {halt_line}\n"

@@ -79,7 +79,7 @@ tr:hover { background:rgba(59,130,246,0.05); }
 <div class="card"><h3>🛡️ Risk Events</h3><div id="riskEvents"><div style="color:#64748b;padding:10px;">-</div></div></div>
 <div class="card"><h3>📈 Equity Curve</h3><canvas id="equityChart" width="1200" height="280" style="width:100%;height:280px;"></canvas></div>
 <div class="card"><h3>💰 PnL by Symbol</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Trades</th><th>W/L</th><th>Net PnL</th></tr></thead><tbody id="pnlBody"><tr><td colspan="4" style="text-align:center;color:#64748b;padding:20px;">No closed trades yet</td></tr></tbody></table></div></div>
-<div class="card"><h3>📊 Active Positions <span id="posSummary" style="color:#64748b;font-weight:400;font-size:12px;"></span></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Qty</th><th>SL</th><th>TP</th><th>Protection</th><th>Time</th></tr></thead><tbody id="positionsBody"><tr><td colspan="8" style="text-align:center;color:#64748b;padding:20px;">No active positions</td></tr></tbody></table></div></div>
+<div class="card"><h3>📊 Active Positions <span id="posSummary" style="color:#64748b;font-weight:400;font-size:12px;"></span></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Qty</th><th>SL</th><th>TP</th><th>PnL</th><th>Protection</th><th>Time</th></tr></thead><tbody id="positionsBody"><tr><td colspan="9" style="text-align:center;color:#64748b;padding:20px;">No active positions</td></tr></tbody></table></div></div>
 <div class="card"><h3>📋 Trade History</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Exit</th><th>PnL</th><th>Reason</th><th>Time</th></tr></thead><tbody id="tradesBody"><tr><td colspan="7" style="text-align:center;color:#64748b;padding:20px;">No trades yet</td></tr></tbody></table></div></div>
 <div class="refresh-info" id="lastUpdate">Last update: -</div>
 </div>
@@ -141,12 +141,13 @@ for (const [symbol, pos] of Object.entries(d.positions)) {
 const prot = pos.protected ? '<span class="badge-protected">KORUMALI</span>' : '<span class="badge-unprotected">KORUMASIZ</span>';
 const trail = pos.trailing ? ' <span class="badge-sell">TRAILING</span>' : '';
 const be = pos.breakeven ? ' <span class="badge-sell">BREAKEVEN</span>' : '';
-posBody.innerHTML += '<tr><td><strong>'+symbol+'</strong></td><td><span class="badge-'+(pos.side==='BUY'?'buy':'sell')+'">'+pos.side+'</span></td><td>$'+pos.entry_price+'</td><td>'+pos.quantity+'</td><td>$'+(pos.sl||'-')+'</td><td>$'+(pos.tp||'-')+'</td><td>'+prot+trail+be+'</td><td>'+(pos.open_time?new Date(pos.open_time).toLocaleString():'-')+'</td></tr>';
+const pnlCell = (pos.upnl != null) ? '<td style="color:'+(pos.upnl>0?'#22c55e':pos.upnl<0?'#ef4444':'#94a3b8')+'">'+(pos.upnl>0?'+':'')+pos.upnl.toFixed(2)+' <span style="opacity:.7;font-size:11px;">('+(pos.upnl_pct>0?'+':'')+pos.upnl_pct.toFixed(2)+'%)</span></td>' : '<td>-</td>';
+posBody.innerHTML += '<tr><td><strong>'+symbol+'</strong></td><td><span class="badge-'+(pos.side==='BUY'?'buy':'sell')+'">'+pos.side+'</span></td><td>$'+pos.entry_price+'</td><td>'+pos.quantity+'</td><td>$'+(pos.sl||'-')+'</td><td>$'+(pos.tp||'-')+'</td>'+pnlCell+'<td>'+prot+trail+be+'</td><td>'+(pos.open_time?new Date(pos.open_time).toLocaleString():'-')+'</td></tr>';
 }
 const protCount = Object.keys(d.positions).filter(function(s){ return d.positions[s].protected; }).length;
 const unprotCount = Object.keys(d.positions).length - protCount;
 document.getElementById('posSummary').textContent = '(' + protCount + ' korumali / ' + unprotCount + ' korumasiz)';
-} else { posBody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#64748b;padding:20px;">No active positions</td></tr>'; document.getElementById('posSummary').textContent = ''; }
+} else { posBody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#64748b;padding:20px;">No active positions</td></tr>'; document.getElementById('posSummary').textContent = ''; }
 const tr = await fetch('/api/v1/trades');
 const td = await tr.json();
 const tradeBody = document.getElementById('tradesBody');

@@ -24,6 +24,7 @@ class _FakeTrader:
         self.max_consecutive_losses = 5
         self.daily_loss_halted = False
         self.day_pnl = 0.0
+        self.live_prices = {}
         self.risk_events = [{"time": "2026-01-01T00:00:00", "type": "drawdown_halt",
                              "message": "test"}]
 
@@ -143,6 +144,51 @@ def test_positions_protection_status():
     assert body["positions"]["BTCUSDT"]["protected"] is True
     assert body["positions"]["ETHUSDT"]["protected"] is False
     assert body["positions"]["SOLUSDT"]["protected"] is True
+
+
+def test_positions_payload_has_unrealized_pnl():
+    fake = _FakeTrader({
+        "BTCUSDT": {"side": "BUY", "entry_price": 100.0, "quantity": 2.0,
+                    "sl_order_id": "SL_1", "tp_order_id": "TP_1"},
+        "ETHUSDT": {"side": "SELL", "entry_price": 200.0, "quantity": 1.0,
+                    "sl_order_id": None, "tp_order_id": None},
+    })
+    fake.live_prices = {"BTCUSDT": 110.0, "ETHUSDT": 180.0}
+    main_mod.auto_trader = fake
+    try:
+        client = TestClient(app)
+        resp = client.get("/api/v1/positions")
+        client.close()
+    finally:
+        main_mod.auto_trader = None
+    assert resp.status_code == 200
+    body = resp.json()
+    btc = body["positions"]["BTCUSDT"]
+    eth = body["positions"]["ETHUSDT"]
+    assert btc["mark"] == 110.0
+    assert btc["upnl"] == 20.0
+    assert btc["upnl_pct"] == 10.0
+    assert eth["upnl"] == 20.0
+    assert body["total_upnl"] == 40.0
+
+
+def test_positions_payload_no_mark_price():
+    fake = _FakeTrader({
+        "BTCUSDT": {"side": "BUY", "entry_price": 100.0, "quantity": 2.0,
+                    "sl_order_id": "SL_1", "tp_order_id": "TP_1"},
+    })
+    fake.live_prices = {}
+    main_mod.auto_trader = fake
+    try:
+        client = TestClient(app)
+        resp = client.get("/api/v1/positions")
+        client.close()
+    finally:
+        main_mod.auto_trader = None
+    assert resp.status_code == 200
+    pos = resp.json()["positions"]["BTCUSDT"]
+    assert pos["mark"] is None
+    assert pos["upnl"] is None
 
 
 def test_metrics_positions_have_protection_flag():

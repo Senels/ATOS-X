@@ -147,6 +147,18 @@ Dashboard `DAILY HALT` rozeti, `/durum` yanıtı `Gunluk zarar: N USDT |
 Gunluk durma` satırı, `/health`, `/api/v1/status` ve `/dashboard/metrics`
 ise `daily_loss_halted` ve `day_pnl` alanlarını döndürür.
 
+## Gerçekleşmemiş PnL
+
+Açık pozisyonların anlık kâr/zararı `live_prices` üzerinden hesaplanır:
+
+- `/pozisyon` yanıtı her pozisyon için `PnL: N (+%P)` ekler.
+- `/api/v1/positions` her pozisyon için `mark`, `upnl`, `upnl_pct` ve
+  toplam için `total_upnl` döndürür.
+- Dashboard Aktif Pozisyon tablosunda PnL sütunu (kâr yeşil, zarar kırmızı).
+- `/durum` yanıtı toplam gerçekleşmemiş PnL satırı içerir.
+
+Fiyat yoksa (`live_prices` boş) alanlar `null` gelir.
+
 ## Pozisyon Yaşı ve Yeniden Başlatma
 
 `/ac` (veya motor yeniden başlatma) sonrası `reconcile_positions` geri
