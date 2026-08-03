@@ -65,6 +65,8 @@ Dinleyici aracılığıyla uzaktan acil durum kontrolü:
 - `/durdur` — motoru durdurur; **tüm açık pozisyonları** `emergency_stop`
   nedeniyle kapatır. `running` bayrağı `False` olur, dashboard'da
   `TRADING OFF` rozeti görünür.
+- `/kapat <SEMBOL>` — tek pozisyonu güncel fiyattan `manual_close`
+  nedeniyle kapatır; sembol açık değilse ya da fiyat yoksa iptal edilir.
 - `/ac` — motoru yeniden başlatır (sembolleri yükler, pozisyonları
   uzlaştırır, çevrimi döndürür).
 - `/durum` — motorun `calisiyor`/`DURDURULDU` durumunu gösterir.
@@ -153,6 +155,8 @@ ise `daily_loss_halted` ve `day_pnl` alanlarını döndürür.
 Açık pozisyonların anlık kâr/zararı `live_prices` üzerinden hesaplanır:
 
 - `/pozisyon` yanıtı her pozisyon için `PnL: N (+%P)` ekler.
+- `/kapat <SEMBOL>` tek pozisyonu güncel fiyattan kapatır (neden
+  `manual_close`); sembol açık değilse veya fiyat yoksa işlem iptal edilir.
 - `/api/v1/positions` her pozisyon için `mark`, `upnl`, `upnl_pct` ve
   toplam için `total_upnl` döndürür.
 - Dashboard Aktif Pozisyon tablosunda PnL sütunu (kâr yeşil, zarar kırmızı).

@@ -35,6 +35,9 @@ class _FakeTrader:
     async def start(self):
         self.running = True
 
+    async def close_position(self, symbol, price, reason):
+        self.closed = (symbol, price, reason)
+
 
 def test_process_updates_filters_and_offsets():
     calls = []
@@ -144,6 +147,51 @@ def test_command_help():
 def test_command_unknown_returns_none():
     assert main_mod._telegram_command("merhaba") is None
     assert main_mod._telegram_command("/bilinmeyen") is None
+
+
+def test_command_close_schedules_close(monkeypatch):
+    fake = _FakeTrader()
+    fake.live_prices = {"BTCUSDT": 66000.0}
+    main_mod.auto_trader = fake
+    monkeypatch.setattr(main_mod, "_run_later", lambda coro: True)
+    try:
+        reply = main_mod._telegram_command("/kapat BTCUSDT")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "kapatiliyor" in reply and "BTCUSDT" in reply
+
+
+def test_command_close_no_position():
+    main_mod.auto_trader = _FakeTrader()
+    try:
+        reply = main_mod._telegram_command("/kapat DOGEUSDT")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "pozisyon yok" in reply
+
+
+def test_command_close_missing_price():
+    fake = _FakeTrader()
+    fake.live_prices = {}
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/kapat BTCUSDT")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "fiyati bulunamadi" in reply
+
+
+def test_command_close_bad_usage():
+    main_mod.auto_trader = _FakeTrader()
+    try:
+        reply = main_mod._telegram_command("/kapat")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "kullanim" in reply
 
 
 def test_command_stop_schedules_stop(monkeypatch):

@@ -138,6 +138,7 @@ def _telegram_command(text: str):
                 "/durum - sistem durumu\n"
                 "/blok - aktif engeller\n"
                 "/pozisyon - acik pozisyonlar\n"
+                "/kapat <SEMBOL> - tek pozisyonu kapatir\n"
                 "/durdur - acil durdurma (tum pozisyonlari kapatir)\n"
                 "/ac - motoru yeniden baslatir\n"
                 "/yardim - bu liste")
@@ -164,6 +165,21 @@ def _telegram_command(text: str):
                 line += f" | PnL: {sign}{upnl:.2f} ({sign}{pct:.2f}%)"
             lines.append(line)
         return "\n".join(lines)
+    if cmd.startswith("/kapat"):
+        parts = text.strip().split()
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        if len(parts) != 2:
+            return "ATOS X: kullanim /kapat <SEMBOL> (orn. /kapat BTCUSDT)"
+        sym = parts[1].upper()
+        if sym not in auto_trader.active_positions:
+            return f"ATOS X: {sym} icin acik pozisyon yok"
+        price = auto_trader.live_prices.get(sym)
+        if price is None:
+            return f"ATOS X: {sym} guncel fiyati bulunamadi, kapatma iptal"
+        if not _run_later(auto_trader.close_position(sym, price, "manual_close")):
+            return "ATOS X: komut arka planda calistirilamadi"
+        return f"ATOS X: {sym} kapatiliyor (${price})"
     if cmd.startswith("/durdur") or cmd.startswith("/stop"):
         if not auto_trader or not auto_trader.running:
             return "ATOS X: motor zaten durdurulmus"
