@@ -102,6 +102,10 @@ Risk olayları DB'deki `risk_events` tablosuna kalıcı yazılır; motor
 yeniden başladığında son 200 olay bellek tamponuna geri yüklenir
 (geçmiş restart'ta korunur).
 
+`/ac` (veya başlatma) sonrası `_notify_startup_state` Telegram'a tam bir
+özet gönderir: risk eşikleri, drawdown durumu, pozisyon yaşı, trailing
+ayarları, aktif engeller ve son risk olayı.
+
 ## Pozisyon Yaşı ve Yeniden Başlatma
 
 `/ac` (veya motor yeniden başlatma) sonrası `reconcile_positions` geri

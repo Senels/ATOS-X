@@ -543,15 +543,25 @@ class AutoTrader:
         """Baslangicta aktif risk esiklerini ve mevcut engelleri bildirir."""
         if not self.telegram:
             return
+        halted = "AKTIF" if self.risk_halted else "yok"
+        age = f"{self.max_position_age_hours:.0f} saat" if self.max_position_age_hours > 0 else "devre disi"
+        trail = "devre disi"
+        if self.trailing_activate_pct > 0 and self.trailing_sl_pct > 0:
+            trail = f"kar %{self.trailing_activate_pct:.0f}+, SL %{self.trailing_sl_pct:.1f} geri"
         msg = (
-            f"ATOS X: Risk ayarlari - max pos %{self.max_position_pct:.0f}, "
-            f"max side %{self.max_side_pct:.0f}"
+            f"ATOS X: Motor baslatildi\n"
+            f"Risk - max pos %{self.max_position_pct:.0f}, max side %{self.max_side_pct:.0f}, "
+            f"max drawdown %{self.max_drawdown_pct:.0f} ({halted})\n"
+            f"Max pozisyon yasi: {age} | Trailing: {trail}"
         )
         blocks = sorted(self._conc_blocks)
         if blocks:
-            msg += f"; {len(blocks)} engel aktif: {', '.join(blocks)}"
+            msg += f"\nEngeller: {', '.join(blocks)}"
         else:
-            msg += "; engel yok"
+            msg += "\nEngel yok"
+        if self.risk_events:
+            last = self.risk_events[-1]
+            msg += f"\nSon risk olayi: {last['type']} ({last['time'][:16].replace('T',' ')})"
         await self.telegram.send(msg)
 
     async def _sync_block_state(self):

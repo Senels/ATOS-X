@@ -605,8 +605,8 @@ async def test_notify_startup_state_sends_settings(trader):
     tr.max_position_pct = 75.0
     tr.max_side_pct = 150.0
     await tr._notify_startup_state()
-    assert any("Risk ayarlari" in m and "%75" in m and "%150" in m for m in tg.sent)
-    assert any("engel yok" in m for m in tg.sent)
+    assert any("Risk - max pos %75" in m and "%150" in m for m in tg.sent)
+    assert any("Engel yok" in m for m in tg.sent)
 
 
 async def test_notify_startup_state_lists_blocks(trader):
@@ -615,7 +615,7 @@ async def test_notify_startup_state_lists_blocks(trader):
     tr.telegram = tg
     tr._conc_blocks.add("side:LONG")
     await tr._notify_startup_state()
-    assert any("engel aktif" in m and "side:LONG" in m for m in tg.sent)
+    assert any("Engeller: side:LONG" in m for m in tg.sent)
 
 
 async def test_drawdown_halts_new_entries(trader):
@@ -889,6 +889,19 @@ async def test_risk_events_loaded_from_db_on_init(trader):
     tr._log_risk_event("boot_marker", "boot")
     tr2 = at_mod.AutoTrader(fb, paper=False)
     assert any(e["type"] == "boot_marker" for e in tr2.risk_events)
+
+
+async def test_notify_startup_state_summary(trader):
+    tr, fb, db = trader
+    tr.telegram = FakeTelegram()
+    tr._log_risk_event("drawdown_halt", "test")
+    await tr._notify_startup_state()
+    assert tr.telegram.sent
+    msg = tr.telegram.sent[0]
+    assert "Motor baslatildi" in msg
+    assert "Max pozisyon yasi" in msg
+    assert "Trailing" in msg
+    assert "Son risk olayi" in msg
 
 
 async def test_fetch_klines_batch(trader):
