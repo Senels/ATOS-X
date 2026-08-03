@@ -101,6 +101,7 @@ class AutoTrader:
         logger.info("Otomatik islem motoru baslatildi")
         self.trading_symbols = await self.binance.load_all_symbols()
         logger.info(f"{len(self.trading_symbols)} coin taranacak")
+        await self.reconcile_positions()
         asyncio.create_task(self._refresh_ranking())
 
         while self.running:
@@ -246,20 +247,79 @@ class AutoTrader:
         except Exception as e:
             logger.error(f"Kapatma hatasi {symbol}: {e}")
 
+    async def reconcile_positions(self):
+        """Restart sonrasi acik pozisyonlari borsadan geri yukler.
+
+        Exchange-side SL/TP emirleri süreç ölse de borsada korumaya devam eder;
+        bu metod startup'ta `active_positions`'i o emirlerle eslestirerek takibi
+        yeniden kurar. SL/TP'siz (korunmasiz) pozisyonlar geri yuklenmez, uyarilir.
+        """
+        if self.paper:
+            return
+        try:
+            positions = await self.binance.get_open_positions()
+            algos = await self.binance.get_open_algo_orders()
+            if not positions:
+                return
+            algo_map = {}
+            for a in algos or []:
+                sym = a.get("symbol")
+                entry = algo_map.setdefault(sym, {"sl": None, "sl_id": None,
+                                                 "tp": None, "tp_id": None})
+                order_type = a.get("orderType") or a.get("type")
+                if order_type == "STOP_MARKET":
+                    entry["sl"] = float(a.get("triggerPrice") or 0) or None
+                    entry["sl_id"] = a.get("algoId")
+                elif order_type == "TAKE_PROFIT_MARKET":
+                    entry["tp"] = float(a.get("triggerPrice") or 0) or None
+                    entry["tp_id"] = a.get("algoId")
+            restored = 0
+            for p in positions:
+                symbol = p["symbol"]
+                if symbol in self.active_positions:
+                    continue
+                info = algo_map.get(symbol, {})
+                if info.get("sl_id") is None and info.get("tp_id") is None:
+                    logger.warning(
+                        f"{symbol}: borsada pozisyon var ama SL/TP emri yok; "
+                        f"takip disi birakildi (acik kaldigindan emin olun)"
+                    )
+                    continue
+                amt = float(p["positionAmt"])
+                self.active_positions[symbol] = {
+                    "side": "BUY" if amt > 0 else "SELL",
+                    "entry_price": float(p.get("entryPrice", 0)),
+                    "quantity": abs(amt),
+                    "sl": info.get("sl") or 0.0,
+                    "tp": info.get("tp") or 0.0,
+                    "sl_order_id": info.get("sl_id"),
+                    "tp_order_id": info.get("tp_id"),
+                    "entry_fee": 0.0,
+                    "open_time": datetime.utcnow().isoformat(),
+                    "restored": True,
+                }
+                restored += 1
+            if restored:
+                logger.info(f"Borsadan {restored} pozisyon geri yuklendi")
+        except Exception as e:
+            logger.error(f"Pozisyon geri yukleme hatasi: {e}")
+
     async def check_positions(self, prices):
         for symbol, pos in list(self.active_positions.items()):
             current_price = self.live_prices.get(symbol) or prices.get(symbol)
             if not current_price:
                 continue
             side = pos["side"]
-            if side == "BUY" and current_price <= pos["sl"]:
-                await self.close_position(symbol, pos["sl"], "stop_loss")
-            elif side == "SELL" and current_price >= pos["sl"]:
-                await self.close_position(symbol, pos["sl"], "stop_loss")
-            elif side == "BUY" and current_price >= pos["tp"]:
-                await self.close_position(symbol, pos["tp"], "take_profit")
-            elif side == "SELL" and current_price <= pos["tp"]:
-                await self.close_position(symbol, pos["tp"], "take_profit")
+            sl = pos.get("sl")
+            tp = pos.get("tp")
+            if sl and side == "BUY" and current_price <= sl:
+                await self.close_position(symbol, sl, "stop_loss")
+            elif sl and side == "SELL" and current_price >= sl:
+                await self.close_position(symbol, sl, "stop_loss")
+            elif tp and side == "BUY" and current_price >= tp:
+                await self.close_position(symbol, tp, "take_profit")
+            elif tp and side == "SELL" and current_price <= tp:
+                await self.close_position(symbol, tp, "take_profit")
 
     async def update_equity(self):
         now = time.monotonic()

@@ -15,6 +15,8 @@ class FakeBinance:
         self.cancel_calls = []
         self.klines = None
         self.no_position = False
+        self.open_positions = []
+        self.algo_orders = []
 
     async def load_all_symbols(self):
         return ["BTCUSDT", "ETHUSDT"]
@@ -45,6 +47,12 @@ class FakeBinance:
     async def cancel_algo_order(self, symbol, algo_id):
         self.cancel_calls.append((symbol, algo_id))
         return {"symbol": symbol, "algoId": algo_id}
+
+    async def get_open_positions(self):
+        return self.open_positions
+
+    async def get_open_algo_orders(self):
+        return self.algo_orders
 
 
 @pytest.fixture
@@ -210,3 +218,60 @@ async def test_close_when_exchange_already_closed(trader):
     assert "BTCUSDT" not in tr.active_positions
     assert tr.trade_history[0]["reason"] == "stop_loss"
     assert tr.trade_history[0]["exit"] == 63000.0
+
+
+async def test_reconcile_restores_exchange_positions(trader):
+    tr, fb, db = trader
+    fb.open_positions = [
+        {"symbol": "BTCUSDT", "positionAmt": "0.5", "entryPrice": "65000.0"},
+    ]
+    fb.algo_orders = [
+        {"symbol": "BTCUSDT", "orderType": "STOP_MARKET", "algoId": 111, "triggerPrice": "63000"},
+        {"symbol": "BTCUSDT", "orderType": "TAKE_PROFIT_MARKET", "algoId": 222, "triggerPrice": "69000"},
+    ]
+    await tr.reconcile_positions()
+    pos = tr.active_positions["BTCUSDT"]
+    assert pos["side"] == "BUY"
+    assert pos["quantity"] == 0.5
+    assert pos["sl"] == 63000
+    assert pos["tp"] == 69000
+    assert pos["sl_order_id"] == 111
+    assert pos["tp_order_id"] == 222
+    assert pos["restored"] is True
+
+
+async def test_reconcile_skips_unprotected(trader):
+    tr, fb, db = trader
+    fb.open_positions = [
+        {"symbol": "ETHUSDT", "positionAmt": "-2.0", "entryPrice": "3000"},
+    ]
+    fb.algo_orders = []
+    await tr.reconcile_positions()
+    assert "ETHUSDT" not in tr.active_positions
+
+
+async def test_reconcile_paper_skips_exchange(tmp_path, monkeypatch):
+    db = Database(str(tmp_path / "at.db"))
+    monkeypatch.setattr(at_mod, "Database", lambda *a, **k: db)
+    fb = FakeBinance()
+    fb.open_positions = [
+        {"symbol": "BTCUSDT", "positionAmt": "0.5", "entryPrice": "65000"},
+    ]
+    tr = at_mod.AutoTrader(fb, paper=True)
+    await tr.reconcile_positions()
+    assert "BTCUSDT" not in tr.active_positions
+
+
+async def test_check_positions_skips_missing_levels(trader):
+    tr, fb, db = trader
+    await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
+    pos = tr.active_positions["BTCUSDT"]
+    pos["tp"] = 0.0  # tp yok -> take_profit tetiklenmemeli
+    tr.update_price("BTCUSDT", 70000.0)
+    await tr.check_positions({})
+    assert "BTCUSDT" in tr.active_positions
+    pos["sl"] = 0.0
+    pos["tp"] = 69000.0
+    tr.update_price("BTCUSDT", 70000.0)
+    await tr.check_positions({})
+    assert "BTCUSDT" not in tr.active_positions

@@ -184,6 +184,17 @@ class BinanceClient:
         except Exception as e:
             raise Exception(f"Pozisyon kapatma hatasi: {e}")
 
+    async def get_open_positions(self) -> list:
+        """Borsadaki tum acik pozisyonlari dondurur (positionAmt != 0)."""
+        if not self.client:
+            await self.connect()
+        try:
+            positions = await self._run(self.client.futures_position_information)
+            return [p for p in positions if float(p.get('positionAmt', 0)) != 0]
+        except Exception as e:
+            print(f"[BINANCE] acik pozisyon sorgu hatasi: {e}")
+            return []
+
     async def set_tp_sl(self, symbol: str, position_side: str, sl_price: float,
                         tp_price: float) -> dict:
         """Exchange-side SL (STOP_MARKET) + TP (TAKE_PROFIT_MARKET) algo emirleri.
