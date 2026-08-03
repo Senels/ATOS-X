@@ -61,12 +61,22 @@ class AutoTrader:
         self._last_block_state = set()
         self._last_block_summary = 0.0
         self.block_summary_interval = 3600
+        self.risk_events = []
+        self.risk_events_max = 200
         self.scan_interval = 30
         self.scan_limit = 50
         self.perf_interval = 60
         self.reconcile_interval = 300
         self._last_reconcile = 0.0
         self._last_perf = 0.0
+
+    def _log_risk_event(self, event_type: str, message: str, **extra):
+        """Risk/blok olaylarini son-N halka tamponuna kaydeder."""
+        entry = {"time": datetime.utcnow().isoformat(), "type": event_type,
+                 "message": message, **extra}
+        self.risk_events.append(entry)
+        if len(self.risk_events) > self.risk_events_max:
+            self.risk_events = self.risk_events[-self.risk_events_max:]
 
     def rank_symbols(self, limit: int = 500) -> List[str]:
         """Yerel OHLCV arsivinde backtest kalitesine gore sembol siralamasi.
@@ -491,6 +501,8 @@ class AutoTrader:
             return
         if dd >= threshold and not self.risk_halted:
             self.risk_halted = True
+            self._log_risk_event("drawdown_halt",
+                                 f"Drawdown %{dd:.1f} (%{threshold:.0f} esigi) asildi")
             logger.warning(
                 f"Drawdown %{dd:.1f} (%{threshold:.0f} esigi) - yeni girisler durduruldu"
             )
@@ -501,6 +513,8 @@ class AutoTrader:
                 )
         elif self.risk_halted and dd <= threshold * 0.5:
             self.risk_halted = False
+            self._log_risk_event("drawdown_clear",
+                                 f"Drawdown %{dd:.1f}'e geri geldi, girisler serbest")
             logger.info(f"Drawdown %{dd:.1f}'e geri geldi - yeni girisler serbest")
             if self.telegram:
                 await self.telegram.send(
@@ -529,10 +543,14 @@ class AutoTrader:
         if cur == prev:
             return
         self._last_block_state = cur
-        if not self.telegram:
-            return
         added = sorted(cur - prev)
         removed = sorted(prev - cur)
+        for b in added:
+            self._log_risk_event("block_add", f"Engel: {b}")
+        for b in removed:
+            self._log_risk_event("block_remove", f"Engel kalkti: {b}")
+        if not self.telegram:
+            return
         parts = []
         if added:
             parts.append(f"engellendi: {', '.join(added)}")
@@ -711,6 +729,9 @@ class AutoTrader:
             better = new_sl < cur_sl
         if profit_pct < self.trailing_activate_pct or not better:
             return
+        if not pos.get("trailing"):
+            self._log_risk_event("trailing_activate",
+                                 f"{symbol} SL takibi: kar %{profit_pct:.1f}, SL {new_sl:.2f}")
         pos["sl"] = new_sl
         pos["trailing"] = True
         if self.paper or not pos.get("sl_order_id"):
@@ -739,6 +760,7 @@ class AutoTrader:
 
     async def stop(self):
         self.running = False
+        self._log_risk_event("system_stop", "Motor durduruldu - tum pozisyonlar kapatiliyor")
         for symbol in list(self.active_positions.keys()):
             price = self.live_prices.get(symbol)
             if not price:

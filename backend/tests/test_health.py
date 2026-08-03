@@ -19,6 +19,8 @@ class _FakeTrader:
         self.drawdown_pct = 0.0
         self.risk_halted = False
         self.running = True
+        self.risk_events = [{"time": "2026-01-01T00:00:00", "type": "drawdown_halt",
+                             "message": "test"}]
 
 
 def test_health():
@@ -155,4 +157,15 @@ def test_dashboard_positions_table_has_protection():
     assert "<th>Protection</th>" in resp.text
     assert "badge-protected" in resp.text
     assert "badge-unprotected" in resp.text
+    client.close()
+
+
+def test_risk_events_endpoint():
+    client = TestClient(app)
+    resp = client.get("/api/v1/risk/events")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "events" in body
+    assert isinstance(body["events"], list)
+    assert "count" in body
     client.close()

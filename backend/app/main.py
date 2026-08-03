@@ -325,6 +325,11 @@ async def emergency_stop():
         return {"status": "ok", "message": "All positions closed"}
     return {"status": "error", "message": "Not running"}
 
+@app.get("/api/v1/risk/events")
+async def risk_events(limit: int = 50):
+    events = auto_trader.risk_events[-limit:] if auto_trader else []
+    return {"events": events, "count": len(events)}
+
 @app.get("/dashboard/metrics")
 async def metrics():
     try:
@@ -343,6 +348,7 @@ async def metrics():
             "drawdown_pct": auto_trader.drawdown_pct if auto_trader else 0.0,
             "risk_halted": auto_trader.risk_halted if auto_trader else False,
             "trading": auto_trader.running if auto_trader else False,
+            "risk_events": auto_trader.risk_events[-10:] if auto_trader else [],
             "uptime": int((datetime.utcnow() - system_status["start_time"]).total_seconds())
         }
     except Exception as e:

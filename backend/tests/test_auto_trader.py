@@ -752,6 +752,49 @@ async def test_trailing_moves_sl_down_for_short(trader):
     assert pos["sl"] < 105.0
 
 
+async def test_risk_event_log_drawdown_halt(trader):
+    tr, fb, db = trader
+    tr.equity = 9000.0
+    tr.peak_equity = 12000.0
+    await tr._check_drawdown()
+    assert tr.risk_halted is True
+    assert tr.risk_events[-1]["type"] == "drawdown_halt"
+
+
+async def test_risk_event_log_block_change(trader):
+    tr, fb, db = trader
+    tr._conc_blocks.add("side:LONG")
+    await tr._sync_block_state()
+    assert tr.risk_events[-1]["type"] == "block_add"
+    tr._conc_blocks.discard("side:LONG")
+    await tr._sync_block_state()
+    assert tr.risk_events[-1]["type"] == "block_remove"
+
+
+async def test_risk_event_log_trailing(trader):
+    tr, fb, db = trader
+    tr.trailing_activate_pct = 3.0
+    tr.trailing_sl_pct = 1.5
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
+    await tr.check_positions({"BTCUSDT": 105.0})
+    assert any(e["type"] == "trailing_activate" for e in tr.risk_events)
+
+
+async def test_risk_event_log_system_stop(trader):
+    tr, fb, db = trader
+    await tr.stop()
+    assert tr.risk_events[-1]["type"] == "system_stop"
+
+
+async def test_risk_events_ring_buffer(trader):
+    tr, fb, db = trader
+    tr.risk_events_max = 3
+    for i in range(5):
+        tr._log_risk_event(f"type{i}", f"msg{i}")
+    assert len(tr.risk_events) == 3
+    assert tr.risk_events[0]["type"] == "type2"
+
+
 async def test_fetch_klines_batch(trader):
     tr, fb, db = trader
     n = 200

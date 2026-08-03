@@ -79,6 +79,18 @@ Dinleyici aracılığıyla uzaktan acil durum kontrolü:
   `/pozisyon` yanıtında `+ TRAILING` ile işaretlenir.
 - İki ayar da `0` ise özellik devre dışıdır.
 
+## Risk Olay Geçmişi
+
+`risk_events` halka tamponu (son 200) risk ve blok olaylarını kaydeder:
+
+- `drawdown_halt` / `drawdown_clear` — drawdown eşiği aşıldı/serbest.
+- `block_add` / `block_remove` — konsantrasyon engelleri.
+- `trailing_activate` — trailing SL'nin devreye girmesi.
+- `system_stop` — motor durdurma.
+
+`/api/v1/risk/events` tüm kayıtları, `/dashboard/metrics` son 10 kaydı
+döndürür; dashboard'da `Risk Events` kartında gösterilir.
+
 ## Telegram Bildirimleri
 
 - **Başlangıç**: `_notify_startup_state` risk eşiklerini ve mevcut
