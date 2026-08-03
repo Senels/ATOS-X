@@ -19,6 +19,9 @@ class _FakeTrader:
         self.drawdown_pct = 0.0
         self.risk_halted = False
         self.running = True
+        self.loss_halted = False
+        self.consecutive_losses = 0
+        self.max_consecutive_losses = 5
         self.risk_events = [{"time": "2026-01-01T00:00:00", "type": "drawdown_halt",
                              "message": "test"}]
 
@@ -49,6 +52,16 @@ def test_status_has_concentration():
     resp = client.get("/api/v1/status")
     assert resp.status_code == 200
     assert "concentration" in resp.json()
+    client.close()
+
+
+def test_status_has_loss_fields():
+    client = TestClient(app)
+    resp = client.get("/api/v1/status")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "loss_halted" in body
+    assert "consecutive_losses" in body
     client.close()
 
 

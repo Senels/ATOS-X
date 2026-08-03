@@ -904,6 +904,40 @@ async def test_notify_startup_state_summary(trader):
     assert "Son risk olayi" in msg
 
 
+async def test_loss_streak_halts_entries(trader):
+    tr, fb, db = trader
+    tr.max_consecutive_losses = 2
+    for _ in range(2):
+        await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
+        await tr.close_position("BTCUSDT", 90.0, "stop_loss")
+    assert tr.loss_halted is True
+    assert tr.consecutive_losses == 2
+    assert any(e["type"] == "loss_streak_halt" for e in tr.risk_events)
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
+    await tr.close_position("BTCUSDT", 110.0, "take_profit")
+    assert tr.loss_halted is False
+    assert tr.consecutive_losses == 0
+    assert any(e["type"] == "loss_streak_clear" for e in tr.risk_events)
+
+
+async def test_loss_streak_disabled_when_zero(trader):
+    tr, fb, db = trader
+    tr.max_consecutive_losses = 0
+    for _ in range(3):
+        await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
+        await tr.close_position("BTCUSDT", 90.0, "stop_loss")
+    assert tr.loss_halted is False
+
+
+async def test_loss_halt_blocks_new_entries(trader):
+    tr, fb, db = trader
+    tr.loss_halted = True
+    signal = {"symbol": "ETHUSDT", "signal": "BUY", "price": 100.0,
+              "sl": 95.0, "tp": 110.0, "reason": ""}
+    await tr.process_signals([signal])
+    assert "ETHUSDT" not in tr.active_positions
+
+
 async def test_fetch_klines_batch(trader):
     tr, fb, db = trader
     n = 200

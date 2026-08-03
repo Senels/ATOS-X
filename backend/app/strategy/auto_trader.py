@@ -57,6 +57,9 @@ class AutoTrader:
         self.peak_equity = float(s["initial_equity"])
         self.drawdown_pct = 0.0
         self.risk_halted = False
+        self.max_consecutive_losses = int(s.get("max_consecutive_losses", 5))
+        self.consecutive_losses = 0
+        self.loss_halted = False
         self._conc_alerts = {"symbols": set(), "sides": set()}
         self._conc_blocks = set()
         self._last_block_state = set()
@@ -254,6 +257,11 @@ class AutoTrader:
                         f"{symbol}: drawdown korumasi aktif, giris engellendi"
                     )
                     continue
+                if self.loss_halted:
+                    logger.info(
+                        f"{symbol}: ardısık zarar korumasi aktif, giris engellendi"
+                    )
+                    continue
                 if len(self.active_positions) >= self.max_positions:
                     continue
                 side = "LONG" if signal["signal"] == "BUY" else "SHORT"
@@ -280,6 +288,7 @@ class AutoTrader:
         self.engine.max_leverage = float(s["max_leverage"])
         self.max_drawdown_pct = float(s.get("max_drawdown_pct", self.max_drawdown_pct))
         self.max_position_age_hours = float(s.get("max_position_age_hours", self.max_position_age_hours))
+        self.max_consecutive_losses = int(s.get("max_consecutive_losses", self.max_consecutive_losses))
         self.trailing_activate_pct = float(s.get("trailing_activate_pct", self.trailing_activate_pct))
         self.trailing_sl_pct = float(s.get("trailing_sl_pct", self.trailing_sl_pct))
         self.trailing_min_move_pct = float(s.get("trailing_min_move_pct", self.trailing_min_move_pct))
@@ -412,6 +421,7 @@ class AutoTrader:
             await self.telegram.send_trade(
                 symbol, pos["side"], exit_price, pos["quantity"], reason
             )
+        await self._update_consecutive_losses()
         logger.success(f"Pozisyon kapatildi: {symbol} PnL: {net:.2f}")
 
     async def reconcile_positions(self):
@@ -502,6 +512,46 @@ class AutoTrader:
         except Exception as e:
             logger.error(f"Pozisyon geri yukleme hatasi: {e}")
 
+    async def _update_consecutive_losses(self):
+        """Ardısık zarar sayacini gunceller; esik asilinca girisleri durdurur.
+
+        Zararlar `trade_history` uzerinden geriye dogru sayilir; kar ya da
+        basabasa (pnl >= 0) seriyi kirmaya yeter. Esik asildiginda `loss_halted`
+        aktif olur, bir kar sonrasi otomatik serbest birakilir.
+        """
+        streak = 0
+        for t in reversed(self.trade_history):
+            if t.get("pnl", 0) < 0:
+                streak += 1
+            else:
+                break
+        self.consecutive_losses = streak
+        if self.max_consecutive_losses <= 0:
+            return
+        if streak >= self.max_consecutive_losses and not self.loss_halted:
+            self.loss_halted = True
+            self._log_risk_event("loss_streak_halt",
+                                 f"{streak} ardısık zarar - yeni girisler durduruldu")
+            logger.warning(
+                f"{streak} ardısık zarar (esik {self.max_consecutive_losses}) "
+                f"- yeni girisler durduruldu"
+            )
+            if self.telegram:
+                await self.telegram.send(
+                    f"ATOS X UYARI: {streak} ardısık zarar - yeni girisler "
+                    f"durduruldu. Bir sonraki kar seriyi acar."
+                )
+        elif self.loss_halted and streak < self.max_consecutive_losses:
+            self.loss_halted = False
+            self._log_risk_event("loss_streak_clear",
+                                 "Kar sonrasi ardısık zarar korumasi serbest")
+            logger.info("Kar sonrasi ardısık zarar korumasi kaldirildi")
+            if self.telegram:
+                await self.telegram.send(
+                    "ATOS X: Kar sonrasi ardısık zarar korumasi kaldirildi "
+                    "- yeni girisler serbest."
+                )
+
     async def _check_drawdown(self):
         """Peak equity'den düşüş esigi asilinca yeni girisleri durdurur.
 
@@ -551,7 +601,8 @@ class AutoTrader:
         msg = (
             f"ATOS X: Motor baslatildi\n"
             f"Risk - max pos %{self.max_position_pct:.0f}, max side %{self.max_side_pct:.0f}, "
-            f"max drawdown %{self.max_drawdown_pct:.0f} ({halted})\n"
+            f"max drawdown %{self.max_drawdown_pct:.0f} ({halted}), "
+            f"max ardisik zarar {self.max_consecutive_losses}\n"
             f"Max pozisyon yasi: {age} | Trailing: {trail}"
         )
         blocks = sorted(self._conc_blocks)

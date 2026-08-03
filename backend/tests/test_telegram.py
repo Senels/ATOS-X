@@ -11,6 +11,9 @@ class _FakeTrader:
         self.drawdown_pct = 0.0
         self.risk_halted = False
         self.running = True
+        self.loss_halted = False
+        self.consecutive_losses = 0
+        self.max_consecutive_losses = 5
         self.risk_events = [{"time": "2026-08-03T10:00:00", "type": "block_add",
                              "message": "Engel: side:LONG"}]
         self._conc_blocks = {"side:LONG"}

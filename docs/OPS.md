@@ -11,6 +11,7 @@ koruma (SL/TP) mekanizması ve ilgili API/dashboard görünürlüğünü belgele
 | `max_side_pct` | 150 | Tek yön (LONG/SHORT) toplam maruziyet (% equity) |
 | `max_drawdown_pct` | 20 | Peak equity'den düşüş eşiği; aşılınca yeni girişler durur |
 | `max_position_age_hours` | 8 | Pozisyonun maksimum açık kalma süresi (0 = devre dışı) |
+| `max_consecutive_losses` | 5 | Ardışık zarar siniri; aşılınca yeni girişler durur (0 = devre dışı) |
 | `trailing_activate_pct` | 3 | Pozisyon kârı bu eşiği aşınca SL takibi başlar (%) |
 | `trailing_sl_pct` | 1.5 | Takip eden SL'nin fiyata uzaklığı (%; 0 = devre dışı) |
 | `trailing_min_move_pct` | 0.1 | SL güncellemesi için gereken min hareket (%; 0 = her seferinde) |
@@ -106,6 +107,17 @@ yeniden başladığında son 200 olay bellek tamponuna geri yüklenir
 `/ac` (veya başlatma) sonrası `_notify_startup_state` Telegram'a tam bir
 özet gönderir: risk eşikleri, drawdown durumu, pozisyon yaşı, trailing
 ayarları, aktif engeller ve son risk olayı.
+
+## Ardışık Zarar Koruması
+
+`max_consecutive_losses` kadar ardışık zarar sonrası `loss_halted`
+aktifleşir ve yeni girişler engellenir (telegram uyarısı + risk olayı
+`loss_streak_halt`). Bir kar (pnl >= 0) seriyi kırar, koruma otomatik
+kalkar (`loss_streak_clear`). `0` = devre dışı.
+
+Dashboard `LOSS HALT` rozeti, `/durum` yanıtı `Ardisik zarar: N/esik`
+satırı, `/health`, `/api/v1/status` ve `/dashboard/metrics` ise
+`loss_halted` ve `consecutive_losses` alanlarını döndürür.
 
 ## Pozisyon Yaşı ve Yeniden Başlatma
 

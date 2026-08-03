@@ -32,6 +32,7 @@ DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
     "max_side_pct": 150.0,       # Tek yonde toplam nominal pozisyon esigi (% equity, uyari)
     "max_drawdown_pct": 20.0,    # Peak equity'den düşüş esigi (%); asilinca yeni giris durur
     "max_position_age_hours": 8, # Pozisyon max acik kalma suresi (saat; 0 = devre disi)
+    "max_consecutive_losses": 5, # Ardısık zarar siniri; asilinca girisler durur (0 = devre disi)
     "trailing_activate_pct": 3.0,  # Bu kar esiginde SL takibi baslar (%)
     "trailing_sl_pct": 1.5,        # Takip eden SL'nin fiyata uzakligi (%; 0 = devre disi)
     "trailing_min_move_pct": 0.1,  # SL'nin guncellenmesi icin gereken min hareket (%; 0 = her seferinde)
