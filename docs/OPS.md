@@ -93,6 +93,10 @@ Dinleyici aracılığıyla uzaktan acil durum kontrolü:
   taşır; dashboard Trade History tablosunda `TRAIL` rozeti gösterilir.
 - İki ayar da `0` ise özellik devre dışıdır.
 
+Trailing/breakeven bayrakları DB `trades` tablosunda (OPEN kayıtta)
+saklanır; restart sonrası `reconcile_positions` bayrakları geri yükler.
+Böylece pozisyon yeniden başlatmada takip/breakeven durumunu kaybetmez.
+
 ## Break-Even Koruması
 
 `breakeven_activate_pct` kârı aşıldığında SL giriş fiyatına taşınır

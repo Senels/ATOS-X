@@ -96,3 +96,34 @@ def test_symbol_pnl_aggregates(tmp_path):
     assert len(rows) == 2
     assert rows[0] == {"symbol": "ETHUSDT", "trades": 1, "wins": 1, "losses": 0, "net_pnl": 600.0}
     assert rows[1] == {"symbol": "BTCUSDT", "trades": 2, "wins": 1, "losses": 1, "net_pnl": 300.0}
+
+
+def test_open_trade_protection_defaults_false(tmp_path):
+    db = Database(str(tmp_path / "t.db"))
+    db.save_trade("BTCUSDT", "BUY", 65000.0, 0.5)
+    assert db.get_open_trade_protection("BTCUSDT") == (False, False)
+    assert db.get_open_trade_protection("ETHUSDT") == (False, False)
+
+
+def test_update_trade_protection_persists(tmp_path):
+    db = Database(str(tmp_path / "t.db"))
+    db.save_trade("BTCUSDT", "BUY", 65000.0, 0.5)
+    db.update_trade_protection("BTCUSDT", trailing=True)
+    assert db.get_open_trade_protection("BTCUSDT") == (True, False)
+    db.update_trade_protection("BTCUSDT", breakeven=True)
+    assert db.get_open_trade_protection("BTCUSDT") == (True, True)
+
+
+def test_update_trade_protection_targets_latest_open(tmp_path):
+    db = Database(str(tmp_path / "t.db"))
+    db.save_trade("BTCUSDT", "BUY", 65000.0, 0.5)
+    db.close_trade_by_symbol("BTCUSDT", 66000.0, 500.0)
+    db.save_trade("BTCUSDT", "BUY", 64000.0, 0.5)
+    db.update_trade_protection("BTCUSDT", breakeven=True)
+    assert db.get_open_trade_protection("BTCUSDT") == (False, True)
+
+    rows = db.get_trades(limit=10)
+    open_rows = [r for r in rows if r[7] == "OPEN"]
+    assert len(open_rows) == 1
+    assert open_rows[0][11] == 0  # trailing
+    assert open_rows[0][12] == 1  # breakeven

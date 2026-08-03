@@ -290,6 +290,23 @@ async def test_reconcile_restores_db_open_time(trader):
     assert pos["open_time"] == datetime.fromisoformat(db_entry).isoformat()
 
 
+async def test_reconcile_restores_protection_flags(trader):
+    tr, fb, db = trader
+    db.save_trade("BTCUSDT", "BUY", 65000.0, 0.5)
+    db.update_trade_protection("BTCUSDT", trailing=True, breakeven=True)
+    fb.open_positions = [
+        {"symbol": "BTCUSDT", "positionAmt": "0.5", "entryPrice": "65000.0"},
+    ]
+    fb.algo_orders = [
+        {"symbol": "BTCUSDT", "orderType": "STOP_MARKET", "algoId": 111, "triggerPrice": "63000"},
+    ]
+    await tr.reconcile_positions()
+    pos = tr.active_positions["BTCUSDT"]
+    assert pos["restored"] is True
+    assert pos["trailing"] is True
+    assert pos["breakeven"] is True
+
+
 async def test_db_open_trade_entry_time_none_when_closed(trader):
     tr, fb, db = trader
     assert db.get_open_trade_entry_time("BTCUSDT") is None
@@ -732,6 +749,26 @@ async def test_trailing_moves_sl_up_on_profit(trader):
     assert pos["sl"] == pytest.approx(105.0 * 0.985, abs=0.001)
     assert pos["sl"] > 95.0
     assert fb.cancel_calls and fb.tp_sl_calls
+
+
+async def test_trailing_persists_to_db(trader):
+    tr, fb, db = trader
+    tr.trailing_activate_pct = 3.0
+    tr.trailing_sl_pct = 1.5
+    tr.breakeven_activate_pct = 0
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
+    await tr.check_positions({"BTCUSDT": 105.0})
+    assert db.get_open_trade_protection("BTCUSDT") == (True, False)
+
+
+async def test_breakeven_persists_to_db(trader):
+    tr, fb, db = trader
+    tr.breakeven_activate_pct = 2.0
+    tr.trailing_activate_pct = 0
+    tr.trailing_sl_pct = 0
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
+    await tr.check_positions({"BTCUSDT": 104.0})
+    assert db.get_open_trade_protection("BTCUSDT") == (False, True)
 
 
 async def test_trailing_ignores_loss(trader):

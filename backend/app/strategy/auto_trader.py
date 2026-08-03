@@ -519,6 +519,7 @@ class AutoTrader:
                     continue
                 amt = float(p["positionAmt"])
                 db_opened = self.db.get_open_trade_entry_time(symbol)
+                db_trailing, db_breakeven = self.db.get_open_trade_protection(symbol)
                 restored_open = datetime.utcnow().isoformat()
                 if db_opened:
                     try:
@@ -536,6 +537,8 @@ class AutoTrader:
                     "entry_fee": 0.0,
                     "open_time": restored_open,
                     "restored": True,
+                    "trailing": bool(db_trailing),
+                    "breakeven": bool(db_breakeven),
                 }
                 restored += 1
             if restored:
@@ -924,6 +927,7 @@ class AutoTrader:
             return
         pos["sl"] = entry
         pos["breakeven"] = True
+        self.db.update_trade_protection(symbol, breakeven=True)
         self._log_risk_event("breakeven_move",
                              f"{symbol} SL giris fiyatina tasindi ({entry:.2f})")
         logger.info(f"{symbol}: SL giris fiyatina tasindi -> {entry:.2f} (kar %{profit_pct:.1f})")
@@ -973,6 +977,7 @@ class AutoTrader:
                                  f"{symbol} SL {cur_sl:.2f} -> {new_sl:.2f} (kar %{profit_pct:.1f})")
         pos["sl"] = new_sl
         pos["trailing"] = True
+        self.db.update_trade_protection(symbol, trailing=True)
         if self.paper or not pos.get("sl_order_id"):
             logger.info(f"{symbol}: SL takibe girdi -> {new_sl:.2f} (kar %{profit_pct:.1f})")
             return

@@ -29,6 +29,14 @@ class Database:
             cursor.execute("ALTER TABLE trades ADD COLUMN reason TEXT")
         except sqlite3.OperationalError:
             pass
+        try:
+            cursor.execute("ALTER TABLE trades ADD COLUMN trailing INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE trades ADD COLUMN breakeven INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS signals (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -145,6 +153,40 @@ class Database:
         ).fetchone()
         conn.close()
         return row[0] if row and row[0] else None
+
+    def update_trade_protection(self, symbol: str, trailing: bool | None = None,
+                                breakeven: bool | None = None):
+        """Acik pozisyonun trailing/breakeven bayraklarini DB'de gunceller."""
+        updates, params = [], []
+        if trailing is not None:
+            updates.append("trailing = ?")
+            params.append(1 if trailing else 0)
+        if breakeven is not None:
+            updates.append("breakeven = ?")
+            params.append(1 if breakeven else 0)
+        if not updates:
+            return
+        params.append(symbol)
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            f"UPDATE trades SET {', '.join(updates)} WHERE id = ("
+            "SELECT id FROM trades WHERE symbol = ? AND status = 'OPEN' "
+            "ORDER BY id DESC LIMIT 1)", params
+        )
+        conn.commit()
+        conn.close()
+
+    def get_open_trade_protection(self, symbol: str):
+        """Acik pozisyonun DB'deki trailing/breakeven bayraklarini doner."""
+        conn = sqlite3.connect(self.db_path)
+        row = conn.execute(
+            "SELECT trailing, breakeven FROM trades WHERE symbol = ? AND status = 'OPEN' "
+            "ORDER BY id DESC LIMIT 1", (symbol,)
+        ).fetchone()
+        conn.close()
+        if not row:
+            return False, False
+        return bool(row[0]), bool(row[1])
 
     def save_risk_event(self, event_type: str, message: str, ts: str):
         """Risk/blok olayini kalici olarak DB'ye yazar."""
