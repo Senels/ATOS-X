@@ -505,6 +505,48 @@ class AutoTrader:
                 closed.append(symbol)
         return closed
 
+    async def update_sl(self, symbol: str, new_sl: float) -> dict:
+        """Acik pozisyonun stop-loss'unu manuel gunceller (Telegram `/sl`).
+
+        Borsadaki eski SL algo emri iptal edilir ve yeni SL yerlesir; TP
+        korunur. Yon hatasi onlenir: BUY'da SL giris fiyatinin altinda,
+        SELL'de ustunde olmali. Manuel muhalefet sonrasi trailing/breakeven
+        bayraklari sifirlanir (DB'ye de yazilir).
+        """
+        pos = self.active_positions.get(symbol)
+        if not pos:
+            return {"ok": False, "error": "position_not_found"}
+        new_sl = float(new_sl)
+        entry = float(pos["entry_price"])
+        side = pos["side"]
+        if side == "BUY" and new_sl >= entry:
+            return {"ok": False, "error": "sl_above_entry"}
+        if side == "SELL" and new_sl <= entry:
+            return {"ok": False, "error": "sl_below_entry"}
+        old_sl = pos.get("sl")
+        pos["sl"] = new_sl
+        pos["trailing"] = False
+        pos["breakeven"] = False
+        try:
+            self.db.update_trade_protection(symbol, trailing=False, breakeven=False)
+        except Exception as e:
+            logger.warning(f"{symbol}: koruma bayragi sifirlanamadi: {e}")
+        self._log_risk_event("manual_sl_update",
+                             f"{symbol}: SL {old_sl} -> {new_sl} (manuel)")
+        if not self.paper and pos.get("sl_order_id"):
+            try:
+                await self.binance.cancel_algo_order(symbol, pos["sl_order_id"])
+                algo = await self.binance.set_tp_sl(
+                    symbol, "LONG" if side == "BUY" else "SHORT", new_sl, 0.0
+                )
+                if algo.get("sl"):
+                    pos["sl_order_id"] = algo["sl"]
+                    logger.info(f"{symbol}: manuel SL borsaya yerleştirildi")
+            except Exception as e:
+                logger.error(f"{symbol}: manuel SL guncelleme hatasi: {e}")
+        logger.info(f"{symbol}: SL manuel olarak {old_sl} -> {new_sl}")
+        return {"ok": True, "symbol": symbol, "old_sl": old_sl, "new_sl": new_sl}
+
     async def _record_closed_position(self, symbol: str, pos: dict, exit_price: float,
                                       reason: str):
         """Kapanan pozisyonun PnL hesabi, DB kaydi ve bildirimini yapar."""

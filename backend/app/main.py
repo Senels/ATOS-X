@@ -100,6 +100,21 @@ async def _send_symbol_signal(symbol: str, interval: str = "4h"):
         return
     await telegram.send_signal(symbol, signal, sig.get("price") or 0.0, sig.get("reason", ""))
 
+async def _set_sl(symbol: str, new_sl: float):
+    """Pozisyonun SL'sini gunceller ve sonucu Telegram'a bildirir."""
+    res = await auto_trader.update_sl(symbol, new_sl)
+    if res.get("ok"):
+        await telegram.send(
+            f"ATOS X: {symbol} SL guncellendi ${res['old_sl']} -> ${res['new_sl']}"
+        )
+        return
+    msg = {
+        "position_not_found": f"ATOS X: {symbol} icin acik pozisyon yok",
+        "sl_above_entry": f"ATOS X: {symbol} BUY pozisyonunda SL giris fiyatinin ALTINDA olmali",
+        "sl_below_entry": f"ATOS X: {symbol} SELL pozisyonunda SL giris fiyatinin USTUNDE olmali",
+    }.get(res.get("error"), f"ATOS X: SL guncellenemedi ({res.get('error')})")
+    await telegram.send(msg)
+
 async def _ws_sync_loop():
     """WebSocket fiyat aboneliklerini tarama listesine (top_symbols) gore hizalar."""
     while True:
@@ -175,6 +190,7 @@ def _telegram_command(text: str):
                 "/blok - aktif engeller\n"
                 "/pozisyon - acik pozisyonlar\n"
                 "/kapat <SEMBOL> - tek pozisyonu kapatir\n"
+                "/sl <SEMBOL> <FIYAT> - acik pozisyonun SL'sini gunceller\n"
                 "/durdur - acil durdurma (tum pozisyonlari kapatir)\n"
                 "/kapatall - acik tum pozisyonlari kapatir\n"
                 "/sinyal <SEMBOL> - sembol icin canli sinyal gonder\n"
@@ -229,14 +245,22 @@ def _telegram_command(text: str):
         if not _run_later(auto_trader.close_position(sym, price, "manual_close")):
             return "ATOS X: komut arka planda calistirilamadi"
         return f"ATOS X: {sym} kapatiliyor (${price})"
-    if cmd.startswith("/kapatall"):
+    if cmd.startswith("/sl"):
+        parts = text.strip().split()
         if not auto_trader:
             return "ATOS X: motor calismiyor"
-        if not auto_trader.active_positions:
-            return "ATOS X: kapatilacak pozisyon yok"
-        if not _run_later(auto_trader.close_all("manual_close_all")):
+        if len(parts) != 3:
+            return "ATOS X: kullanim /sl <SEMBOL> <FIYAT> (orn. /sl BTCUSDT 64000)"
+        sym = parts[1].upper()
+        try:
+            new_sl = float(parts[2])
+        except ValueError:
+            return "ATOS X: gecersiz SL fiyati"
+        if sym not in auto_trader.active_positions:
+            return f"ATOS X: {sym} icin acik pozisyon yok"
+        if not _run_later(_set_sl(sym, new_sl)):
             return "ATOS X: komut arka planda calistirilamadi"
-        return f"ATOS X: {len(auto_trader.active_positions)} pozisyon kapatiliyor"
+        return f"ATOS X: {sym} SL guncelleniyor -> ${new_sl}"
     if cmd.startswith("/sinyal") or cmd.startswith("/signal"):
         parts = text.strip().split()
         if not auto_trader:

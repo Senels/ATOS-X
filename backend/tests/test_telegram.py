@@ -77,6 +77,11 @@ class _FakeTrader:
     async def close_all(self, reason="manual_close_all"):
         self.closed_all = reason
 
+    async def update_sl(self, symbol, new_sl):
+        if symbol not in self.active_positions:
+            return {"ok": False, "error": "position_not_found"}
+        return {"ok": True, "symbol": symbol, "old_sl": 0.0, "new_sl": new_sl}
+
 
 def test_process_updates_filters_and_offsets():
     calls = []
@@ -457,6 +462,77 @@ def test_command_close_all_no_positions():
         main_mod.auto_trader = None
     assert reply is not None
     assert "pozisyon yok" in reply
+
+
+def test_command_sl_bad_usage():
+    main_mod.auto_trader = _FakeTrader()
+    try:
+        reply = main_mod._telegram_command("/sl")
+        reply2 = main_mod._telegram_command("/sl BTCUSDT")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None and "kullanim" in reply
+    assert reply2 is not None and "kullanim" in reply2
+
+
+def test_command_sl_invalid_price():
+    main_mod.auto_trader = _FakeTrader()
+    try:
+        reply = main_mod._telegram_command("/sl BTCUSDT abc")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "gecersiz SL fiyati" in reply
+
+
+def test_command_sl_no_position():
+    main_mod.auto_trader = _FakeTrader()
+    try:
+        reply = main_mod._telegram_command("/sl XRPUSDT 64000")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "acik pozisyon yok" in reply
+
+
+def test_command_sl_schedules(monkeypatch):
+    main_mod.auto_trader = _FakeTrader()
+
+    def fake_run_later(coro):
+        coro.close()
+        return True
+
+    monkeypatch.setattr(main_mod, "_run_later", fake_run_later)
+    try:
+        reply = main_mod._telegram_command("/sl BTCUSDT 64000")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "guncelleniyor" in reply and "64000" in reply
+
+
+def test_set_sl_success(monkeypatch):
+    main_mod.auto_trader = _FakeTrader()
+    messages = []
+
+    async def fake_send(message):
+        messages.append(message)
+
+    monkeypatch.setattr(main_mod.telegram, "send", fake_send)
+    asyncio.run(main_mod._set_sl("BTCUSDT", 64000.0))
+    assert messages and "SL guncellendi" in messages[0]
+
+
+def test_set_sl_rejected(monkeypatch):
+    main_mod.auto_trader = _FakeTrader()
+    messages = []
+
+    async def fake_send(message):
+        messages.append(message)
+
+    monkeypatch.setattr(main_mod.telegram, "send", fake_send)
+    asyncio.run(main_mod._set_sl("XRPUSDT", 64000.0))
+    assert messages and "acik pozisyon yok" in messages[0]
 
 
 def test_signal_for_symbol_uses_binance():

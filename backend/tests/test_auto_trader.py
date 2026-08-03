@@ -276,6 +276,64 @@ async def test_close_all_skips_missing_price(trader):
     assert tr.active_positions == {}
 
 
+async def test_update_sl_moves_stop(trader):
+    tr, fb, db = trader
+    await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
+    fb.tp_sl_calls.clear()
+    res = await tr.update_sl("BTCUSDT", 64000.0)
+    assert res["ok"] is True
+    assert res["new_sl"] == 64000.0
+    assert tr.active_positions["BTCUSDT"]["sl"] == 64000.0
+    assert fb.cancel_calls == [("BTCUSDT", "SL_1")]
+    assert fb.tp_sl_calls == [("BTCUSDT", "LONG", 64000.0, 0.0)]
+
+
+async def test_update_sl_paper_skips_exchange(trader):
+    tr, fb, db = trader
+    tr.paper = True
+    await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
+    fb.cancel_calls.clear()
+    fb.tp_sl_calls.clear()
+    res = await tr.update_sl("BTCUSDT", 64000.0)
+    assert res["ok"] is True
+    assert tr.active_positions["BTCUSDT"]["sl"] == 64000.0
+    assert fb.cancel_calls == []
+    assert fb.tp_sl_calls == []
+
+
+async def test_update_sl_rejects_missing_position(trader):
+    tr, fb, db = trader
+    res = await tr.update_sl("BTCUSDT", 64000.0)
+    assert res["ok"] is False
+    assert res["error"] == "position_not_found"
+
+
+async def test_update_sl_rejects_wrong_direction(trader):
+    tr, fb, db = trader
+    await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
+    res = await tr.update_sl("BTCUSDT", 66000.0)
+    assert res["ok"] is False
+    assert res["error"] == "sl_above_entry"
+    assert tr.active_positions["BTCUSDT"]["sl"] == 63000.0
+    await tr.open_position("ETHUSDT", "SELL", 3000.0, 3100.0, 2800.0)
+    res2 = await tr.update_sl("ETHUSDT", 2900.0)
+    assert res2["ok"] is False
+    assert res2["error"] == "sl_below_entry"
+    assert tr.active_positions["ETHUSDT"]["sl"] == 3100.0
+
+
+async def test_update_sl_resets_trailing_flags(trader):
+    tr, fb, db = trader
+    await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
+    tr.active_positions["BTCUSDT"]["trailing"] = True
+    tr.active_positions["BTCUSDT"]["breakeven"] = True
+    await tr.update_sl("BTCUSDT", 64000.0)
+    pos = tr.active_positions["BTCUSDT"]
+    assert pos["trailing"] is False
+    assert pos["breakeven"] is False
+    assert db.get_open_trade_protection("BTCUSDT") == (False, False)
+
+
 async def test_reconcile_restores_exchange_positions(trader):
     tr, fb, db = trader
     fb.open_positions = [

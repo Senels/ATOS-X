@@ -310,6 +310,7 @@ yoksa dinleyici devre dışıdır.
 | `/blok` | Aktif konsantrasyon engelleri (veya `yok`) |
 | `/pozisyon` | Her pozisyon: sembol, taraf, qty, fiyat + `korumali`/`KORUMASIZ` |
 | `/kapat <SEMBOL>` | Tek pozisyonu manuel kapatır (canlı fiyat ile) |
+| `/sl <SEMBOL> <FIYAT>` | Açık pozisyonun SL'sini günceller (Telegram üstünden manuel stop) |
 | `/kapatall` | Açık tüm pozisyonları canlı fiyatlarla kapatır (`close_all`) |
 | `/durdur` veya `/stop` | Acil durdurma; tüm pozisyonları kapatır + kapanış özeti gönderir |
 | `/sinyal <SEMBOL>` veya `/signal <SEMBOL>` | Canlı kline'dan v23 sinyalini Telegram'a gönderir |
@@ -329,6 +330,15 @@ yoksa dinleyici devre dışıdır.
   - İzlenen pozisyonda kayıp emir varsa yeniden yerleştirir.
   - Korumasız pozisyon tespit edilirse uyarır.
 - Korumalı = en az bir (SL veya TP) algo emir kimliği mevcut.
+
+**Manuel SL güncelleme** (`/sl <SEMBOL> <FIYAT>` → `AutoTrader.update_sl`):
+- Yön korunur: BUY pozisyonunda SL giriş fiyatının altında, SELL'de üstünde
+  olmalı; ihlal eden istek reddedilir.
+- Borsadaki eski SL algo emri iptal edilip yeni SL yerleştirilir, TP korunur
+  (`set_tp_sl` ile sadece SL yenilenir). Paper modda sadece kayıt güncellenir.
+- Manuel müdahale sonrası trailing/breakeven bayrakları sıfırlanır (DB'ye
+  yazılır); otomatik koruma sonraki döngüde yeniden devreye girebilir.
+- İşlem `risk_events`'e `manual_sl_update` olarak kaydedilir.
 
 ## API ve Dashboard Görünürlüğü
 
