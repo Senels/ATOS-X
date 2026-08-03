@@ -47,6 +47,9 @@ class AutoTrader:
         self._last_rank = time.time()
         self.equity = float(s["initial_equity"])
         self.max_positions = int(s["max_open_positions"])
+        self.max_position_pct = float(s.get("max_position_pct", 75.0))
+        self.max_side_pct = float(s.get("max_side_pct", 150.0))
+        self._conc_alerts = {"symbols": set(), "sides": set()}
         self.scan_interval = 30
         self.scan_limit = 50
         self.perf_interval = 60
@@ -185,6 +188,7 @@ class AutoTrader:
                     await self.reconcile_positions()
                     self._last_reconcile = time.time()
                 await self.update_equity()
+                await self._check_concentration()
                 await asyncio.sleep(self.scan_interval)
 
             except Exception as e:
@@ -335,16 +339,7 @@ class AutoTrader:
                         if info.get("tp_id") is None:
                             missing.append("TP")
                         if missing:
-                            logger.warning(
-                                f"{symbol}: izlenen pozisyon korumasi borsada yok "
-                                f"({'/'.join(missing)} emri kayip)"
-                            )
-                            if self.telegram:
-                                await self.telegram.send(
-                                    f"ATOS X UYARI: {symbol} pozisyonunun "
-                                    f"{'/'.join(missing)} emri borsada yok! "
-                                    f"Koruma kayboldu, manuel müdahale gerekebilir."
-                                )
+                            await self._repair_protection(symbol, pos, missing)
                     continue
                 exit_price, reason = self._exchange_close_estimate(symbol, pos)
                 self.active_positions.pop(symbol, None)
@@ -387,6 +382,89 @@ class AutoTrader:
                 logger.info(f"Borsadan {restored} pozisyon geri yuklendi")
         except Exception as e:
             logger.error(f"Pozisyon geri yukleme hatasi: {e}")
+
+    async def _check_concentration(self):
+        """Tek sembol / tek yonde asiri pozisyon yogunlugunu izler ve uyarir.
+
+        Esikler `max_position_pct` ve `max_side_pct` (equity yuzdesi).
+        Esigi asan ilk anda bir kez uyarir; pozisyon esigin altina inip
+        yeniden asarsa tekrar uyarir (spam yok).
+        """
+        long_notional = 0.0
+        short_notional = 0.0
+        symbol_notional = {}
+        for symbol, pos in self.active_positions.items():
+            notional = float(pos["entry_price"]) * float(pos["quantity"])
+            symbol_notional[symbol] = notional
+            if pos["side"] == "BUY":
+                long_notional += notional
+            else:
+                short_notional += notional
+        equity = self.equity or 1.0
+        over_symbols = set()
+        for symbol, notional in symbol_notional.items():
+            pct = notional / equity * 100.0
+            if pct > self.max_position_pct:
+                over_symbols.add(symbol)
+                if symbol not in self._conc_alerts["symbols"]:
+                    self._conc_alerts["symbols"].add(symbol)
+                    if self.telegram:
+                        await self.telegram.send(
+                            f"ATOS X UYARI: {symbol} pozisyonu equity'nin "
+                            f"%{pct:.0f}'i ({self.max_position_pct:.0f} esigi), "
+                            f"asiri konsantrasyon!"
+                        )
+        self._conc_alerts["symbols"] &= over_symbols
+        over_sides = {}
+        if long_notional / equity * 100.0 > self.max_side_pct:
+            over_sides["LONG"] = long_notional
+        if short_notional / equity * 100.0 > self.max_side_pct:
+            over_sides["SHORT"] = short_notional
+        for side, notional in over_sides.items():
+            if side not in self._conc_alerts["sides"]:
+                self._conc_alerts["sides"].add(side)
+                pct = notional / equity * 100.0
+                if self.telegram:
+                    await self.telegram.send(
+                        f"ATOS X UYARI: {side} yonunde toplam %{pct:.0f} equity "
+                        f"pozisyon ({self.max_side_pct:.0f} esigi), "
+                        f"asiri konsantrasyon!"
+                    )
+        self._conc_alerts["sides"] &= set(over_sides)
+
+    async def _repair_protection(self, symbol: str, pos: dict, missing: list):
+        """Kayip SL/TP algo emrini yeniden yerleştirir; basarisizsa uyarir."""
+        sl_price = pos.get("sl") or 0.0
+        tp_price = pos.get("tp") or 0.0
+        if "SL" not in missing:
+            sl_price = 0.0
+        if "TP" not in missing:
+            tp_price = 0.0
+        position_side = "LONG" if pos["side"] == "BUY" else "SHORT"
+        try:
+            algo = await self.binance.set_tp_sl(
+                symbol, position_side, sl_price, tp_price
+            )
+            repaired = []
+            if "SL" in missing and algo.get("sl"):
+                pos["sl_order_id"] = algo["sl"]
+                repaired.append("SL")
+            if "TP" in missing and algo.get("tp"):
+                pos["tp_order_id"] = algo["tp"]
+                repaired.append("TP")
+            if repaired:
+                logger.warning(
+                    f"{symbol}: kayip koruma tamir edildi ({'/'.join(repaired)})"
+                )
+                return
+        except Exception as e:
+            logger.error(f"{symbol}: koruma tamiri hatasi: {e}")
+        if self.telegram:
+            await self.telegram.send(
+                f"ATOS X UYARI: {symbol} pozisyonunun {'/'.join(missing)} emri "
+                f"borsada yok ve yeniden yerleştirilemedi! "
+                f"Koruma kayboldu, manuel müdahale gerekebilir."
+            )
 
     def _exchange_close_estimate(self, symbol: str, pos: dict):
         """Algo SL/TP ile kapanmis pozisyonda en olası cikis fiyati ve nedeni."""

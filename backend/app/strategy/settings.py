@@ -28,6 +28,8 @@ DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
     "fee_rate": 0.0005,          # Taker komisyonu
     "max_leverage": 10.0,        # Kaldirac siniri
     "max_open_positions": 3,     # Canli acik pozisyon limiti
+    "max_position_pct": 75.0,    # Tek sembol nominal pozisyon esigi (% equity, uyari)
+    "max_side_pct": 150.0,       # Tek yonde toplam nominal pozisyon esigi (% equity, uyari)
     # Strateji parametreleri
     "rr_ratio": 1.5,             # TP = SL mesafesi * rr_ratio
     "sl_lookback": 5,            # pivot swing uzunlugu

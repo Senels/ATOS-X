@@ -27,6 +27,7 @@ class FakeBinance:
         self.algo_orders = []
         self.raise_on_positions = False
         self.connect_failures = 0
+        self.fail_tp_sl = False
         self.client = None
 
     async def connect(self):
@@ -60,6 +61,8 @@ class FakeBinance:
 
     async def set_tp_sl(self, symbol, position_side, sl_price, tp_price):
         self.tp_sl_calls.append((symbol, position_side, sl_price, tp_price))
+        if self.fail_tp_sl:
+            return {"sl": None, "tp": None}
         return {"sl": "SL_1", "tp": "TP_1"}
 
     async def cancel_algo_order(self, symbol, algo_id):
@@ -282,7 +285,7 @@ async def test_reconcile_alerts_on_unprotected(trader):
     assert any("korumasiz" in m and "ETHUSDT" in m for m in tg.sent)
 
 
-async def test_reconcile_alerts_when_tracked_loses_algo(trader):
+async def test_reconcile_repairs_when_tracked_loses_algo(trader):
     tr, fb, db = trader
     tg = FakeTelegram()
     tr.telegram = tg
@@ -300,7 +303,89 @@ async def test_reconcile_alerts_when_tracked_loses_algo(trader):
     ]
     await tr.reconcile_positions()
     assert "BTCUSDT" in tr.active_positions
-    assert any("SL" in m and "BTCUSDT" in m for m in tg.sent)
+    assert ("BTCUSDT", "LONG", 63000.0, 0.0) in fb.tp_sl_calls
+    assert tr.active_positions["BTCUSDT"]["sl_order_id"] == "SL_1"
+    assert tg.sent == []
+
+
+async def test_reconcile_alerts_when_repair_fails(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    fb.fail_tp_sl = True
+    tr.active_positions["BTCUSDT"] = {
+        "side": "BUY", "entry_price": 65000, "quantity": 0.5,
+        "sl": 63000, "tp": 69000,
+        "sl_order_id": 111, "tp_order_id": 222,
+        "entry_fee": 0.0, "open_time": "x",
+    }
+    fb.open_positions = [
+        {"symbol": "BTCUSDT", "positionAmt": "0.5", "entryPrice": "65000"},
+    ]
+    fb.algo_orders = []
+    await tr.reconcile_positions()
+    assert "BTCUSDT" in tr.active_positions
+    assert any("SL" in m and "TP" in m and "BTCUSDT" in m for m in tg.sent)
+
+
+async def test_concentration_alerts_single_symbol(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    tr.equity = 10000
+    tr.max_position_pct = 50.0
+    tr.max_side_pct = 999.0
+    tr.active_positions["BTCUSDT"] = {
+        "side": "BUY", "entry_price": 60000, "quantity": 1.0,
+        "sl": 0, "tp": 0, "sl_order_id": None, "tp_order_id": None,
+        "entry_fee": 0.0, "open_time": "x",
+    }
+    await tr._check_concentration()
+    assert any("BTCUSDT" in m and "konsantrasyon" in m for m in tg.sent)
+    await tr._check_concentration()
+    assert len(tg.sent) == 1
+
+
+async def test_concentration_realerts_after_clear(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    tr.equity = 10000
+    tr.max_position_pct = 50.0
+    tr.max_side_pct = 999.0
+    pos = {
+        "side": "BUY", "entry_price": 60000, "quantity": 1.0,
+        "sl": 0, "tp": 0, "sl_order_id": None, "tp_order_id": None,
+        "entry_fee": 0.0, "open_time": "x",
+    }
+    tr.active_positions["BTCUSDT"] = dict(pos)
+    await tr._check_concentration()
+    n = len(tg.sent)
+    del tr.active_positions["BTCUSDT"]
+    await tr._check_concentration()
+    assert len(tg.sent) == n
+    tr.active_positions["BTCUSDT"] = dict(pos)
+    await tr._check_concentration()
+    assert len(tg.sent) == n + 1
+
+
+async def test_concentration_alerts_on_side(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    tr.equity = 10000
+    tr.max_position_pct = 999.0
+    tr.max_side_pct = 100.0
+    for sym, qty in [("BTCUSDT", 0.9), ("ETHUSDT", 10.0)]:
+        tr.active_positions[sym] = {
+            "side": "BUY", "entry_price": 60000 if sym == "BTCUSDT" else 3000,
+            "quantity": qty,
+            "sl": 0, "tp": 0, "sl_order_id": None, "tp_order_id": None,
+            "entry_fee": 0.0, "open_time": "x",
+        }
+    await tr._check_concentration()
+    assert any("LONG" in m and "konsantrasyon" in m for m in tg.sent)
+    assert not any("BTCUSDT" in m for m in tg.sent)
 
 
 async def test_reconcile_silent_when_tracked_protected(trader):
@@ -422,3 +507,4 @@ async def test_ensure_connected_alerts_on_give_up():
     fb.connect_failures = 100
     assert await tr._ensure_connected(max_attempts=2, delay=0) is False
     assert any("kurulamadi" in m for m in tg.sent)
+
