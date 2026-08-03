@@ -16,6 +16,7 @@ from app.strategy.auto_trader import AutoTrader
 from app.strategy import settings as strat_settings
 from app.strategy.tradebot_v23 import TradeBotV23
 from app.api.backtest import router as backtest_router
+from app.api.optimization import router as optimize_router
 from app.websocket.client import BinanceWebSocket
 from app.notifications.telegram import TelegramNotifier
 
@@ -271,6 +272,7 @@ async def _daily_report_loop():
 app = FastAPI(title="ATOS X API", version="1.0.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 app.include_router(backtest_router)
+app.include_router(optimize_router)
 
 @app.get("/")
 async def root():
@@ -441,4 +443,12 @@ async def settings_html():
             return HTMLResponse(content=f.read())
     except:
         return HTMLResponse(content="<h1>Settings not found</h1>")
+
+@app.get("/optimize/html")
+async def optimize_html():
+    try:
+        with open(_APP_DIR / "optimize.html", "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    except:
+        return HTMLResponse(content="<h1>Optimize not found</h1>")
 

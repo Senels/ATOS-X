@@ -202,6 +202,28 @@ imkanı verir: `max_drawdown_pct`, `max_consecutive_losses`,
 `max_position_age_hours`. Verilmezse canlı ayarlar kullanılır. Grid
 search (`GridSearch`) da varsayılan olarak aynı risk ayarlarıyla çalışır.
 
+## Parametre Optimizasyonu (Grid Search)
+
+`GridSearch` (ProcessPoolExecutor destekli) TradeBotV23 + BacktestEngine
+üzerinde grid arama yapar; her kombinasyon tüm sembollerde değerlendirilip
+ortalama skora göre sıralanır.
+
+- `/api/v1/optimize` — grid arama çalıştırır. Sorgu parametreleri:
+  - `symbols` (varsayılan `BTCUSDT,ETHUSDT`), `interval`, `limit`,
+    `objective` (`combined` | `return` | `sharpe` | `pf`), `max_workers`.
+  - Grid boyutları virgüllü listelerle ezilir: `rangefilt_length`,
+    `range_filt_mult`, `signal_expiry`, `rr_ratio`, `sl_lookback`
+    (boş bırakılırsa varsayılan grid kullanılır).
+  - `save_to_file=true` → en iyi kombinasyon
+    `optimized_settings.json` dosyasına yazılır.
+  - Yanıt: `results` (sıralı), `best`, `grid`, `symbols`, `interval`,
+    `limit`, `objective`.
+- `/api/v1/optimize/defaults` — varsayılan grid ve objective seçenekleri.
+- `/optimize/html` — parametre optimizasyonu web arayüzü (grid boyutları,
+  semboller, objective, dosyaya kaydet; sonuçlar detay tablosu).
+- Arama, canlı ayarlardaki risk parametrelerini `BacktestEngine`'e geçirir;
+  risk simülasyonu backtest ile aynıdır.
+
 ## Pozisyon Yaşı ve Yeniden Başlatma
 
 `/ac` (veya motor yeniden başlatma) sonrası `reconcile_positions` geri

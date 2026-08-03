@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>ATOS X Parametre Optimizasyonu</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0f172a; color:#f1f5f9; font-family:'Segoe UI',Arial,sans-serif; padding:16px; }
+.container { max-width:1200px; margin:0 auto; }
+.header { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid #1e293b; }
+.header h1 { font-size:24px; background:linear-gradient(135deg,#f59e0b,#3b82f6); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.header-right { display:flex; gap:8px; align-items:center; }
+.btn { background:#3b82f6; border:none; color:white; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:13px; transition:0.2s; }
+.btn:hover { background:#2563eb; }
+.btn-green { background:#22c55e; }
+.btn-green:hover { background:#16a34a; }
+.btn:disabled { opacity:0.5; cursor:not-allowed; }
+.settings-link { color:#f59e0b; text-decoration:none; font-size:13px; padding:6px 12px; border:1px solid #f59e0b; border-radius:6px; }
+.settings-link:hover { background:#f59e0b; color:#0f172a; }
+.card { background:#1e293b; padding:16px; border-radius:12px; border:1px solid #334155; margin-bottom:16px; }
+.card h3 { margin-bottom:12px; font-size:16px; color:#94a3b8; }
+.form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; }
+.field label { display:block; font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; }
+.field input, .field select { width:100%; background:#0f172a; border:1px solid #334155; color:#f1f5f9; padding:8px 10px; border-radius:6px; font-size:13px; }
+.field input:focus, .field select:focus { outline:none; border-color:#3b82f6; }
+.field .hint { font-size:10px; color:#64748b; margin-top:2px; }
+.checkbox { display:flex; align-items:center; gap:8px; margin-top:22px; font-size:13px; color:#cbd5e1; }
+.table-wrap { overflow-x:auto; }
+table { width:100%; font-size:13px; border-collapse:collapse; }
+th,td { padding:8px 10px; text-align:left; border-bottom:1px solid #1e293b; }
+th { color:#94a3b8; font-weight:500; font-size:11px; text-transform:uppercase; }
+tr:hover { background:rgba(59,130,246,0.05); }
+.rank-badge { background:#3b82f6; color:white; padding:2px 8px; border-radius:12px; font-size:12px; }
+.rank-best { background:#22c55e; }
+.score { font-weight:bold; color:#f59e0b; }
+.score-neg { color:#ef4444; }
+.detail-row td { background:#0f172a; }
+.info { background:#1e293b; padding:10px 14px; border-radius:8px; border:1px solid #334155; font-size:13px; color:#94a3b8; margin-bottom:12px; }
+.hidden { display:none; }
+.spinner { display:inline-block; width:14px; height:14px; border:2px solid #94a3b8; border-top-color:#22c55e; border-radius:50%; animation:spin 0.8s linear infinite; vertical-align:middle; margin-right:6px; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.error { color:#ef4444; font-size:13px; margin-top:8px; }
+.chip { background:#334155; color:#e2e8f0; padding:2px 8px; border-radius:12px; font-size:11px; margin-right:4px; }
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+<h1>🧬 ATOS X Parametre Optimizasyonu</h1>
+<div class="header-right">
+<a href="/dashboard/html" class="settings-link">📊 Dashboard</a>
+<a href="/dashboard/settings" class="settings-link">⚙️ Settings</a>
+</div>
+</div>
+
+<div class="card">
+<h3>Grid Arama Ayarlari</h3>
+<div class="form-grid">
+<div class="field"><label>Symbols</label><input id="symbols" value="BTCUSDT,ETHUSDT" list="symbolList"><datalist id="symbolList"></datalist><div class="hint">Virgulle ayrilmis, orn: BTCUSDT,ETHUSDT</div></div>
+<div class="field"><label>Interval</label><select id="interval"><option>4h</option><option>1h</option><option>1d</option></select></div>
+<div class="field"><label>Limit (bar)</label><input id="limit" type="number" value="300" min="50"></div>
+<div class="field"><label>Objective</label><select id="objective"><option value="combined">Combined</option><option value="return">Return</option><option value="sharpe">Sharpe</option><option value="pf">Profit Factor</option></select></div>
+<div class="field"><label>Max Workers</label><input id="max_workers" type="number" value="1" min="1" max="8"></div>
+<div class="field"><label>rangefilt_length</label><input id="rangefilt_length" placeholder="2,3,4,5"><div class="hint">Bos = varsayilan grid</div></div>
+<div class="field"><label>range_filt_mult</label><input id="range_filt_mult" placeholder="1.5,2.0,2.5,3.0"><div class="hint">Bos = varsayilan grid</div></div>
+<div class="field"><label>signal_expiry</label><input id="signal_expiry" placeholder="1,2,3,4"><div class="hint">Bos = varsayilan grid</div></div>
+<div class="field"><label>rr_ratio</label><input id="rr_ratio" placeholder="1.0,1.5,2.0,3.0"><div class="hint">Bos = varsayilan grid</div></div>
+<div class="field"><label>sl_lookback</label><input id="sl_lookback" placeholder="3,5,7"><div class="hint">Bos = varsayilan grid</div></div>
+<div class="checkbox"><input id="save_to_file" type="checkbox"><label for="save_to_file">En iyi kombinasyonu optimized_settings.json dosyasina yaz</label></div>
+</div>
+<div style="margin-top:16px; display:flex; gap:8px; align-items:center;">
+<button class="btn btn-green" id="runBtn" onclick="run()">▶ Baslat</button>
+<span id="statusText" style="font-size:13px;color:#94a3b8;"></span>
+</div>
+<div class="error hidden" id="errorBox"></div>
+</div>
+
+<div class="info hidden" id="summary"></div>
+
+<div class="card hidden" id="resultsCard">
+<h3>Sonuclar</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>#</th><th>Skor</th><th>Sembol</th><th id="comboHeader"></th></tr></thead>
+<tbody id="resultsBody"></tbody>
+</table>
+</div>
+</div>
+</div>
+<script>
+const GRID_KEYS = ['rangefilt_length','range_filt_mult','signal_expiry','rr_ratio','sl_lookback'];
+async function loadMeta() {
+try {
+const r = await fetch('/api/v1/optimize/defaults');
+const d = await r.json();
+const th = document.getElementById('comboHeader');
+th.textContent = GRID_KEYS.map(k => k.toUpperCase()).join(' | ');
+const s = await fetch('/api/v1/backtest/symbols?interval=4h');
+const sd = await s.json();
+const dl = document.getElementById('symbolList');
+dl.innerHTML = (sd.symbols||[]).map(x => '<option value="'+x+'"></option>').join('');
+} catch(e) { console.error(e); }
+}
+async function run() {
+const btn = document.getElementById('runBtn');
+const statusText = document.getElementById('statusText');
+const err = document.getElementById('errorBox');
+err.classList.add('hidden'); err.textContent = '';
+document.getElementById('summary').classList.add('hidden');
+document.getElementById('resultsCard').classList.add('hidden');
+btn.disabled = true;
+statusText.innerHTML = '<span class="spinner"></span>Optimizasyon calisiyor (bu bir sure alabilir)...';
+const params = new URLSearchParams({
+symbols: document.getElementById('symbols').value,
+interval: document.getElementById('interval').value,
+limit: document.getElementById('limit').value,
+objective: document.getElementById('objective').value,
+max_workers: document.getElementById('max_workers').value,
+save_to_file: document.getElementById('save_to_file').checked
+});
+GRID_KEYS.forEach(k => {
+const v = document.getElementById(k).value.trim();
+if (v) params.set(k, v);
+});
+try {
+const r = await fetch('/api/v1/optimize?' + params.toString());
+const d = await r.json();
+if (d.detail) throw new Error(d.detail);
+render(d);
+} catch(e) {
+err.textContent = 'Hata: ' + e.message;
+err.classList.remove('hidden');
+} finally {
+btn.disabled = false;
+statusText.textContent = '';
+}
+}
+function render(d) {
+const results = d.results || [];
+if (!results.length) { document.getElementById('summary').textContent = 'Sonuc yok (sembol verisi veya sinyal yetersiz).'; document.getElementById('summary').classList.remove('hidden'); return; }
+let summary = 'Toplam ' + results.length + ' kombinasyon degerlendirildi. En iyi skor: <b>' + results[0].score.toFixed(1) + '</b>';
+if (d.saved_to) summary += ' | Kaydedildi: <span class="chip">' + d.saved_to + '</span>';
+document.getElementById('summary').innerHTML = summary;
+document.getElementById('summary').classList.remove('hidden');
+const body = document.getElementById('resultsBody');
+body.innerHTML = '';
+results.forEach((r, i) => {
+const comboStr = GRID_KEYS.map(k => r.combo[k] !== undefined ? r.combo[k] : '-').join(' | ');
+const bestCls = i === 0 ? ' rank-best' : '';
+let detailHtml = '';
+(r.details||[]).forEach(det => {
+const pf = det.profit_factor !== null && det.profit_factor !== undefined ? det.profit_factor.toFixed(2) : '-';
+detailHtml += '<div style="padding:4px 0;border-bottom:1px solid #1e293b;"><b>' + det.symbol + '</b> <span class="chip">Return %' + (det.total_return_pct!=null?det.total_return_pct.toFixed(2):'-') + '</span> <span class="chip">Trade ' + (det.total_trades||0) + '</span> <span class="chip">WR %' + (det.win_rate!=null?det.win_rate.toFixed(1):'-') + '</span> <span class="chip">PF ' + pf + '</span></div>';
+});
+body.innerHTML += '<tr onclick="toggleDetail(' + i + ')"><td><span class="rank-badge' + bestCls + '">' + (i+1) + '</span></td><td class="score">' + r.score.toFixed(1) + '</td><td>' + (r.count||0) + '</td><td>' + comboStr + '</td></tr>';
+body.innerHTML += '<tr class="detail-row hidden" id="detail-' + i + '"><td colspan="4"><div style="padding:4px;">' + detailHtml + '</div></td></tr>';
+});
+document.getElementById('resultsCard').classList.remove('hidden');
+}
+function toggleDetail(i) {
+const el = document.getElementById('detail-' + i);
+if (el) el.classList.toggle('hidden');
+}
+loadMeta();
+</script>
+</body>
+</html>
