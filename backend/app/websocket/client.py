@@ -17,11 +17,15 @@ class BinanceWebSocket:
         try:
             ws = await websockets.connect(url)
             self.connections[symbol] = ws
-            logger.info(f"✅ WebSocket bağlandı: {symbol}")
+            logger.info(f"? WebSocket baglandi: {symbol}")
             asyncio.create_task(self._listen(symbol, ws))
         except Exception as e:
-            logger.error(f"❌ WebSocket hatası {symbol}: {e}")
-            await asyncio.sleep(self.reconnect_delay)
+            logger.error(f"? WebSocket hatasi {symbol}: {e}")
+            asyncio.create_task(self._reconnect(symbol))
+
+    async def _reconnect(self, symbol: str):
+        await asyncio.sleep(self.reconnect_delay)
+        if self.running:
             await self.connect(symbol)
 
     async def _listen(self, symbol: str, ws):
@@ -50,8 +54,8 @@ class BinanceWebSocket:
 
     async def start(self, symbols: list):
         self.running = True
-        tasks = [self.connect(s) for s in symbols]
-        await asyncio.gather(*tasks)
+        for s in symbols:
+            asyncio.create_task(self.connect(s))
 
     async def stop(self):
         self.running = False
