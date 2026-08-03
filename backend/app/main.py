@@ -83,6 +83,20 @@ def _protected_count() -> int:
         if p.get("sl_order_id") or p.get("tp_order_id")
     )
 
+def _positions_payload() -> dict:
+    """Acil pozisyonlari koruma durumu isaretli olarak doner."""
+    positions = auto_trader.active_positions if auto_trader else {}
+    enriched = {
+        symbol: {**pos, "protected": bool(pos.get("sl_order_id") or pos.get("tp_order_id"))}
+        for symbol, pos in positions.items()
+    }
+    return {
+        "positions": enriched,
+        "count": len(positions),
+        "protected": sum(1 for p in enriched.values() if p["protected"]),
+        "unprotected": sum(1 for p in enriched.values() if not p["protected"]),
+    }
+
 def _is_connected() -> bool:
     return bool(auto_trader and auto_trader.binance and auto_trader.binance.client)
 
@@ -218,17 +232,7 @@ async def get_signal(symbol: str, interval: str = "4h", limit: int = 400):
 
 @app.get("/api/v1/positions")
 async def get_positions():
-    positions = auto_trader.active_positions if auto_trader else {}
-    enriched = {
-        symbol: {**pos, "protected": bool(pos.get("sl_order_id") or pos.get("tp_order_id"))}
-        for symbol, pos in positions.items()
-    }
-    return {
-        "positions": enriched,
-        "count": len(positions),
-        "protected": sum(1 for p in enriched.values() if p["protected"]),
-        "unprotected": sum(1 for p in enriched.values() if not p["protected"]),
-    }
+    return _positions_payload()
 
 @app.get("/api/v1/trades")
 async def get_trades():
@@ -254,7 +258,7 @@ async def metrics():
             "equity": auto_trader.equity if auto_trader else 10000,
             "paper": auto_trader.paper if auto_trader else True,
             "top_symbols": auto_trader.top_symbols if auto_trader else [],
-            "positions": auto_trader.active_positions if auto_trader else {},
+            "positions": _positions_payload()["positions"],
             "concentration": _concentration_summary(),
             "uptime": int((datetime.utcnow() - system_status["start_time"]).total_seconds())
         }

@@ -7,6 +7,15 @@ from app.main import app
 class _FakeTrader:
     def __init__(self, positions):
         self.active_positions = positions
+        self.trading_symbols = []
+        self.trade_history = []
+        self.equity = 10000.0
+        self.paper = True
+        self.top_symbols = []
+        self.binance = None
+        self._conc_blocks = set()
+        self.max_position_pct = 75.0
+        self.max_side_pct = 150.0
 
 
 def test_health():
@@ -114,3 +123,33 @@ def test_positions_protection_status():
     assert body["positions"]["BTCUSDT"]["protected"] is True
     assert body["positions"]["ETHUSDT"]["protected"] is False
     assert body["positions"]["SOLUSDT"]["protected"] is True
+
+
+def test_metrics_positions_have_protection_flag():
+    fake = _FakeTrader({
+        "BTCUSDT": {"side": "BUY", "entry_price": 65000.0, "quantity": 0.5,
+                    "sl_order_id": "SL_1", "tp_order_id": "TP_1"},
+        "ETHUSDT": {"side": "SELL", "entry_price": 3000.0, "quantity": 2.0,
+                    "sl_order_id": None, "tp_order_id": None},
+    })
+    main_mod.auto_trader = fake
+    try:
+        client = TestClient(app)
+        resp = client.get("/dashboard/metrics")
+        client.close()
+    finally:
+        main_mod.auto_trader = None
+    assert resp.status_code == 200
+    positions = resp.json()["positions"]
+    assert positions["BTCUSDT"]["protected"] is True
+    assert positions["ETHUSDT"]["protected"] is False
+
+
+def test_dashboard_positions_table_has_protection():
+    client = TestClient(app)
+    resp = client.get("/dashboard/html")
+    assert resp.status_code == 200
+    assert "<th>Protection</th>" in resp.text
+    assert "badge-protected" in resp.text
+    assert "badge-unprotected" in resp.text
+    client.close()
