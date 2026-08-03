@@ -9,6 +9,7 @@ koruma (SL/TP) mekanizması ve ilgili API/dashboard görünürlüğünü belgele
 |---|---|---|
 | `max_position_pct` | 75 | Tek sembol projeksiyon pozisyonu (% equity) |
 | `max_side_pct` | 150 | Tek yön (LONG/SHORT) toplam maruziyet (% equity) |
+| `max_drawdown_pct` | 20 | Peak equity'den düşüş eşiği; aşılınca yeni girişler durur |
 
 - UI üzerinden `/dashboard/settings` → Risk sekmesinde değiştirilir.
 - Canlı döngüde her taramada `_apply_risk_settings` ile uygulanır.
@@ -26,6 +27,19 @@ koruma (SL/TP) mekanizması ve ilgili API/dashboard görünürlüğünü belgele
   engellenir. Maruziyet eşiğin altına inince engel otomatik kalkar.
 - Dashboard `⚠️ Risk Exposure` kartında LONG/SHORT yüzdeleri ve aktif
   engeller chip olarak görünür.
+
+## Drawdown Koruması
+
+`AutoTrader._check_drawdown` her döngüde çalışır:
+
+- `peak_equity` izlenir (her yeni zirvede güncellenir).
+- `max_drawdown_pct` eşiği aşılınca `risk_halted = True` olur, Telegram
+  uyarısı gönderilir ve yeni girişler engellenir (açık pozisyon yönetimi
+  devam eder).
+- Drawdown eşiğin **yarısına** inince otomatik serbest bırakılır
+  (histerezis, flap'ı önler).
+- Dashboard Risk Exposure kartında `Drawdown %` değeri ve durma durumunda
+  `RISK HALT` rozeti gösterilir.
 
 ## Telegram Bildirimleri
 
@@ -46,7 +60,7 @@ yoksa dinleyici devre dışıdır.
 
 | Komut | Yanıt |
 |---|---|
-| `/durum` veya `/status` | Equity, açık pozisyon + korumalı sayısı, LONG/SHORT maruziyeti, aktif engeller |
+| `/durum` veya `/status` | Equity, açık pozisyon + korumalı sayısı, LONG/SHORT maruziyeti, aktif engeller, drawdown ve durma durumu |
 | `/blok` | Aktif konsantrasyon engelleri (veya `yok`) |
 | `/pozisyon` | Her pozisyon: sembol, taraf, qty, fiyat + `korumali`/`KORUMASIZ` |
 | `/yardim` veya `/help` | Komut listesi |

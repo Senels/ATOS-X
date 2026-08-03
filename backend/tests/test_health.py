@@ -16,6 +16,8 @@ class _FakeTrader:
         self._conc_blocks = set()
         self.max_position_pct = 75.0
         self.max_side_pct = 150.0
+        self.drawdown_pct = 0.0
+        self.risk_halted = False
 
 
 def test_health():

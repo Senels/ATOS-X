@@ -30,6 +30,7 @@ DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
     "max_open_positions": 3,     # Canli acik pozisyon limiti
     "max_position_pct": 75.0,    # Tek sembol nominal pozisyon esigi (% equity, uyari)
     "max_side_pct": 150.0,       # Tek yonde toplam nominal pozisyon esigi (% equity, uyari)
+    "max_drawdown_pct": 20.0,    # Peak equity'den düşüş esigi (%); asilinca yeni giris durur
     # Strateji parametreleri
     "rr_ratio": 1.5,             # TP = SL mesafesi * rr_ratio
     "sl_lookback": 5,            # pivot swing uzunlugu

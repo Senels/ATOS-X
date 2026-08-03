@@ -7,6 +7,9 @@ class _FakeTrader:
         self.equity = 10000.0
         self.max_position_pct = 75.0
         self.max_side_pct = 150.0
+        self.max_drawdown_pct = 20.0
+        self.drawdown_pct = 0.0
+        self.risk_halted = False
         self._conc_blocks = {"side:LONG"}
         self.active_positions = {
             "BTCUSDT": {"side": "BUY", "entry_price": 65000.0, "quantity": 0.5,
@@ -52,6 +55,21 @@ def test_command_status():
     assert "Equity" in reply
     assert "Engeller" in reply
     assert "side:LONG" in reply
+    assert "Drawdown" in reply
+
+
+def test_command_status_shows_halt():
+    fake = _FakeTrader()
+    fake.risk_halted = True
+    fake.drawdown_pct = 25.5
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/durum")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "AKTIF" in reply
+    assert "%25.5" in reply
 
 
 def test_command_blocks():

@@ -69,7 +69,9 @@ tr:hover { background:rgba(59,130,246,0.05); }
 <div class="card"><h3>⚠️ Risk Exposure</h3><div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
 <div><span class="label" style="font-size:11px;color:#94a3b8;text-transform:uppercase;">LONG</span><div class="value" id="longExposure" style="font-size:22px;font-weight:bold;">-</div></div>
 <div><span class="label" style="font-size:11px;color:#94a3b8;text-transform:uppercase;">SHORT</span><div class="value" id="shortExposure" style="font-size:22px;font-weight:bold;">-</div></div>
+<div><span class="label" style="font-size:11px;color:#94a3b8;text-transform:uppercase;">Drawdown</span><div class="value" id="drawdownVal" style="font-size:22px;font-weight:bold;">-</div></div>
 <div><span class="label" style="font-size:11px;color:#94a3b8;text-transform:uppercase;">Entry Blocks</span><div id="blockChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">-</div></div>
+<div id="haltBadge" style="display:none;"><span class="badge-unprotected">RISK HALT</span></div>
 </div></div>
 <div class="card"><h3>📈 Equity Curve</h3><canvas id="equityChart" width="1200" height="280" style="width:100%;height:280px;"></canvas></div>
 <div class="card"><h3>💰 PnL by Symbol</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Trades</th><th>W/L</th><th>Net PnL</th></tr></thead><tbody id="pnlBody"><tr><td colspan="4" style="text-align:center;color:#64748b;padding:20px;">No closed trades yet</td></tr></tbody></table></div></div>
@@ -107,6 +109,10 @@ longEl.textContent = (conc.long_pct != null ? conc.long_pct + '%' : '-');
 shortEl.textContent = (conc.short_pct != null ? conc.short_pct + '%' : '-');
 longEl.style.color = (conc.long_pct != null && conc.long_pct > maxSide) ? '#ef4444' : '#22c55e';
 shortEl.style.color = (conc.short_pct != null && conc.short_pct > maxSide) ? '#ef4444' : '#22c55e';
+const ddEl = document.getElementById('drawdownVal');
+ddEl.textContent = (d.drawdown_pct != null ? d.drawdown_pct + '%' : '-');
+ddEl.style.color = d.risk_halted ? '#ef4444' : '#22c55e';
+document.getElementById('haltBadge').style.display = d.risk_halted ? 'inline' : 'none';
 const blk = document.getElementById('blockChips');
 if (conc.blocks && conc.blocks.length > 0) {
     blk.innerHTML = conc.blocks.map(function(b) { return '<span class="chip">'+b+'</span>'; }).join('');

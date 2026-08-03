@@ -49,6 +49,10 @@ class AutoTrader:
         self.max_positions = int(s["max_open_positions"])
         self.max_position_pct = float(s.get("max_position_pct", 75.0))
         self.max_side_pct = float(s.get("max_side_pct", 150.0))
+        self.max_drawdown_pct = float(s.get("max_drawdown_pct", 20.0))
+        self.peak_equity = float(s["initial_equity"])
+        self.drawdown_pct = 0.0
+        self.risk_halted = False
         self._conc_alerts = {"symbols": set(), "sides": set()}
         self._conc_blocks = set()
         self._last_block_state = set()
@@ -208,6 +212,7 @@ class AutoTrader:
                     self._last_reconcile = time.time()
                 await self.update_equity()
                 await self._check_concentration()
+                await self._check_drawdown()
                 await asyncio.sleep(self.scan_interval)
 
             except Exception as e:
@@ -222,6 +227,11 @@ class AutoTrader:
                 if signal["signal"] != self.active_positions[symbol]["side"]:
                     await self.close_position(symbol, signal["price"], "signal_exit")
             else:
+                if self.risk_halted:
+                    logger.info(
+                        f"{symbol}: drawdown korumasi aktif, giris engellendi"
+                    )
+                    continue
                 if len(self.active_positions) >= self.max_positions:
                     continue
                 side = "LONG" if signal["signal"] == "BUY" else "SHORT"
@@ -246,6 +256,7 @@ class AutoTrader:
         self.max_positions = int(s["max_open_positions"])
         self.engine.risk_per_trade = float(s["risk_per_trade"])
         self.engine.max_leverage = float(s["max_leverage"])
+        self.max_drawdown_pct = float(s.get("max_drawdown_pct", self.max_drawdown_pct))
 
     def _projected_notional(self, price: float, sl: float) -> float:
         """Yeni bir pozisyonun boyutlandirma sonrasi nominal degeri."""
@@ -456,6 +467,39 @@ class AutoTrader:
                 logger.info(f"Borsadan {restored} pozisyon geri yuklendi")
         except Exception as e:
             logger.error(f"Pozisyon geri yukleme hatasi: {e}")
+
+    async def _check_drawdown(self):
+        """Peak equity'den düşüş esigi asilinca yeni girisleri durdurur.
+
+        `max_drawdown_pct` esigi asildiginda bir kez uyarir ve `risk_halted`
+        bayragini kaldirir; drawdown esigin yarisina duserse tekrar serbest
+        birakir (flap'ı önlemek icin histerezis).
+        """
+        if self.equity > self.peak_equity:
+            self.peak_equity = self.equity
+        peak = self.peak_equity or 1.0
+        dd = (peak - self.equity) / peak * 100.0
+        self.drawdown_pct = round(dd, 2)
+        threshold = self.max_drawdown_pct
+        if threshold <= 0:
+            return
+        if dd >= threshold and not self.risk_halted:
+            self.risk_halted = True
+            logger.warning(
+                f"Drawdown %{dd:.1f} (%{threshold:.0f} esigi) - yeni girisler durduruldu"
+            )
+            if self.telegram:
+                await self.telegram.send(
+                    f"ATOS X UYARI: Drawdown %{dd:.1f} (%{threshold:.0f} esigi) "
+                    f"asildi - yeni girisler durduruldu."
+                )
+        elif self.risk_halted and dd <= threshold * 0.5:
+            self.risk_halted = False
+            logger.info(f"Drawdown %{dd:.1f}'e geri geldi - yeni girisler serbest")
+            if self.telegram:
+                await self.telegram.send(
+                    f"ATOS X: Drawdown %{dd:.1f}'e geri geldi - yeni girisler serbest."
+                )
 
     async def _notify_startup_state(self):
         """Baslangicta aktif risk esiklerini ve mevcut engelleri bildirir."""

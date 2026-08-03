@@ -593,6 +593,74 @@ async def test_notify_startup_state_lists_blocks(trader):
     assert any("engel aktif" in m and "side:LONG" in m for m in tg.sent)
 
 
+async def test_drawdown_halts_new_entries(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    tr.equity = 9000.0
+    tr.peak_equity = 12000.0
+    tr.max_drawdown_pct = 20.0
+    await tr._check_drawdown()
+    assert tr.risk_halted is True
+    assert tr.drawdown_pct == round((12000.0 - 9000.0) / 12000.0 * 100, 2)
+    assert any("Drawdown" in m and "durduruldu" in m for m in tg.sent)
+    tr.max_positions = 10
+    await tr.process_signals([{
+        "symbol": "BTCUSDT", "signal": "BUY", "price": 100.0,
+        "sl": 99.5, "tp": 101.0, "reason": "r",
+    }])
+    assert "BTCUSDT" not in tr.active_positions
+
+
+async def test_drawdown_no_halt_below_threshold(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    tr.equity = 11000.0
+    tr.peak_equity = 12000.0
+    tr.max_drawdown_pct = 20.0
+    await tr._check_drawdown()
+    assert tr.risk_halted is False
+    assert tg.sent == []
+
+
+async def test_drawdown_resumes_after_recovery(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    tr.equity = 9000.0
+    tr.peak_equity = 12000.0
+    tr.max_drawdown_pct = 20.0
+    await tr._check_drawdown()
+    assert tr.risk_halted is True
+    tr.equity = 11500.0  # %4.2 < %10 (yarisi) -> serbest
+    await tr._check_drawdown()
+    assert tr.risk_halted is False
+    assert any("serbest" in m for m in tg.sent)
+
+
+async def test_drawdown_updates_peak(trader):
+    tr, fb, db = trader
+    tr.equity = 15000.0
+    tr.peak_equity = 12000.0
+    tr.max_drawdown_pct = 20.0
+    await tr._check_drawdown()
+    assert tr.peak_equity == 15000.0
+    assert tr.drawdown_pct == 0.0
+
+
+async def test_drawdown_disabled_when_threshold_zero(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    tr.equity = 100.0
+    tr.peak_equity = 12000.0
+    tr.max_drawdown_pct = 0.0
+    await tr._check_drawdown()
+    assert tr.risk_halted is False
+    assert tg.sent == []
+
+
 async def test_fetch_klines_batch(trader):
     tr, fb, db = trader
     n = 200

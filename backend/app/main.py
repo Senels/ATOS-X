@@ -128,12 +128,15 @@ def _telegram_command(text: str):
             return "ATOS X: motor calismiyor"
         conc = _concentration_summary()
         blocks = conc["blocks"]
+        halt = auto_trader.risk_halted
+        halt_line = "AKTIF - girisler durduruldu" if halt else "yok"
         return (
             f"ATOS X durum\n"
             f"Equity: ${auto_trader.equity:.2f}\n"
             f"Acik pozisyon: {len(auto_trader.active_positions)} (korumali: {_protected_count()})\n"
             f"Maruziyet - LONG: %{conc['long_pct']} SHORT: %{conc['short_pct']}\n"
-            f"Engeller: {', '.join(blocks) if blocks else 'yok'}"
+            f"Engeller: {', '.join(blocks) if blocks else 'yok'}\n"
+            f"Drawdown: %{auto_trader.drawdown_pct} | Durma: {halt_line}"
         )
     return None
 
@@ -198,6 +201,8 @@ async def health():
         "protected_positions": _protected_count(),
         "concentration": _concentration_summary(),
         "trades": len(auto_trader.trade_history) if auto_trader else 0,
+        "drawdown_pct": auto_trader.drawdown_pct if auto_trader else 0.0,
+        "risk_halted": auto_trader.risk_halted if auto_trader else False,
         "uptime": int((datetime.utcnow() - system_status["start_time"]).total_seconds())
     }
 
@@ -211,6 +216,8 @@ async def get_status():
         "protected_positions": _protected_count(),
         "concentration": _concentration_summary(),
         "trades": len(auto_trader.trade_history) if auto_trader else 0,
+        "drawdown_pct": auto_trader.drawdown_pct if auto_trader else 0.0,
+        "risk_halted": auto_trader.risk_halted if auto_trader else False,
         "paper": auto_trader.paper if auto_trader else True,
         "top_symbols": auto_trader.top_symbols if auto_trader else [],
         "equity": auto_trader.equity if auto_trader else 10000
@@ -300,6 +307,8 @@ async def metrics():
             "top_symbols": auto_trader.top_symbols if auto_trader else [],
             "positions": _positions_payload()["positions"],
             "concentration": _concentration_summary(),
+            "drawdown_pct": auto_trader.drawdown_pct if auto_trader else 0.0,
+            "risk_halted": auto_trader.risk_halted if auto_trader else False,
             "uptime": int((datetime.utcnow() - system_status["start_time"]).total_seconds())
         }
     except Exception as e:
