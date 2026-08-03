@@ -58,6 +58,7 @@ tr:hover { background:rgba(59,130,246,0.05); }
 <div class="stats-row">
 <div class="stat-box"><div class="label">Coins</div><div class="value" id="totalCoins">-</div></div>
 <div class="stat-box"><div class="label">Positions</div><div class="value" id="positions">0</div></div>
+<div class="stat-box"><div class="label">Protected</div><div class="value green" id="protected">0</div></div>
 <div class="stat-box"><div class="label">Trades</div><div class="value" id="totalTrades">0</div></div>
 <div class="stat-box"><div class="label">Equity</div><div class="value green" id="equity">$10k</div></div>
 <div class="stat-box"><div class="label">Status</div><div class="value green" id="statusText">Active</div></div>
@@ -77,9 +78,18 @@ const d = await r.json();
 if (d.error) { document.getElementById('statusBadge').innerHTML = '<span class="status-dot status-offline"></span>ERROR'; return; }
 document.getElementById('totalCoins').textContent = d.symbols || 0;
 document.getElementById('positions').textContent = d.active_positions || 0;
+document.getElementById('protected').textContent = d.protected_positions || 0;
 document.getElementById('totalTrades').textContent = d.total_trades || 0;
 document.getElementById('equity').textContent = '$' + (d.equity || 10000).toLocaleString();
 document.getElementById('statusText').textContent = d.status || 'Active';
+const badge = document.getElementById('statusBadge');
+if (d.status === 'online' && d.connected !== false) {
+    badge.innerHTML = '<span class="status-dot status-online"></span>ONLINE';
+} else if (d.status === 'degraded') {
+    badge.innerHTML = '<span class="status-dot status-offline"></span>DEGRADED';
+} else {
+    badge.innerHTML = '<span class="status-dot status-offline"></span>' + (d.status || 'OFFLINE').toUpperCase();
+}
 document.getElementById('paperBadge').style.display = d.paper ? 'inline' : 'none';
 const wl = document.getElementById('watchlistBody');
 if (d.top_symbols && d.top_symbols.length > 0) {

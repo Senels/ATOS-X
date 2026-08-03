@@ -213,8 +213,10 @@ async def metrics():
     try:
         return {
             "status": system_status["status"],
+            "connected": _is_connected(),
             "symbols": len(auto_trader.trading_symbols) if auto_trader else 0,
             "active_positions": len(auto_trader.active_positions) if auto_trader else 0,
+            "protected_positions": _protected_count(),
             "total_trades": len(auto_trader.trade_history) if auto_trader else 0,
             "equity": auto_trader.equity if auto_trader else 10000,
             "paper": auto_trader.paper if auto_trader else True,
