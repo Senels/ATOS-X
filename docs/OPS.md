@@ -311,7 +311,9 @@ yoksa dinleyici devre dışıdır.
 | `/pozisyon` | Her pozisyon: sembol, taraf, qty, fiyat + `korumali`/`KORUMASIZ` |
 | `/kapat <SEMBOL>` | Tek pozisyonu manuel kapatır (canlı fiyat ile) |
 | `/sl <SEMBOL> <FIYAT>` | Açık pozisyonun SL'sini günceller (Telegram üstünden manuel stop) |
+| `/tp <SEMBOL> <FIYAT>` | Açık pozisyonun TP'sini günceller (SL korunur) |
 | `/kapatall` | Açık tüm pozisyonları canlı fiyatlarla kapatır (`close_all`) |
+| `/koruma` veya `/ayar` | Risk eşiklerini gösterir; `/koruma <anahtar> <deger>` ile canlı değiştirir (kalıcı) |
 | `/durdur` veya `/stop` | Acil durdurma; tüm pozisyonları kapatır + kapanış özeti gönderir |
 | `/sinyal <SEMBOL>` veya `/signal <SEMBOL>` | Canlı kline'dan v23 sinyalini Telegram'a gönderir |
 | `/ac` veya `/resume` | Motoru yeniden başlatır |
@@ -339,6 +341,23 @@ yoksa dinleyici devre dışıdır.
 - Manuel müdahale sonrası trailing/breakeven bayrakları sıfırlanır (DB'ye
   yazılır); otomatik koruma sonraki döngüde yeniden devreye girebilir.
 - İşlem `risk_events`'e `manual_sl_update` olarak kaydedilir.
+
+**Manuel TP güncelleme** (`/tp <SEMBOL> <FIYAT>` → `AutoTrader.update_tp`):
+- Yön korunur: BUY pozisyonunda TP giriş fiyatının üstünde, SELL'de altında
+  olmalı; ihlal eden istek reddedilir.
+- Borsadaki eski TP algo emri iptal edilip yeni TP yerleştirilir, SL korunur
+  (`set_tp_sl` ile sadece TP yenilenir). Paper modda sadece kayıt güncellenir.
+- İşlem `risk_events`'e `manual_tp_update` olarak kaydedilir.
+
+**Canlı risk eşiği değiştirme** (`/koruma <anahtar> <deger>`):
+- `strat_settings.update_settings` + `persist()` ile `settings.json`'a kalıcı
+  yazılır ve `_apply_risk_settings` bir sonraki döngüde motora uygular.
+- Düzenlenebilir anahtarlar: `max_positions`, `max_drawdown_pct`,
+  `max_consecutive_losses`, `max_daily_loss_pct`, `min_equity`,
+  `risk_per_trade`, `max_position_pct`, `max_side_pct`,
+  `trailing_activate_pct`, `trailing_sl_pct`, `trailing_min_move_pct`,
+  `breakeven_activate_pct`, `max_position_age_hours`, `max_leverage`.
+- `/koruma` (parametresiz) mevcut değerleri ve anahtar listesini gösterir.
 
 ## API ve Dashboard Görünürlüğü
 

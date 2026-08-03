@@ -115,6 +115,21 @@ async def _set_sl(symbol: str, new_sl: float):
     }.get(res.get("error"), f"ATOS X: SL guncellenemedi ({res.get('error')})")
     await telegram.send(msg)
 
+async def _set_tp(symbol: str, new_tp: float):
+    """Pozisyonun TP'sini gunceller ve sonucu Telegram'a bildirir."""
+    res = await auto_trader.update_tp(symbol, new_tp)
+    if res.get("ok"):
+        await telegram.send(
+            f"ATOS X: {symbol} TP guncellendi ${res['old_tp']} -> ${res['new_tp']}"
+        )
+        return
+    msg = {
+        "position_not_found": f"ATOS X: {symbol} icin acik pozisyon yok",
+        "tp_below_entry": f"ATOS X: {symbol} BUY pozisyonunda TP giris fiyatinin USTUNDE olmali",
+        "tp_above_entry": f"ATOS X: {symbol} SELL pozisyonunda TP giris fiyatinin ALTINDA olmali",
+    }.get(res.get("error"), f"ATOS X: TP guncellenemedi ({res.get('error')})")
+    await telegram.send(msg)
+
 async def _ws_sync_loop():
     """WebSocket fiyat aboneliklerini tarama listesine (top_symbols) gore hizalar."""
     while True:
@@ -179,6 +194,42 @@ def _run_later(coro) -> bool:
     asyncio.create_task(coro)
     return True
 
+# /koruma komutu ile canli ayarlanabilen risk anahtarlari (takma ad -> settings key)
+_EDITABLE_RISK_KEYS = {
+    "max_positions": "max_open_positions",
+    "max_drawdown_pct": "max_drawdown_pct",
+    "max_consecutive_losses": "max_consecutive_losses",
+    "max_daily_loss_pct": "max_daily_loss_pct",
+    "min_equity": "min_equity",
+    "risk_per_trade": "risk_per_trade",
+    "max_position_pct": "max_position_pct",
+    "max_side_pct": "max_side_pct",
+    "trailing_activate_pct": "trailing_activate_pct",
+    "trailing_sl_pct": "trailing_sl_pct",
+    "trailing_min_move_pct": "trailing_min_move_pct",
+    "breakeven_activate_pct": "breakeven_activate_pct",
+    "max_position_age_hours": "max_position_age_hours",
+    "max_leverage": "max_leverage",
+}
+_INT_RISK_KEYS = {"max_open_positions", "max_consecutive_losses", "max_position_age_hours"}
+
+
+def _format_koruma() -> str:
+    s = strat_settings.get_settings()
+    return (
+        "ATOS X risk ayarlari:\n"
+        f"Max pozisyon: {s['max_open_positions']}\n"
+        f"Risk/trade: %{s['risk_per_trade'] * 100:.1f} | Kaldirac: {s['max_leverage']}\n"
+        f"Max drawdown: %{s['max_drawdown_pct']:.0f}\n"
+        f"Max ardisik zarar: {s['max_consecutive_losses']}\n"
+        f"Gunluk zarar: %{s['max_daily_loss_pct']:.0f} | Equity taban: ${s['min_equity']:.0f}\n"
+        f"Tek sembol: %{s['max_position_pct']:.0f} | Tek yon: %{s['max_side_pct']:.0f}\n"
+        f"Trailing: kar %{s['trailing_activate_pct']:.0f}+ / SL %{s['trailing_sl_pct']:.1f}\n"
+        f"Breakeven: %{s['breakeven_activate_pct']:.0f} | Pozisyon yasi: {s['max_position_age_hours']} saat\n"
+        "Ayarlamak icin: /koruma <anahtar> <deger> "
+        "(anahtarlar: " + ", ".join(sorted(_EDITABLE_RISK_KEYS)) + ")"
+    )
+
 def _telegram_command(text: str):
     """Telegram komutlarini yanitlar; bilinmeyen komutlar None doner."""
     cmd = text.strip().lower()
@@ -191,9 +242,11 @@ def _telegram_command(text: str):
                 "/pozisyon - acik pozisyonlar\n"
                 "/kapat <SEMBOL> - tek pozisyonu kapatir\n"
                 "/sl <SEMBOL> <FIYAT> - acik pozisyonun SL'sini gunceller\n"
+                "/tp <SEMBOL> <FIYAT> - acik pozisyonun TP'sini gunceller\n"
                 "/durdur - acil durdurma (tum pozisyonlari kapatir)\n"
                 "/kapatall - acik tum pozisyonlari kapatir\n"
                 "/sinyal <SEMBOL> - sembol icin canli sinyal gonder\n"
+                "/koruma [ANAHTAR] [DEGER] - risk ayarlarini gor/degistir\n"
                 "/ac - motoru yeniden baslatir\n"
                 "/rapor - gunluk rapor gonder\n"
                 "/risk - risk durumu\n"
@@ -222,6 +275,28 @@ def _telegram_command(text: str):
                 line += f" | PnL: {sign}{upnl:.2f} ({sign}{pct:.2f}%)"
             lines.append(line)
         return "\n".join(lines)
+    if cmd.startswith("/koruma") or cmd.startswith("/ayar"):
+        parts = text.strip().split()
+        if len(parts) == 1:
+            return _format_koruma()
+        if len(parts) != 3:
+            return "ATOS X: kullanim /koruma <anahtar> <deger> (anahtarlar icin /koruma yaz)"
+        key = parts[1].lower()
+        if key not in _EDITABLE_RISK_KEYS:
+            return (f"ATOS X: bilinmeyen anahtar '{key}'. "
+                    "Mevcut anahtarlar: " + ", ".join(sorted(_EDITABLE_RISK_KEYS)))
+        try:
+            value = float(parts[2])
+        except ValueError:
+            return "ATOS X: gecersiz deger"
+        settings_key = _EDITABLE_RISK_KEYS[key]
+        if settings_key in _INT_RISK_KEYS:
+            value = int(value)
+        strat_settings.update_settings({settings_key: value})
+        strat_settings.persist()
+        if auto_trader:
+            auto_trader._apply_risk_settings(strat_settings.get_settings())
+        return f"ATOS X: {settings_key} = {value} olarak ayarlandi (kalici)"
     if cmd.startswith("/kapatall"):
         if not auto_trader:
             return "ATOS X: motor calismiyor"
@@ -261,6 +336,22 @@ def _telegram_command(text: str):
         if not _run_later(_set_sl(sym, new_sl)):
             return "ATOS X: komut arka planda calistirilamadi"
         return f"ATOS X: {sym} SL guncelleniyor -> ${new_sl}"
+    if cmd.startswith("/tp"):
+        parts = text.strip().split()
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        if len(parts) != 3:
+            return "ATOS X: kullanim /tp <SEMBOL> <FIYAT> (orn. /tp BTCUSDT 69000)"
+        sym = parts[1].upper()
+        try:
+            new_tp = float(parts[2])
+        except ValueError:
+            return "ATOS X: gecersiz TP fiyati"
+        if sym not in auto_trader.active_positions:
+            return f"ATOS X: {sym} icin acik pozisyon yok"
+        if not _run_later(_set_tp(sym, new_tp)):
+            return "ATOS X: komut arka planda calistirilamadi"
+        return f"ATOS X: {sym} TP guncelleniyor -> ${new_tp}"
     if cmd.startswith("/sinyal") or cmd.startswith("/signal"):
         parts = text.strip().split()
         if not auto_trader:

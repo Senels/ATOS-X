@@ -547,6 +547,41 @@ class AutoTrader:
         logger.info(f"{symbol}: SL manuel olarak {old_sl} -> {new_sl}")
         return {"ok": True, "symbol": symbol, "old_sl": old_sl, "new_sl": new_sl}
 
+    async def update_tp(self, symbol: str, new_tp: float) -> dict:
+        """Acik pozisyonun take-profit'ini manuel gunceller (Telegram `/tp`).
+
+        Borsadaki eski TP algo emri iptal edilir ve yeni TP yerlesir; SL
+        korunur. Yon hatasi onlenir: BUY'da TP giris fiyatinin ustunde,
+        SELL'de altinda olmali.
+        """
+        pos = self.active_positions.get(symbol)
+        if not pos:
+            return {"ok": False, "error": "position_not_found"}
+        new_tp = float(new_tp)
+        entry = float(pos["entry_price"])
+        side = pos["side"]
+        if side == "BUY" and new_tp <= entry:
+            return {"ok": False, "error": "tp_below_entry"}
+        if side == "SELL" and new_tp >= entry:
+            return {"ok": False, "error": "tp_above_entry"}
+        old_tp = pos.get("tp")
+        pos["tp"] = new_tp
+        self._log_risk_event("manual_tp_update",
+                             f"{symbol}: TP {old_tp} -> {new_tp} (manuel)")
+        if not self.paper and pos.get("tp_order_id"):
+            try:
+                await self.binance.cancel_algo_order(symbol, pos["tp_order_id"])
+                algo = await self.binance.set_tp_sl(
+                    symbol, "LONG" if side == "BUY" else "SHORT", 0.0, new_tp
+                )
+                if algo.get("tp"):
+                    pos["tp_order_id"] = algo["tp"]
+                    logger.info(f"{symbol}: manuel TP borsaya yerleştirildi")
+            except Exception as e:
+                logger.error(f"{symbol}: manuel TP guncelleme hatasi: {e}")
+        logger.info(f"{symbol}: TP manuel olarak {old_tp} -> {new_tp}")
+        return {"ok": True, "symbol": symbol, "old_tp": old_tp, "new_tp": new_tp}
+
     async def _record_closed_position(self, symbol: str, pos: dict, exit_price: float,
                                       reason: str):
         """Kapanan pozisyonun PnL hesabi, DB kaydi ve bildirimini yapar."""

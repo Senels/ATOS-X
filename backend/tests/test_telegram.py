@@ -82,6 +82,14 @@ class _FakeTrader:
             return {"ok": False, "error": "position_not_found"}
         return {"ok": True, "symbol": symbol, "old_sl": 0.0, "new_sl": new_sl}
 
+    async def update_tp(self, symbol, new_tp):
+        if symbol not in self.active_positions:
+            return {"ok": False, "error": "position_not_found"}
+        return {"ok": True, "symbol": symbol, "old_tp": 0.0, "new_tp": new_tp}
+
+    def _apply_risk_settings(self, s):
+        self.applied_settings = s
+
 
 def test_process_updates_filters_and_offsets():
     calls = []
@@ -533,6 +541,126 @@ def test_set_sl_rejected(monkeypatch):
     monkeypatch.setattr(main_mod.telegram, "send", fake_send)
     asyncio.run(main_mod._set_sl("XRPUSDT", 64000.0))
     assert messages and "acik pozisyon yok" in messages[0]
+
+
+def test_command_tp_bad_usage():
+    main_mod.auto_trader = _FakeTrader()
+    try:
+        reply = main_mod._telegram_command("/tp BTCUSDT")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None and "kullanim" in reply
+
+
+def test_command_tp_no_position():
+    main_mod.auto_trader = _FakeTrader()
+    try:
+        reply = main_mod._telegram_command("/tp XRPUSDT 70000")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None and "acik pozisyon yok" in reply
+
+
+def test_command_tp_schedules(monkeypatch):
+    main_mod.auto_trader = _FakeTrader()
+
+    def fake_run_later(coro):
+        coro.close()
+        return True
+
+    monkeypatch.setattr(main_mod, "_run_later", fake_run_later)
+    try:
+        reply = main_mod._telegram_command("/tp BTCUSDT 69000")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "guncelleniyor" in reply and "69000" in reply
+
+
+def test_set_tp_success(monkeypatch):
+    main_mod.auto_trader = _FakeTrader()
+    messages = []
+
+    async def fake_send(message):
+        messages.append(message)
+
+    monkeypatch.setattr(main_mod.telegram, "send", fake_send)
+    asyncio.run(main_mod._set_tp("BTCUSDT", 69000.0))
+    assert messages and "TP guncellendi" in messages[0]
+
+
+def test_command_koruma_view(monkeypatch):
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/koruma")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "risk ayarlari" in reply
+    assert "max_drawdown_pct" in reply
+
+
+def test_command_koruma_set(monkeypatch):
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+    applied = {}
+    monkeypatch.setattr(main_mod.strat_settings, "update_settings",
+                        lambda patch: applied.update(patch) or main_mod.strat_settings.get_settings())
+    persisted = []
+    monkeypatch.setattr(main_mod.strat_settings, "persist", lambda: persisted.append(True) or {})
+    try:
+        reply = main_mod._telegram_command("/koruma max_drawdown_pct 15")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "max_drawdown_pct = 15.0" in reply
+    assert applied["max_drawdown_pct"] == 15.0
+    assert persisted == [True]
+    assert fake.applied_settings is not None
+
+
+def test_command_koruma_set_int(monkeypatch):
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+    applied = {}
+    monkeypatch.setattr(main_mod.strat_settings, "update_settings",
+                        lambda patch: applied.update(patch) or main_mod.strat_settings.get_settings())
+    monkeypatch.setattr(main_mod.strat_settings, "persist", lambda: {})
+    try:
+        reply = main_mod._telegram_command("/koruma max_positions 5")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "max_open_positions = 5" in reply
+    assert applied["max_open_positions"] == 5
+
+
+def test_command_koruma_unknown_key():
+    main_mod.auto_trader = _FakeTrader()
+    try:
+        reply = main_mod._telegram_command("/koruma foo 5")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None and "bilinmeyen anahtar" in reply
+
+
+def test_command_koruma_invalid_value():
+    main_mod.auto_trader = _FakeTrader()
+    try:
+        reply = main_mod._telegram_command("/koruma max_drawdown_pct abc")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None and "gecersiz deger" in reply
+
+
+def test_command_koruma_bad_usage():
+    main_mod.auto_trader = _FakeTrader()
+    try:
+        reply = main_mod._telegram_command("/koruma max_drawdown_pct")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None and "kullanim" in reply
 
 
 def test_signal_for_symbol_uses_binance():
