@@ -21,7 +21,12 @@ class BinanceClient:
 
     async def connect(self):
         try:
-            self.client = Client(self.api_key, self.api_secret, testnet=self.testnet, requests_params={'verify': False, 'timeout': 30})
+            self.client = Client(
+                self.api_key,
+                self.api_secret,
+                testnet=self.testnet,
+                requests_params={'timeout': 30},
+            )
             print("[BINANCE] testnet baglandi")
             await self.load_all_symbols()
             return True
@@ -29,11 +34,16 @@ class BinanceClient:
             print(f"[BINANCE] baglanti hatasi: {e}")
             return False
 
+    async def _run(self, fn, *args, **kwargs):
+        """Senkron python-binance cagrisini olay dongusunu bloke etmeden calistirir."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, lambda: fn(*args, **kwargs))
+
     async def load_all_symbols(self):
         try:
             if not self.client:
                 await self.connect()
-            exchange_info = self.client.futures_exchange_info()
+            exchange_info = await self._run(self.client.futures_exchange_info)
             self.all_symbols = [
                 s['symbol'] for s in exchange_info['symbols']
                 if s['symbol'].endswith('USDT') and s['status'] == 'TRADING'
@@ -49,7 +59,7 @@ class BinanceClient:
         try:
             if not self.client:
                 await self.connect()
-            tickers = self.client.futures_ticker()
+            tickers = await self._run(self.client.futures_ticker)
             return {t['symbol']: float(t['lastPrice']) for t in tickers if t['symbol'].endswith('USDT')}
         except Exception as e:
             print(f"[BINANCE] ticker hatasi: {e}")
@@ -59,7 +69,7 @@ class BinanceClient:
         if not self.client:
             await self.connect()
         try:
-            ticker = self.client.futures_ticker(symbol=symbol)
+            ticker = await self._run(self.client.futures_ticker, symbol=symbol)
             price = ticker.get('price') or ticker.get('lastPrice') or ticker.get('bidPrice')
             if price is not None:
                 self.last_price = float(price)
@@ -77,11 +87,9 @@ class BinanceClient:
         """
         if not self.client:
             await self.connect()
-        loop = asyncio.get_running_loop()
         try:
-            raw = await loop.run_in_executor(
-                None,
-                lambda: self.client.futures_klines(symbol=symbol, interval=interval, limit=limit),
+            raw = await self._run(
+                self.client.futures_klines, symbol=symbol, interval=interval, limit=limit
             )
         except Exception as e:
             raise Exception(f"Kline cekilemedi {symbol} {interval}: {e}")
@@ -97,23 +105,29 @@ class BinanceClient:
         if not self.client:
             await self.connect()
         try:
-            return self.client.futures_create_order(symbol=symbol, side=side.upper(), type='MARKET', quantity=quantity)
+            return await self._run(
+                self.client.futures_create_order,
+                symbol=symbol, side=side.upper(), type='MARKET', quantity=quantity,
+            )
         except Exception as e:
-            raise Exception(f"Emir gönderilemedi: {e}")
+            raise Exception(f"Emir gonderilemedi: {e}")
 
     async def close_position(self, symbol: str):
         if not self.client:
             await self.connect()
         try:
-            position = self.client.futures_position_information(symbol=symbol)
+            position = await self._run(self.client.futures_position_information, symbol=symbol)
             if position and float(position[0]['positionAmt']) != 0:
                 qty = abs(float(position[0]['positionAmt']))
                 side = 'SELL' if float(position[0]['positionAmt']) > 0 else 'BUY'
-                return self.client.futures_create_order(symbol=symbol, side=side, type='MARKET', quantity=qty, reduceOnly=True)
+                return await self._run(
+                    self.client.futures_create_order,
+                    symbol=symbol, side=side, type='MARKET', quantity=qty, reduceOnly=True,
+                )
             return None
         except Exception as e:
-            raise Exception(f"Pozisyon kapatma hatası: {e}")
+            raise Exception(f"Pozisyon kapatma hatasi: {e}")
 
     async def close(self):
         if self.client:
-            self.client.close_connection()
+            await self._run(self.client.close_connection)

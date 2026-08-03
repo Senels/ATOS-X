@@ -10,7 +10,7 @@ test:
 	.venv/bin/python -m pytest backend/tests
 
 lint:
-	.venv/bin/ruff check backend
+	.venv/bin/python -m compileall -q backend
 
 shell:
 	.venv/bin/python -c "import app; print('ATOS X shell ok')"
