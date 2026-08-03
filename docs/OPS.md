@@ -90,7 +90,8 @@ Dinleyici aracılığıyla uzaktan acil durum kontrolü:
 
 - `drawdown_halt` / `drawdown_clear` — drawdown eşiği aşıldı/serbest.
 - `block_add` / `block_remove` — konsantrasyon engelleri.
-- `trailing_activate` — trailing SL'nin devreye girmesi.
+- `trailing_activate` / `trailing_move` — trailing SL'nin devreye girmesi ve
+  her SL kaydırması.
 - `system_stop` — motor durdurma.
 
 `/api/v1/risk/events` tüm kayıtları, `/dashboard/metrics` son 10 kaydı

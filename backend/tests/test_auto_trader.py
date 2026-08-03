@@ -865,6 +865,18 @@ async def test_trailing_min_move_zero_updates_every_time(trader):
     assert pos["sl"] == pytest.approx(105.0 * 0.985, abs=0.001)
 
 
+async def test_trailing_move_event_logged(trader):
+    tr, fb, db = trader
+    tr.trailing_activate_pct = 3.0
+    tr.trailing_sl_pct = 1.5
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
+    await tr.check_positions({"BTCUSDT": 105.0})
+    await tr.check_positions({"BTCUSDT": 108.0})
+    types = [e["type"] for e in tr.risk_events]
+    assert "trailing_activate" in types
+    assert "trailing_move" in types
+
+
 async def test_risk_events_persist_to_db(trader):
     tr, fb, db = trader
     tr._log_risk_event("test_persist", "kalici kayit")

@@ -754,6 +754,9 @@ class AutoTrader:
         if not pos.get("trailing"):
             self._log_risk_event("trailing_activate",
                                  f"{symbol} SL takibi: kar %{profit_pct:.1f}, SL {new_sl:.2f}")
+        else:
+            self._log_risk_event("trailing_move",
+                                 f"{symbol} SL {cur_sl:.2f} -> {new_sl:.2f} (kar %{profit_pct:.1f})")
         pos["sl"] = new_sl
         pos["trailing"] = True
         if self.paper or not pos.get("sl_order_id"):
