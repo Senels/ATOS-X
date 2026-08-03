@@ -345,6 +345,11 @@ class AutoTrader:
                         f"{symbol}: borsada pozisyon var ama SL/TP emri yok; "
                         f"takip disi birakildi (acik kaldigindan emin olun)"
                     )
+                    if self.telegram:
+                        await self.telegram.send(
+                            f"ATOS X UYARI: {symbol} borsada acik ama SL/TP emri yok! "
+                            f"Pozisyon korumasiz, manuel müdahale gerekebilir."
+                        )
                     continue
                 amt = float(p["positionAmt"])
                 self.active_positions[symbol] = {

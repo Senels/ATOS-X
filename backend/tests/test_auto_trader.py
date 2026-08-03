@@ -270,6 +270,18 @@ async def test_reconcile_skips_unprotected(trader):
     assert "ETHUSDT" not in tr.active_positions
 
 
+async def test_reconcile_alerts_on_unprotected(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    fb.open_positions = [
+        {"symbol": "ETHUSDT", "positionAmt": "-2.0", "entryPrice": "3000"},
+    ]
+    fb.algo_orders = []
+    await tr.reconcile_positions()
+    assert any("korumasiz" in m and "ETHUSDT" in m for m in tg.sent)
+
+
 async def test_reconcile_paper_skips_exchange(tmp_path, monkeypatch):
     db = Database(str(tmp_path / "at.db"))
     monkeypatch.setattr(at_mod, "Database", lambda *a, **k: db)
