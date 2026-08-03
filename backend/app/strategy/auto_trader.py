@@ -72,6 +72,13 @@ class AutoTrader:
             self.risk_events = list(reversed(self.db.get_risk_events(self.risk_events_max)))
         except Exception:
             self.risk_events = []
+        try:
+            self.trade_history = list(reversed(self.db.get_closed_trades(200)))
+        except Exception:
+            self.trade_history = []
+        self.consecutive_losses = self._count_consecutive_losses()
+        if self.max_consecutive_losses > 0 and self.consecutive_losses >= self.max_consecutive_losses:
+            self.loss_halted = True
         self.scan_interval = 30
         self.scan_limit = 50
         self.perf_interval = 60
@@ -407,7 +414,7 @@ class AutoTrader:
         exit_fee = exit_price * pos["quantity"] * self.engine.fee_rate
         net = pnl - exit_fee - pos.get("entry_fee", 0.0)
         self.equity += pnl - exit_fee
-        self.db.close_trade_by_symbol(symbol, exit_price, net)
+        self.db.close_trade_by_symbol(symbol, exit_price, net, reason)
         self.trade_history.append({
             "symbol": symbol,
             "side": pos["side"],
@@ -515,6 +522,16 @@ class AutoTrader:
         except Exception as e:
             logger.error(f"Pozisyon geri yukleme hatasi: {e}")
 
+    def _count_consecutive_losses(self) -> int:
+        """`trade_history` uzerinden guncel ardısık zarar sayisini sayar."""
+        streak = 0
+        for t in reversed(self.trade_history):
+            if t.get("pnl", 0) < 0:
+                streak += 1
+            else:
+                break
+        return streak
+
     async def _update_consecutive_losses(self):
         """Ardısık zarar sayacini gunceller; esik asilinca girisleri durdurur.
 
@@ -522,12 +539,7 @@ class AutoTrader:
         basabasa (pnl >= 0) seriyi kirmaya yeter. Esik asildiginda `loss_halted`
         aktif olur, bir kar sonrasi otomatik serbest birakilir.
         """
-        streak = 0
-        for t in reversed(self.trade_history):
-            if t.get("pnl", 0) < 0:
-                streak += 1
-            else:
-                break
+        streak = self._count_consecutive_losses()
         self.consecutive_losses = streak
         if self.max_consecutive_losses <= 0:
             return

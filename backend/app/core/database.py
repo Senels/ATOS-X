@@ -25,6 +25,10 @@ class Database:
                 exit_time TIMESTAMP
             )
         ''')
+        try:
+            cursor.execute("ALTER TABLE trades ADD COLUMN reason TEXT")
+        except sqlite3.OperationalError:
+            pass
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS signals (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -93,21 +97,44 @@ class Database:
         conn.commit()
         conn.close()
 
-    def close_trade_by_symbol(self, symbol: str, exit_price: float, pnl: float):
+    def close_trade_by_symbol(self, symbol: str, exit_price: float, pnl: float, reason: str = ""):
         """Sembolun en guncel OPEN kaydini kapatir (canli trader icin)."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute('''
             UPDATE trades
-            SET exit_price = ?, pnl = ?, status = 'CLOSED', exit_time = CURRENT_TIMESTAMP
+            SET exit_price = ?, pnl = ?, status = 'CLOSED', exit_time = CURRENT_TIMESTAMP, reason = ?
             WHERE id = (
                 SELECT id FROM trades
                 WHERE symbol = ? AND status = 'OPEN'
                 ORDER BY entry_time DESC LIMIT 1
             )
-        ''', (exit_price, pnl, symbol))
+        ''', (exit_price, pnl, reason, symbol))
         conn.commit()
         conn.close()
+
+    def get_closed_trades(self, limit: int = 200):
+        """Kapanan islemleri trade_history formatinda (yeni -> eski) doner."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT symbol, side, entry_price, exit_price, quantity, pnl, exit_time, reason
+            FROM trades
+            WHERE status = 'CLOSED'
+            ORDER BY id DESC LIMIT ?
+        ''', (int(limit),))
+        rows = cursor.fetchall()
+        conn.close()
+        return [{
+            "symbol": r[0],
+            "side": r[1],
+            "entry": r[2],
+            "exit": r[3],
+            "qty": r[4],
+            "pnl": r[5],
+            "time": (datetime.fromisoformat(r[6]).isoformat() if r[6] else ""),
+            "reason": r[7] or "",
+        } for r in rows]
 
     def get_open_trade_entry_time(self, symbol: str):
         """Sembolun en guncel OPEN kaydinin acilis zamanini doner (yoksa None)."""

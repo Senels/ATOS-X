@@ -113,6 +113,12 @@ Risk olayları DB'deki `risk_events` tablosuna kalıcı yazılır; motor
 yeniden başladığında son 200 olay bellek tamponuna geri yüklenir
 (geçmiş restart'ta korunur).
 
+Kapanan işlemler de `trades` tablosunda tutulur; yeniden başlatmada son
+200 işlem `trade_history`'ye yüklenir. Böylece ardışık zarar sayacı ve
+`loss_halted` durumu restart sonrası korunur ve dashboard Trade History
+boş kalmaz. Kapanış nedeni (`stop_loss`, `take_profit`, `time_stop` vb.)
+de DB'de `reason` sütununda saklanır.
+
 `/ac` (veya başlatma) sonrası `_notify_startup_state` Telegram'a tam bir
 özet gönderir: risk eşikleri, drawdown durumu, pozisyon yaşı, trailing
 ayarları, aktif engeller ve son risk olayı.

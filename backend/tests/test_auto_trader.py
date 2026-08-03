@@ -931,6 +931,19 @@ async def test_loss_streak_disabled_when_zero(trader):
     assert tr.loss_halted is False
 
 
+async def test_trade_history_and_loss_streak_restored_on_init(trader):
+    tr, fb, db = trader
+    for _ in range(5):
+        await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
+        await tr.close_position("BTCUSDT", 90.0, "stop_loss")
+    assert tr.loss_halted is True
+    tr2 = at_mod.AutoTrader(fb, paper=False)
+    assert len(tr2.trade_history) == 5
+    assert tr2.trade_history[0]["reason"] == "stop_loss"
+    assert tr2.consecutive_losses == 5
+    assert tr2.loss_halted is True
+
+
 async def test_loss_halt_blocks_new_entries(trader):
     tr, fb, db = trader
     tr.loss_halted = True
