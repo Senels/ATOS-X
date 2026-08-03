@@ -1,5 +1,33 @@
+import asyncio
+from types import SimpleNamespace
+
+import numpy as np
+import pandas as pd
+
 from app import main as main_mod
 from app.notifications.telegram import TelegramNotifier, _process_updates, format_stop_summary
+
+
+def _signal_df(n=120):
+    rng = np.random.default_rng(7)
+    close = 100 + np.cumsum(rng.normal(0, 0.3, n))
+    high = close + 0.4
+    low = close - 0.4
+    open_ = np.roll(close, 1)
+    open_[0] = close[0]
+    vol = rng.uniform(50, 300, n)
+    return pd.DataFrame({"open": open_, "high": high, "low": low,
+                         "close": close, "volume": vol})
+
+
+class _FakeKlines:
+    def __init__(self, df):
+        self.df = df
+        self.calls = []
+
+    async def get_klines(self, symbol, interval, limit):
+        self.calls.append((symbol, interval, limit))
+        return self.df
 
 
 class _FakeDB:
@@ -45,6 +73,9 @@ class _FakeTrader:
 
     async def close_position(self, symbol, price, reason):
         self.closed = (symbol, price, reason)
+
+    async def close_all(self, reason="manual_close_all"):
+        self.closed_all = reason
 
 
 def test_process_updates_filters_and_offsets():
@@ -372,3 +403,106 @@ def test_command_history_bad_n():
         main_mod.auto_trader = None
     assert reply is not None
     assert "kullanim" in reply
+
+
+def test_command_signal_bad_usage():
+    main_mod.auto_trader = _FakeTrader()
+    try:
+        reply = main_mod._telegram_command("/sinyal")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "kullanim" in reply
+
+
+def test_command_signal_schedules(monkeypatch):
+    main_mod.auto_trader = _FakeTrader()
+
+    def fake_run_later(coro):
+        coro.close()
+        return True
+
+    monkeypatch.setattr(main_mod, "_run_later", fake_run_later)
+    try:
+        reply = main_mod._telegram_command("/sinyal BTCUSDT")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "BTCUSDT" in reply and "hesaplaniyor" in reply
+
+
+def test_command_close_all_schedules(monkeypatch):
+    main_mod.auto_trader = _FakeTrader()
+
+    def fake_run_later(coro):
+        coro.close()
+        return True
+
+    monkeypatch.setattr(main_mod, "_run_later", fake_run_later)
+    try:
+        reply = main_mod._telegram_command("/kapatall")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "2 pozisyon kapatiliyor" in reply
+
+
+def test_command_close_all_no_positions():
+    fake = _FakeTrader()
+    fake.active_positions = {}
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/kapatall")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "pozisyon yok" in reply
+
+
+def test_signal_for_symbol_uses_binance():
+    fake = _FakeKlines(_signal_df())
+    main_mod.app.state.binance = fake
+    try:
+        sig = asyncio.run(main_mod._signal_for_symbol("BTCUSDT"))
+    finally:
+        main_mod.app.state.binance = None
+    assert fake.calls == [("BTCUSDT", "4h", 400)]
+    assert sig["signal"] in ("BUY", "SELL", "HOLD")
+    assert sig["price"] is not None
+
+
+def test_signal_for_symbol_no_client():
+    main_mod.app.state.binance = None
+    sig = asyncio.run(main_mod._signal_for_symbol("BTCUSDT"))
+    assert sig == {}
+
+
+def test_send_symbol_signal_buy(monkeypatch):
+    async def fake_signal(symbol, interval="4h"):
+        return {"signal": "BUY", "price": 65000.0, "reason": "test",
+                "sl": 63000.0, "tp": 69000.0}
+
+    monkeypatch.setattr(main_mod, "_signal_for_symbol", fake_signal)
+    sent = []
+
+    async def fake_send_signal(symbol, signal, price, reason=""):
+        sent.append((symbol, signal, price, reason))
+
+    monkeypatch.setattr(main_mod.telegram, "send_signal", fake_send_signal)
+    asyncio.run(main_mod._send_symbol_signal("BTCUSDT"))
+    assert sent == [("BTCUSDT", "BUY", 65000.0, "test")]
+
+
+def test_send_symbol_signal_failure(monkeypatch):
+    async def fake_signal(symbol, interval="4h"):
+        return {}
+
+    monkeypatch.setattr(main_mod, "_signal_for_symbol", fake_signal)
+    messages = []
+
+    async def fake_send(message):
+        messages.append(message)
+
+    monkeypatch.setattr(main_mod.telegram, "send", fake_send)
+    asyncio.run(main_mod._send_symbol_signal("BTCUSDT"))
+    assert messages and "alinamadi" in messages[0]

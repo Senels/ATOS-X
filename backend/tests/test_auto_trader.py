@@ -254,6 +254,28 @@ async def test_close_when_exchange_already_closed(trader):
     assert tr.trade_history[0]["exit"] == 63000.0
 
 
+async def test_close_all_closes_positions(trader):
+    tr, fb, db = trader
+    tr.live_prices = {"BTCUSDT": 64000.0, "ETHUSDT": 3100.0}
+    await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
+    await tr.open_position("ETHUSDT", "SELL", 3000.0, 3100.0, 2800.0)
+    closed = await tr.close_all()
+    assert sorted(closed) == ["BTCUSDT", "ETHUSDT"]
+    assert tr.active_positions == {}
+    assert set(fb.close_calls) == {"BTCUSDT", "ETHUSDT"}
+    assert {t["reason"] for t in tr.trade_history} == {"manual_close_all"}
+
+
+async def test_close_all_skips_missing_price(trader):
+    tr, fb, db = trader
+    tr.live_prices = {}
+    await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
+    await tr.open_position("ETHUSDT", "SELL", 3000.0, 3100.0, 2800.0)
+    closed = await tr.close_all()
+    assert sorted(closed) == ["BTCUSDT", "ETHUSDT"]
+    assert tr.active_positions == {}
+
+
 async def test_reconcile_restores_exchange_positions(trader):
     tr, fb, db = trader
     fb.open_positions = [

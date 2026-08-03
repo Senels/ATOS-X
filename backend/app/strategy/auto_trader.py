@@ -425,6 +425,29 @@ class AutoTrader:
         except Exception as e:
             logger.error(f"Kapatma hatasi {symbol}: {e}")
 
+    async def close_all(self, reason: str = "manual_close_all"):
+        """Acik tum pozisyonlari canli fiyatla kapatir.
+
+        `live_prices`'da fiyat yoksa borsa taramasindan alinir; fiyat
+        bulunamayanlar atlanir ve kapali sembol listesi doner.
+        """
+        closed = []
+        for symbol in list(self.active_positions.keys()):
+            price = self.live_prices.get(symbol)
+            if price is None:
+                try:
+                    prices = await self.binance.get_all_tickers()
+                    price = prices.get(symbol)
+                except Exception:
+                    price = None
+            if price is None:
+                logger.warning(f"{symbol}: guncel fiyat bulunamadi, kapatma atlandi")
+                continue
+            await self.close_position(symbol, price, reason)
+            if symbol not in self.active_positions:
+                closed.append(symbol)
+        return closed
+
     async def _record_closed_position(self, symbol: str, pos: dict, exit_price: float,
                                       reason: str):
         """Kapanan pozisyonun PnL hesabi, DB kaydi ve bildirimini yapar."""

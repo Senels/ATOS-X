@@ -79,6 +79,27 @@ async def on_price_update(symbol: str, price: float):
     if auto_trader:
         auto_trader.update_price(symbol, price)
 
+async def _signal_for_symbol(symbol: str, interval: str = "4h") -> dict:
+    """Canli kline'dan v23 sinyali hesaplar; hata durumunda bos dict doner."""
+    client = getattr(app.state, "binance", None)
+    if client is None:
+        return {}
+    try:
+        df = await client.get_klines(symbol, interval, 400)
+        return TradeBotV23(strat_settings.get_settings()).generate_signal(df)
+    except Exception as e:
+        logger.error(f"Sinyal hesap hatasi {symbol}: {e}")
+        return {}
+
+async def _send_symbol_signal(symbol: str, interval: str = "4h"):
+    """Bir sembolun sinyalini Telegram'a gonderir."""
+    sig = await _signal_for_symbol(symbol, interval)
+    signal = sig.get("signal")
+    if not signal:
+        await telegram.send(f"ATOS X: {symbol} icin sinyal alinamadi")
+        return
+    await telegram.send_signal(symbol, signal, sig.get("price") or 0.0, sig.get("reason", ""))
+
 async def _ws_sync_loop():
     """WebSocket fiyat aboneliklerini tarama listesine (top_symbols) gore hizalar."""
     while True:
@@ -155,6 +176,8 @@ def _telegram_command(text: str):
                 "/pozisyon - acik pozisyonlar\n"
                 "/kapat <SEMBOL> - tek pozisyonu kapatir\n"
                 "/durdur - acil durdurma (tum pozisyonlari kapatir)\n"
+                "/kapatall - acik tum pozisyonlari kapatir\n"
+                "/sinyal <SEMBOL> - sembol icin canli sinyal gonder\n"
                 "/ac - motoru yeniden baslatir\n"
                 "/rapor - gunluk rapor gonder\n"
                 "/risk - risk durumu\n"
@@ -183,6 +206,14 @@ def _telegram_command(text: str):
                 line += f" | PnL: {sign}{upnl:.2f} ({sign}{pct:.2f}%)"
             lines.append(line)
         return "\n".join(lines)
+    if cmd.startswith("/kapatall"):
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        if not auto_trader.active_positions:
+            return "ATOS X: kapatilacak pozisyon yok"
+        if not _run_later(auto_trader.close_all("manual_close_all")):
+            return "ATOS X: komut arka planda calistirilamadi"
+        return f"ATOS X: {len(auto_trader.active_positions)} pozisyon kapatiliyor"
     if cmd.startswith("/kapat"):
         parts = text.strip().split()
         if not auto_trader:
@@ -198,6 +229,24 @@ def _telegram_command(text: str):
         if not _run_later(auto_trader.close_position(sym, price, "manual_close")):
             return "ATOS X: komut arka planda calistirilamadi"
         return f"ATOS X: {sym} kapatiliyor (${price})"
+    if cmd.startswith("/kapatall"):
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        if not auto_trader.active_positions:
+            return "ATOS X: kapatilacak pozisyon yok"
+        if not _run_later(auto_trader.close_all("manual_close_all")):
+            return "ATOS X: komut arka planda calistirilamadi"
+        return f"ATOS X: {len(auto_trader.active_positions)} pozisyon kapatiliyor"
+    if cmd.startswith("/sinyal") or cmd.startswith("/signal"):
+        parts = text.strip().split()
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        if len(parts) < 2:
+            return "ATOS X: kullanim /sinyal <SEMBOL> (orn. /sinyal BTCUSDT)"
+        sym = parts[1].upper()
+        if not _run_later(_send_symbol_signal(sym)):
+            return "ATOS X: komut arka planda calistirilamadi"
+        return f"ATOS X: {sym} sinyali hesaplaniyor"
     if cmd.startswith("/durdur") or cmd.startswith("/stop"):
         if not auto_trader or not auto_trader.running:
             return "ATOS X: motor zaten durdurulmus"
@@ -379,6 +428,42 @@ async def health():
         "trading": auto_trader.running if auto_trader else False,
         "uptime": int((datetime.utcnow() - system_status["start_time"]).total_seconds())
     }
+
+@app.get("/api/v1/signals")
+async def live_signals(limit: int = 12, interval: str = "4h"):
+    """Tarama listesi icin canli v23 sinyalleri (sinyal, fiyat, SL, TP, sebep)."""
+    if not auto_trader:
+        return {"signals": [], "count": 0, "scanned": []}
+    limit = max(1, min(limit, 30))
+    candidates = (auto_trader.priority or auto_trader.trading_symbols)[:limit]
+    if not candidates:
+        return {"signals": [], "count": 0, "scanned": []}
+    bot = TradeBotV23(strat_settings.get_settings())
+
+    async def fetch(symbol):
+        try:
+            df = await app.state.binance.get_klines(symbol, interval, 400)
+            return symbol, bot.generate_signal(df)
+        except Exception:
+            return symbol, None
+
+    results = await asyncio.gather(*(fetch(s) for s in candidates))
+    signals = []
+    for symbol, sig in results:
+        if not sig:
+            continue
+        signals.append({
+            "symbol": symbol,
+            "signal": sig.get("signal", "HOLD"),
+            "price": sig.get("price"),
+            "sl": sig.get("sl"),
+            "tp": sig.get("tp"),
+            "reason": sig.get("reason", ""),
+            "indicator": sig.get("indicator", ""),
+        })
+    order = {"BUY": 0, "SELL": 1, "HOLD": 2}
+    signals.sort(key=lambda s: order.get(s["signal"], 3))
+    return {"signals": signals, "count": len(signals), "scanned": candidates}
 
 @app.get("/api/v1/status")
 async def get_status():

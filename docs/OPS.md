@@ -288,7 +288,9 @@ yoksa dinleyici devre dışıdır.
 | `/blok` | Aktif konsantrasyon engelleri (veya `yok`) |
 | `/pozisyon` | Her pozisyon: sembol, taraf, qty, fiyat + `korumali`/`KORUMASIZ` |
 | `/kapat <SEMBOL>` | Tek pozisyonu manuel kapatır (canlı fiyat ile) |
+| `/kapatall` | Açık tüm pozisyonları canlı fiyatlarla kapatır (`close_all`) |
 | `/durdur` veya `/stop` | Acil durdurma; tüm pozisyonları kapatır + kapanış özeti gönderir |
+| `/sinyal <SEMBOL>` veya `/signal <SEMBOL>` | Canlı kline'dan v23 sinyalini Telegram'a gönderir |
 | `/ac` veya `/resume` | Motoru yeniden başlatır |
 | `/rapor` veya `/report` | Günlük raporu anında gönderir (gerçekleşmemiş PnL, durmalar, risk olayları) |
 | `/risk` | Risk durumu: equity, LONG/SHORT maruziyeti, drawdown, ardışık/günlük zarar, equity tabanı ve tüm durma durumları |
@@ -314,8 +316,10 @@ yoksa dinleyici devre dışıdır.
 | `/api/v1/status` | `protected_positions`, `concentration`, pozisyon sayısı |
 | `/api/v1/positions` | Pozisyon başına `protected` bayrağı + `protected`/`unprotected` sayıları |
 | `/api/v1/risk/positions` | Pozisyon bazlı risk: `notional`, `size_pct`, `sl_distance_pct`, `risk_amount`, `upnl`, `protected`/`trailing`/`breakeven`, `age_hours` + toplamlar (`total_notional`, `total_risk_amount`) |
+| `/api/v1/priority` | Tarama listesi (`scanned`) ve rank edilmiş semboller (`symbols`) |
+| `/api/v1/signals` | Tarama listesi için canlı v23 sinyalleri (`BUY`/`SELL`/`HOLD`): `symbol`, `price`, `sl`, `tp`, `reason`, `indicator`; `limit` (varsayılan 12) ve `interval` |
 | `/dashboard/metrics` | Aynı + pozisyon başına `protected` |
-| `/dashboard` | Pozisyon tablosunda `KORUMALI`/`KORUMASIZ` rozetleri + kart özeti; `🧮 Position Risk` kartında notional, size %, SL mesafesi, risk tutarı, uPnL ve pozisyon yaşı |
+| `/dashboard` | Pozisyon tablosunda `KORUMALI`/`KORUMASIZ` rozetleri + kart özeti; `🧮 Position Risk` kartında notional, size %, SL mesafesi, risk tutarı, uPnL ve pozisyon yaşı; `📡 Live Signals` kartında tarama listesinin canlı sinyalleri (60 sn'de bir yenilenir) |
 
 ## Doğrulama
 

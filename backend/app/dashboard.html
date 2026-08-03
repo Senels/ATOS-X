@@ -66,6 +66,7 @@ tr:hover { background:rgba(59,130,246,0.05); }
 <div class="stat-box"><div class="label">Status</div><div class="value green" id="statusText">Active</div></div>
 </div>
 <div class="card"><h3>🎯 Priority Watchlist</h3><div id="watchlistBody" style="display:flex;flex-wrap:wrap;gap:6px;">-</div></div>
+<div class="card"><h3>📡 Live Signals</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Signal</th><th>Price</th><th>SL</th><th>TP</th><th>Reason</th></tr></thead><tbody id="signalsBody"><tr><td colspan="6" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
 <div class="card"><h3>⚠️ Risk Exposure</h3><div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
 <div><span class="label" style="font-size:11px;color:#94a3b8;text-transform:uppercase;">LONG</span><div class="value" id="longExposure" style="font-size:22px;font-weight:bold;">-</div></div>
 <div><span class="label" style="font-size:11px;color:#94a3b8;text-transform:uppercase;">SHORT</span><div class="value" id="shortExposure" style="font-size:22px;font-weight:bold;">-</div></div>
@@ -165,6 +166,27 @@ document.getElementById('lastUpdate').textContent = 'Last update: ' + new Date()
 loadEquity();
 loadPnl();
 loadRiskPositions();
+loadSignals();
+} catch(e) { console.error(e); }
+}
+let lastSignalsLoad = 0;
+async function loadSignals() {
+if (Date.now() - lastSignalsLoad < 60000) return;
+lastSignalsLoad = Date.now();
+try {
+const r = await fetch('/api/v1/signals?limit=10');
+const d = await r.json();
+const body = document.getElementById('signalsBody');
+if (d.signals && d.signals.length > 0) {
+body.innerHTML = '';
+d.signals.forEach(function(s) {
+const cls = s.signal === 'BUY' ? 'badge-buy' : (s.signal === 'SELL' ? 'badge-sell' : 'badge-hold');
+const sl = s.sl != null ? '$'+Number(s.sl).toFixed(2) : '-';
+const tp = s.tp != null ? '$'+Number(s.tp).toFixed(2) : '-';
+const price = s.price != null ? '$'+Number(s.price).toFixed(2) : '-';
+body.innerHTML += '<tr><td><strong>'+s.symbol+'</strong></td><td><span class="'+cls+'">'+s.signal+'</span></td><td>'+price+'</td><td>'+sl+'</td><td>'+tp+'</td><td style="opacity:.8;">'+s.reason+'</td></tr>';
+});
+} else { body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#64748b;padding:20px;">Sinyal yok</td></tr>'; }
 } catch(e) { console.error(e); }
 }
 async function loadRiskPositions() {

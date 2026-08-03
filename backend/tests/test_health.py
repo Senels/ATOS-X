@@ -1,7 +1,27 @@
 from fastapi.testclient import TestClient
 
+import numpy as np
+import pandas as pd
+
 from app import main as main_mod
 from app.main import app
+
+
+class _FakeKlines:
+    def __init__(self):
+        self.calls = []
+
+    async def get_klines(self, symbol, interval, limit):
+        self.calls.append((symbol, interval, limit))
+        rng = np.random.default_rng(3)
+        close = 100 + np.cumsum(rng.normal(0, 0.3, 120))
+        high = close + 0.4
+        low = close - 0.4
+        open_ = np.roll(close, 1)
+        open_[0] = close[0]
+        vol = rng.uniform(50, 300, 120)
+        return pd.DataFrame({"open": open_, "high": high, "low": low,
+                             "close": close, "volume": vol})
 
 
 class _FakeTrader:
@@ -305,3 +325,57 @@ def test_risk_positions_short_and_unprotected():
     assert eth["risk_amount"] == 10.0
     assert eth["protected"] is False
     assert eth["upnl"] == 10.0
+
+
+def test_live_signals_endpoint():
+    fake_klines = _FakeKlines()
+    main_mod.app.state.binance = fake_klines
+    ft = _FakeTrader({})
+    ft.priority = ["BTCUSDT", "ETHUSDT"]
+    main_mod.auto_trader = ft
+    try:
+        client = TestClient(app)
+        resp = client.get("/api/v1/signals?limit=5")
+        client.close()
+    finally:
+        main_mod.auto_trader = None
+        main_mod.app.state.binance = None
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["count"] == 2
+    assert {s["symbol"] for s in body["signals"]} == {"BTCUSDT", "ETHUSDT"}
+    assert all(s["signal"] in ("BUY", "SELL", "HOLD") for s in body["signals"])
+    assert body["scanned"] == ["BTCUSDT", "ETHUSDT"]
+    assert fake_klines.calls == [("BTCUSDT", "4h", 400), ("ETHUSDT", "4h", 400)]
+
+
+def test_live_signals_endpoint_empty_when_no_trader():
+    main_mod.auto_trader = None
+    client = TestClient(app)
+    resp = client.get("/api/v1/signals")
+    client.close()
+    assert resp.status_code == 200
+    assert resp.json()["count"] == 0
+
+
+def test_live_signals_endpoint_no_candidates():
+    ft = _FakeTrader({})
+    ft.priority = []
+    ft.trading_symbols = []
+    main_mod.auto_trader = ft
+    try:
+        client = TestClient(app)
+        resp = client.get("/api/v1/signals")
+        client.close()
+    finally:
+        main_mod.auto_trader = None
+    assert resp.status_code == 200
+    assert resp.json()["count"] == 0
+
+
+def test_dashboard_has_live_signals_card():
+    client = TestClient(app)
+    resp = client.get("/dashboard/html")
+    assert resp.status_code == 200
+    assert "Live Signals" in resp.text
+    client.close()
