@@ -18,6 +18,7 @@ class _FakeTrader:
         self.max_side_pct = 150.0
         self.drawdown_pct = 0.0
         self.risk_halted = False
+        self.running = True
 
 
 def test_health():

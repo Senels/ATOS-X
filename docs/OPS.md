@@ -51,6 +51,19 @@ koruma (SL/TP) mekanizması ve ilgili API/dashboard görünürlüğünü belgele
 - `0` değeri özelliği devre dışı bırakır.
 - Kapanış `reason` olarak iş geçmişine ve Telegram trade bildirimine yansır.
 
+## Telegram Kill-Switch
+
+Dinleyici aracılığıyla uzaktan acil durum kontrolü:
+
+- `/durdur` — motoru durdurur; **tüm açık pozisyonları** `emergency_stop`
+  nedeniyle kapatır. `running` bayrağı `False` olur, dashboard'da
+  `TRADING OFF` rozeti görünür.
+- `/ac` — motoru yeniden başlatır (sembolleri yükler, pozisyonları
+  uzlaştırır, çevrimi döndürür).
+- `/durum` — motorun `calisiyor`/`DURDURULDU` durumunu gösterir.
+- `/health`, `/api/v1/status` ve `/dashboard/metrics` yanıtlarında
+  `trading` alanı motor durumunu yansıtır.
+
 ## Telegram Bildirimleri
 
 - **Başlangıç**: `_notify_startup_state` risk eşiklerini ve mevcut

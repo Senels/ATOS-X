@@ -99,6 +99,15 @@ def _positions_payload() -> dict:
         "unprotected": sum(1 for p in enriched.values() if not p["protected"]),
     }
 
+def _run_later(coro) -> bool:
+    """Calisan event loop varsa coroutine'i arka planda calistirir."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    asyncio.create_task(coro)
+    return True
+
 def _telegram_command(text: str):
     """Telegram komutlarini yanitlar; bilinmeyen komutlar None doner."""
     cmd = text.strip().lower()
@@ -109,6 +118,8 @@ def _telegram_command(text: str):
                 "/durum - sistem durumu\n"
                 "/blok - aktif engeller\n"
                 "/pozisyon - acik pozisyonlar\n"
+                "/durdur - acil durdurma (tum pozisyonlari kapatir)\n"
+                "/ac - motoru yeniden baslatir\n"
                 "/yardim - bu liste")
     if cmd.startswith("/blok"):
         blocks = sorted(auto_trader._conc_blocks) if auto_trader else []
@@ -123,6 +134,20 @@ def _telegram_command(text: str):
             prot = "korumali" if (pos.get("sl_order_id") or pos.get("tp_order_id")) else "KORUMASIZ"
             lines.append(f"{sym} {pos['side']} qty={pos['quantity']} @ ${pos['entry_price']} {prot}")
         return "\n".join(lines)
+    if cmd.startswith("/durdur") or cmd.startswith("/stop"):
+        if not auto_trader or not auto_trader.running:
+            return "ATOS X: motor zaten durdurulmus"
+        if not _run_later(auto_trader.stop()):
+            return "ATOS X: komut arka planda calistirilamadi"
+        return "ATOS X: DURDURULDU - tum pozisyonlar kapatiliyor, yeni girisler kapali"
+    if cmd.startswith("/ac") or cmd.startswith("/resume"):
+        if not auto_trader:
+            return "ATOS X: motor hazir degil"
+        if auto_trader.running:
+            return "ATOS X: motor zaten calisiyor"
+        if not _run_later(auto_trader.start()):
+            return "ATOS X: komut arka planda calistirilamadi"
+        return "ATOS X: motor yeniden baslatiliyor"
     if cmd.startswith("/durum") or cmd.startswith("/status"):
         if not auto_trader:
             return "ATOS X: motor calismiyor"
@@ -130,8 +155,10 @@ def _telegram_command(text: str):
         blocks = conc["blocks"]
         halt = auto_trader.risk_halted
         halt_line = "AKTIF - girisler durduruldu" if halt else "yok"
+        trading = "DURDURULDU" if not auto_trader.running else "calisiyor"
         return (
             f"ATOS X durum\n"
+            f"Trade motoru: {trading}\n"
             f"Equity: ${auto_trader.equity:.2f}\n"
             f"Acik pozisyon: {len(auto_trader.active_positions)} (korumali: {_protected_count()})\n"
             f"Maruziyet - LONG: %{conc['long_pct']} SHORT: %{conc['short_pct']}\n"
@@ -203,6 +230,7 @@ async def health():
         "trades": len(auto_trader.trade_history) if auto_trader else 0,
         "drawdown_pct": auto_trader.drawdown_pct if auto_trader else 0.0,
         "risk_halted": auto_trader.risk_halted if auto_trader else False,
+        "trading": auto_trader.running if auto_trader else False,
         "uptime": int((datetime.utcnow() - system_status["start_time"]).total_seconds())
     }
 
@@ -218,6 +246,7 @@ async def get_status():
         "trades": len(auto_trader.trade_history) if auto_trader else 0,
         "drawdown_pct": auto_trader.drawdown_pct if auto_trader else 0.0,
         "risk_halted": auto_trader.risk_halted if auto_trader else False,
+        "trading": auto_trader.running if auto_trader else False,
         "paper": auto_trader.paper if auto_trader else True,
         "top_symbols": auto_trader.top_symbols if auto_trader else [],
         "equity": auto_trader.equity if auto_trader else 10000
@@ -309,6 +338,7 @@ async def metrics():
             "concentration": _concentration_summary(),
             "drawdown_pct": auto_trader.drawdown_pct if auto_trader else 0.0,
             "risk_halted": auto_trader.risk_halted if auto_trader else False,
+            "trading": auto_trader.running if auto_trader else False,
             "uptime": int((datetime.utcnow() - system_status["start_time"]).total_seconds())
         }
     except Exception as e:

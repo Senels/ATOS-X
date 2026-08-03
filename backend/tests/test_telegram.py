@@ -10,6 +10,7 @@ class _FakeTrader:
         self.max_drawdown_pct = 20.0
         self.drawdown_pct = 0.0
         self.risk_halted = False
+        self.running = True
         self._conc_blocks = {"side:LONG"}
         self.active_positions = {
             "BTCUSDT": {"side": "BUY", "entry_price": 65000.0, "quantity": 0.5,
@@ -17,6 +18,12 @@ class _FakeTrader:
             "ETHUSDT": {"side": "SELL", "entry_price": 3000.0, "quantity": 2.0,
                         "sl_order_id": None, "tp_order_id": None},
         }
+
+    async def stop(self):
+        self.running = False
+
+    async def start(self):
+        self.running = True
 
 
 def test_process_updates_filters_and_offsets():
@@ -112,6 +119,62 @@ def test_command_help():
 def test_command_unknown_returns_none():
     assert main_mod._telegram_command("merhaba") is None
     assert main_mod._telegram_command("/bilinmeyen") is None
+
+
+def test_command_stop_schedules_stop(monkeypatch):
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+    monkeypatch.setattr(main_mod, "_run_later", lambda coro: True)
+    try:
+        reply = main_mod._telegram_command("/durdur")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "DURDURULDU" in reply
+
+
+def test_command_stop_when_not_running():
+    fake = _FakeTrader()
+    fake.running = False
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/durdur")
+    finally:
+        main_mod.auto_trader = None
+    assert "zaten durdurulmus" in reply
+
+
+def test_command_resume_schedules_start(monkeypatch):
+    fake = _FakeTrader()
+    fake.running = False
+    main_mod.auto_trader = fake
+    monkeypatch.setattr(main_mod, "_run_later", lambda coro: True)
+    try:
+        reply = main_mod._telegram_command("/ac")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "yeniden baslatiliyor" in reply
+
+
+def test_command_resume_when_running():
+    main_mod.auto_trader = _FakeTrader()
+    try:
+        reply = main_mod._telegram_command("/ac")
+    finally:
+        main_mod.auto_trader = None
+    assert "zaten calisiyor" in reply
+
+
+def test_command_status_shows_trading_state():
+    fake = _FakeTrader()
+    fake.running = False
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/durum")
+    finally:
+        main_mod.auto_trader = None
+    assert "DURDURULDU" in reply
 
 
 def test_listener_disabled_returns_none():
