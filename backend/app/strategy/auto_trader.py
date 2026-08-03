@@ -85,6 +85,7 @@ class AutoTrader:
         self.consecutive_losses = self._count_consecutive_losses()
         if self.max_consecutive_losses > 0 and self.consecutive_losses >= self.max_consecutive_losses:
             self.loss_halted = True
+        self._restore_risk_state()
         self.scan_interval = 30
         self.scan_limit = 50
         self.perf_interval = 60
@@ -103,6 +104,61 @@ class AutoTrader:
             self.db.save_risk_event(event_type, message, entry["time"])
         except Exception as e:
             logger.warning(f"Risk olayi DB'ye yazilamadi: {e}")
+
+    def _risk_state(self) -> dict:
+        """Restart sonrasi geri yuklenecek runtime risk durumu."""
+        return {
+            "equity": self.equity,
+            "peak_equity": self.peak_equity,
+            "drawdown_pct": self.drawdown_pct,
+            "day_pnl": self.day_pnl,
+            "day_start_date": self.day_start_date,
+            "consecutive_losses": self.consecutive_losses,
+            "risk_halted": 1 if self.risk_halted else 0,
+            "loss_halted": 1 if self.loss_halted else 0,
+            "daily_loss_halted": 1 if self.daily_loss_halted else 0,
+            "equity_halted": 1 if self.equity_halted else 0,
+        }
+
+    def _persist_risk_state(self):
+        """Risk durumunu DB'ye yazar (restart dayanikliligi)."""
+        try:
+            self.db.save_state_batch(self._risk_state())
+        except Exception as e:
+            logger.warning(f"Risk durumu DB'ye yazilamadi: {e}")
+
+    def _restore_risk_state(self):
+        """Risk durumunu DB'den geri yukler.
+
+        Gun degismisse gunluk sayaçlar sifirlanir; deterministik olarak
+        yeniden hesaplanabilen bayraklar (`loss_halted`, `equity_halted`)
+        geri yuklenmez, kaynagindan tekrar turetilir.
+        """
+        try:
+            state = self.db.get_all_state()
+        except Exception:
+            return
+        if not state:
+            return
+        self.equity = float(state.get("equity", self.equity))
+        self.peak_equity = float(state.get("peak_equity", self.peak_equity))
+        if self.peak_equity < self.equity:
+            self.peak_equity = self.equity
+        self.drawdown_pct = float(state.get("drawdown_pct", self.drawdown_pct))
+        saved_day = state.get("day_start_date")
+        today = datetime.utcnow().date().isoformat()
+        if saved_day == today:
+            self.day_start_date = saved_day
+            self.day_pnl = float(state.get("day_pnl", 0.0))
+            self.daily_loss_halted = bool(int(state.get("daily_loss_halted", 0)))
+        elif saved_day:
+            self.day_start_date = today
+            self.day_pnl = 0.0
+            self.daily_loss_halted = False
+        if int(state.get("risk_halted", 0)):
+            self.risk_halted = True
+        if self.min_equity > 0:
+            self.equity_halted = self.equity < self.min_equity
 
     def rank_symbols(self, limit: int = 500) -> List[str]:
         """Yerel OHLCV arsivinde backtest kalitesine gore sembol siralamasi.
@@ -399,6 +455,7 @@ class AutoTrader:
                     self.active_positions[symbol]["sl_order_id"] = algo.get("sl")
                     self.active_positions[symbol]["tp_order_id"] = algo.get("tp")
                 logger.success(f"Pozisyon acildi: {symbol} {side} {qty:.4f} @ {price}")
+                self._persist_risk_state()
         except Exception as e:
             logger.error(f"Pozisyon acma hatasi {symbol}: {e}")
 
@@ -476,6 +533,7 @@ class AutoTrader:
             )
         await self._update_consecutive_losses()
         await self._update_daily_pnl(net)
+        self._persist_risk_state()
         logger.success(f"Pozisyon kapatildi: {symbol} PnL: {net:.2f}")
 
     async def reconcile_positions(self):
@@ -588,6 +646,7 @@ class AutoTrader:
         """
         streak = self._count_consecutive_losses()
         self.consecutive_losses = streak
+        self._persist_risk_state()
         if self.max_consecutive_losses <= 0:
             return
         if streak >= self.max_consecutive_losses and not self.loss_halted:
@@ -613,6 +672,7 @@ class AutoTrader:
                     "ATOS X: Kar sonrasi ardısık zarar korumasi kaldirildi "
                     "- yeni girisler serbest."
                 )
+        self._persist_risk_state()
 
     def _rollover_day(self):
         """Gun degisti ise gunluk PnL sayacini sifirlar ve halt'i kaldirir."""
@@ -625,6 +685,7 @@ class AutoTrader:
             self.daily_loss_halted = False
             self._log_risk_event("daily_loss_clear", "Yeni gun - gunluk zarar korumasi serbest")
             logger.info("Yeni gun - gunluk zarar korumasi kaldirildi")
+        self._persist_risk_state()
 
     async def _update_daily_pnl(self, net: float):
         """Gunluk toplam PnL'i isler; esik asilinca girisleri durdurur.
@@ -636,6 +697,7 @@ class AutoTrader:
         """
         self._rollover_day()
         self.day_pnl += net
+        self._persist_risk_state()
         if self.max_daily_loss_pct <= 0:
             return
         limit = self.equity * self.max_daily_loss_pct / 100.0
@@ -654,6 +716,7 @@ class AutoTrader:
                     f"gunluk sinir (-%{self.max_daily_loss_pct:.1f}) asildi, "
                     f"yeni girisler durduruldu. Yeni gun korumayi acar."
                 )
+        self._persist_risk_state()
 
     async def _check_drawdown(self):
         """Peak equity'den düşüş esigi asilinca yeni girisleri durdurur.
@@ -667,6 +730,7 @@ class AutoTrader:
         peak = self.peak_equity or 1.0
         dd = (peak - self.equity) / peak * 100.0
         self.drawdown_pct = round(dd, 2)
+        self._persist_risk_state()
         threshold = self.max_drawdown_pct
         if threshold <= 0:
             return
@@ -691,6 +755,7 @@ class AutoTrader:
                 await self.telegram.send(
                     f"ATOS X: Drawdown %{dd:.1f}'e geri geldi - yeni girisler serbest."
                 )
+        self._persist_risk_state()
 
     async def _check_equity_floor(self):
         """Equity mutlak taban sinirin altina duserse girisleri durdurur.
@@ -725,6 +790,7 @@ class AutoTrader:
                     f"ATOS X: Equity ${self.equity:.2f} taban sinirin uzerine dondu "
                     "- yeni girisler serbest."
                 )
+        self._persist_risk_state()
 
     async def _notify_startup_state(self):
         """Baslangicta aktif risk esiklerini ve mevcut engelleri bildirir."""
@@ -1024,6 +1090,7 @@ class AutoTrader:
         wins = sum(1 for t in closed if t.get("pnl", 0) > 0)
         win_rate = wins / len(closed) * 100 if closed else 0.0
         self.db.save_performance(self.equity, len(self.active_positions), len(self.trade_history), win_rate)
+        self._persist_risk_state()
 
     async def stop(self):
         self.running = False

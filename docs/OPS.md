@@ -251,6 +251,23 @@ kaydından okur. Böylece time-stop (pozisyon yaşı) yeniden başlatmada
 sıfırlanmaz; yaşı aşan pozisyonlar yine `time_stop` ile kapanır.
 DB'de OPEN kaydı yoksa açılış zamanı şimdi kabul edilir.
 
+## Risk Durumu Kalıcılığı (Restart Dayanıklılığı)
+
+Runtime risk durumu `app_state` tablosunda kalıcıdır; motor restart
+edildiğinde geri yüklenir. Kalıcı alanlar: `equity`, `peak_equity`,
+`drawdown_pct`, `day_pnl`, `day_start_date`, `consecutive_losses` ve
+halt bayrakları (`risk_halted`, `daily_loss_halted`, `equity_halted`).
+
+- **Deterministik yeniden türetim**: `loss_halted` her restart'ta kapanan
+  işlem geçmişinden, `equity_halted` ise `equity` vs `min_equity`'den
+  yeniden hesaplanır (bayrak birebir geri yüklenmez).
+- **Gün değişimi**: Kayıtlı `day_start_date` dünden ise `day_pnl` ve
+  günlük zarar koruması sıfırlanır; aynı gün ise aynen korunur.
+- **Yazma noktaları**: pozisyon açma/kapama, ardışık zarar güncellemesi,
+  günlük PnL, drawdown ve equity taban kontrolleri ile periyodik
+  `update_equity` her değişimde durumu DB'ye yazar. Böylece gün ortasında
+  restart yapılsa da günlük zarar/peak equity korumaları sıfırlanmaz.
+
 ## WebSocket Canlı Fiyat Aboneliği
 
 - Başlangıçta 5 temel sembol (`BTCUSDT`, `ETHUSDT`, `BNBUSDT`, `SOLUSDT`,

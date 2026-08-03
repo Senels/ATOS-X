@@ -78,6 +78,12 @@ class Database:
                 message TEXT NOT NULL
             )
         ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS app_state (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+        ''')
         conn.commit()
         conn.close()
         print("Veritabani hazir")
@@ -207,6 +213,42 @@ class Database:
         ).fetchall()
         conn.close()
         return [{"time": r[0], "type": r[1], "message": r[2]} for r in rows]
+
+    def save_state(self, key: str, value):
+        """Uygulama durumunu (skaler) kalici yazar; ayni anahtar ustune yazilir."""
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            "INSERT OR REPLACE INTO app_state (key, value) VALUES (?, ?)",
+            (key, str(value)),
+        )
+        conn.commit()
+        conn.close()
+
+    def save_state_batch(self, mapping: dict):
+        """Uygulama durumlarini tek islemde topluca yazar."""
+        conn = sqlite3.connect(self.db_path)
+        conn.executemany(
+            "INSERT OR REPLACE INTO app_state (key, value) VALUES (?, ?)",
+            [(k, str(v)) for k, v in mapping.items()],
+        )
+        conn.commit()
+        conn.close()
+
+    def get_state(self, key: str, default=None):
+        """Uygulama durumunu doner; yoksa `default`."""
+        conn = sqlite3.connect(self.db_path)
+        row = conn.execute(
+            "SELECT value FROM app_state WHERE key = ?", (key,)
+        ).fetchone()
+        conn.close()
+        return row[0] if row else default
+
+    def get_all_state(self) -> dict:
+        """Tum uygulama durumunu anahtar -> metin olarak doner."""
+        conn = sqlite3.connect(self.db_path)
+        rows = conn.execute("SELECT key, value FROM app_state").fetchall()
+        conn.close()
+        return {k: v for k, v in rows}
 
     def save_signal(self, symbol: str, signal: str, price: float, confidence: float, reason: str = ""):
         conn = sqlite3.connect(self.db_path)
