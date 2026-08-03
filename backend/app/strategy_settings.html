@@ -72,6 +72,7 @@ th { color:#94a3b8; font-weight:500; font-size:10px; text-transform:uppercase; }
 <button class="tab active" onclick="showTab('strategy')">📊 Strategy</button>
 <button class="tab" onclick="showTab('tpsl')">🎯 TP/SL</button>
 <button class="tab" onclick="showTab('confirmations')">✅ Confirmations</button>
+<button class="tab" onclick="showTab('risk')">🛡️ Risk</button>
 <button class="tab" onclick="showTab('status')">📡 Status</button>
 </div>
 
@@ -151,6 +152,17 @@ th { color:#94a3b8; font-weight:500; font-size:10px; text-transform:uppercase; }
 </div>
 </div>
 
+<div id="tab-risk" class="panel">
+<div class="settings-card">
+<h3>🛡️ Risk Management</h3>
+<div class="setting-item"><span class="label">Max Position per Symbol (%)</span>
+<input type="number" id="r_max_position_pct" value="75" min="1" max="1000" step="5"></div>
+<div class="setting-item"><span class="label">Max Exposure per Side (%)</span>
+<input type="number" id="r_max_side_pct" value="150" min="1" max="2000" step="10"></div>
+<div class="setting-item" style="border-bottom:none;"><span class="label" style="color:#64748b;font-size:11px;">Eşikler equity yüzdesidir; tek sembol veya tek yön bu değeri aşarsa Telegram uyarısı gönderilir.</span></div>
+</div>
+</div>
+
 <div id="tab-status" class="panel">
 <div class="settings-card">
 <h3>📡 Signal Status</h3>
@@ -216,6 +228,8 @@ rr_ratio: parseFloat(getValue('s_rr')) || 1.5,
 sl_lookback: parseInt(getValue('s_sl_lookback')) || 5,
 atr_fallback: getValue('s_atr_fallback'),
 atr_mult: parseFloat(getValue('s_atr_mult')) || 1.5,
+max_position_pct: parseFloat(getValue('r_max_position_pct')) || 75,
+max_side_pct: parseFloat(getValue('r_max_side_pct')) || 150,
 confirmations: {
 ema: getValue('c_ema'),
 '2ma': getValue('c_2ma'),
@@ -267,6 +281,8 @@ document.getElementById('s_rr').value = s.rr_ratio || 1.5;
 document.getElementById('s_sl_lookback').value = s.sl_lookback || 5;
 setToggle('s_atr_fallback', s.atr_fallback);
 document.getElementById('s_atr_mult').value = s.atr_mult || 1.5;
+document.getElementById('r_max_position_pct').value = s.max_position_pct || 75;
+document.getElementById('r_max_side_pct').value = s.max_side_pct || 150;
 if (s.confirmations) {
 const map = {'ema':'c_ema','2ma':'c_2ma','3ma':'c_3ma','rf':'c_rf','rqk':'c_rqk','st':'c_st','ht':'c_ht','rsi':'c_rsi','macd':'c_macd','stoch':'c_stoch','ichi':'c_ichi','ce':'c_ce'};
 for (const [key,val] of Object.entries(map)) {
@@ -312,6 +328,8 @@ document.getElementById('s_rr').value = s.rr_ratio || 1.5;
 document.getElementById('s_sl_lookback').value = s.sl_lookback || 5;
 setToggle('s_atr_fallback', s.atr_fallback);
 document.getElementById('s_atr_mult').value = s.atr_mult || 1.5;
+document.getElementById('r_max_position_pct').value = s.max_position_pct || 75;
+document.getElementById('r_max_side_pct').value = s.max_side_pct || 150;
 if (s.confirmations) {
 const map = {'ema':'c_ema','2ma':'c_2ma','3ma':'c_3ma','rf':'c_rf','rqk':'c_rqk','st':'c_st','ht':'c_ht','rsi':'c_rsi','macd':'c_macd','stoch':'c_stoch','ichi':'c_ichi','ce':'c_ce'};
 for (const [key,val] of Object.entries(map)) {
