@@ -169,7 +169,11 @@ th { color:#94a3b8; font-weight:500; font-size:10px; text-transform:uppercase; }
 <input type="number" id="r_max_drawdown_pct" value="20" min="1" max="100" step="1"></div>
 <div class="setting-item"><span class="label">Max Position Age (hours)</span>
 <input type="number" id="r_max_age" value="8" min="0" max="720" step="1"></div>
-<div class="setting-item" style="border-bottom:none;"><span class="label" style="color:#64748b;font-size:11px;">Eşikler equity yüzdesidir; tek sembol veya tek yön bu değeri aşarsa Telegram uyarısı gönderilir ve yeni giriş engellenir. Drawdown peak equity'den düşüşü aşınca yeni girişler durdurulur (yarısına dönünce serbest). Max Position Age, pozisyonun maksimum açık kalma süresidir (0 = devre dışı). Risk değerleri döngüde canlı uygulanır.</span></div>
+<div class="setting-item"><span class="label">Trailing Activate (%)</span>
+<input type="number" id="r_trail_act" value="3" min="0" max="100" step="0.5"></div>
+<div class="setting-item" style="border-bottom:none;"><span class="label">Trailing SL Distance (%)</span>
+<input type="number" id="r_trail_sl" value="1.5" min="0" max="50" step="0.5"></div>
+<div class="setting-item" style="border-bottom:none;"><span class="label" style="color:#64748b;font-size:11px;">Eşikler equity yüzdesidir; tek sembol veya tek yön bu değeri aşarsa Telegram uyarısı gönderilir ve yeni giriş engellenir. Drawdown peak equity'den düşüşü aşınca yeni girişler durdurulur (yarısına dönünce serbest). Max Position Age, pozisyonun maksimum açık kalma süresidir (0 = devre dışı). Trailing: pozisyon kârı Trailing Activate eşiğini aşınca SL fiyatı Trailing SL Distance kadar geriden takip eder (0 = devre dışı). Risk değerleri döngüde canlı uygulanır.</span></div>
 </div>
 </div>
 
@@ -245,6 +249,8 @@ max_position_pct: parseFloat(getValue('r_max_position_pct')) || 75,
 max_side_pct: parseFloat(getValue('r_max_side_pct')) || 150,
 max_drawdown_pct: parseFloat(getValue('r_max_drawdown_pct')) || 20,
 max_position_age_hours: parseFloat(getValue('r_max_age')) || 8,
+trailing_activate_pct: parseFloat(getValue('r_trail_act')) || 0,
+trailing_sl_pct: parseFloat(getValue('r_trail_sl')) || 0,
 confirmations: {
 ema: getValue('c_ema'),
 '2ma': getValue('c_2ma'),
@@ -303,6 +309,8 @@ document.getElementById('r_max_position_pct').value = s.max_position_pct || 75;
 document.getElementById('r_max_side_pct').value = s.max_side_pct || 150;
 document.getElementById('r_max_drawdown_pct').value = s.max_drawdown_pct || 20;
 document.getElementById('r_max_age').value = s.max_position_age_hours || 8;
+document.getElementById('r_trail_act').value = s.trailing_activate_pct || 0;
+document.getElementById('r_trail_sl').value = s.trailing_sl_pct || 0;
 if (s.confirmations) {
 const map = {'ema':'c_ema','2ma':'c_2ma','3ma':'c_3ma','rf':'c_rf','rqk':'c_rqk','st':'c_st','ht':'c_ht','rsi':'c_rsi','macd':'c_macd','stoch':'c_stoch','ichi':'c_ichi','ce':'c_ce'};
 for (const [key,val] of Object.entries(map)) {
@@ -355,6 +363,8 @@ document.getElementById('r_max_position_pct').value = s.max_position_pct || 75;
 document.getElementById('r_max_side_pct').value = s.max_side_pct || 150;
 document.getElementById('r_max_drawdown_pct').value = s.max_drawdown_pct || 20;
 document.getElementById('r_max_age').value = s.max_position_age_hours || 8;
+document.getElementById('r_trail_act').value = s.trailing_activate_pct || 0;
+document.getElementById('r_trail_sl').value = s.trailing_sl_pct || 0;
 if (s.confirmations) {
 const map = {'ema':'c_ema','2ma':'c_2ma','3ma':'c_3ma','rf':'c_rf','rqk':'c_rqk','st':'c_st','ht':'c_ht','rsi':'c_rsi','macd':'c_macd','stoch':'c_stoch','ichi':'c_ichi','ce':'c_ce'};
 for (const [key,val] of Object.entries(map)) {

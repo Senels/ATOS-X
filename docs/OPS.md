@@ -11,6 +11,8 @@ koruma (SL/TP) mekanizması ve ilgili API/dashboard görünürlüğünü belgele
 | `max_side_pct` | 150 | Tek yön (LONG/SHORT) toplam maruziyet (% equity) |
 | `max_drawdown_pct` | 20 | Peak equity'den düşüş eşiği; aşılınca yeni girişler durur |
 | `max_position_age_hours` | 8 | Pozisyonun maksimum açık kalma süresi (0 = devre dışı) |
+| `trailing_activate_pct` | 3 | Pozisyon kârı bu eşiği aşınca SL takibi başlar (%) |
+| `trailing_sl_pct` | 1.5 | Takip eden SL'nin fiyata uzaklığı (%; 0 = devre dışı) |
 
 - UI üzerinden `/dashboard/settings` → Risk sekmesinde değiştirilir.
 - Canlı döngüde her taramada `_apply_risk_settings` ile uygulanır.
@@ -63,6 +65,19 @@ Dinleyici aracılığıyla uzaktan acil durum kontrolü:
 - `/durum` — motorun `calisiyor`/`DURDURULDU` durumunu gösterir.
 - `/health`, `/api/v1/status` ve `/dashboard/metrics` yanıtlarında
   `trading` alanı motor durumunu yansıtır.
+
+## Trailing Stop
+
+`check_positions` her döngüde pozisyon kârını değerlendirir:
+
+- Pozisyon `trailing_activate_pct` kârını aşınca SL, fiyatın
+  `trailing_sl_pct` kadar gerisinde durur ve yalnızca kâr yönünde hareket
+  eder (geri çekilmez).
+- Exchange'te eski SL algo emri iptal edilip yenisi yerleştirilir; kağıt
+  modda yalnızca bellekteki SL güncellenir.
+- Takibe giren pozisyonlar dashboard'da `TRAILING` rozeti, Telegram
+  `/pozisyon` yanıtında `+ TRAILING` ile işaretlenir.
+- İki ayar da `0` ise özellik devre dışıdır.
 
 ## Telegram Bildirimleri
 

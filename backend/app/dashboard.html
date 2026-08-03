@@ -128,7 +128,8 @@ if (d.positions && Object.keys(d.positions).length > 0) {
 posBody.innerHTML = '';
 for (const [symbol, pos] of Object.entries(d.positions)) {
 const prot = pos.protected ? '<span class="badge-protected">KORUMALI</span>' : '<span class="badge-unprotected">KORUMASIZ</span>';
-posBody.innerHTML += '<tr><td><strong>'+symbol+'</strong></td><td><span class="badge-'+(pos.side==='BUY'?'buy':'sell')+'">'+pos.side+'</span></td><td>$'+pos.entry_price+'</td><td>'+pos.quantity+'</td><td>$'+(pos.sl||'-')+'</td><td>$'+(pos.tp||'-')+'</td><td>'+prot+'</td><td>'+(pos.open_time?new Date(pos.open_time).toLocaleString():'-')+'</td></tr>';
+const trail = pos.trailing ? ' <span class="badge-sell">TRAILING</span>' : '';
+posBody.innerHTML += '<tr><td><strong>'+symbol+'</strong></td><td><span class="badge-'+(pos.side==='BUY'?'buy':'sell')+'">'+pos.side+'</span></td><td>$'+pos.entry_price+'</td><td>'+pos.quantity+'</td><td>$'+(pos.sl||'-')+'</td><td>$'+(pos.tp||'-')+'</td><td>'+prot+trail+'</td><td>'+(pos.open_time?new Date(pos.open_time).toLocaleString():'-')+'</td></tr>';
 }
 const protCount = Object.keys(d.positions).filter(function(s){ return d.positions[s].protected; }).length;
 const unprotCount = Object.keys(d.positions).length - protCount;

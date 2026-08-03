@@ -51,6 +51,8 @@ class AutoTrader:
         self.max_side_pct = float(s.get("max_side_pct", 150.0))
         self.max_drawdown_pct = float(s.get("max_drawdown_pct", 20.0))
         self.max_position_age_hours = float(s.get("max_position_age_hours", 8.0))
+        self.trailing_activate_pct = float(s.get("trailing_activate_pct", 3.0))
+        self.trailing_sl_pct = float(s.get("trailing_sl_pct", 1.5))
         self.peak_equity = float(s["initial_equity"])
         self.drawdown_pct = 0.0
         self.risk_halted = False
@@ -259,6 +261,8 @@ class AutoTrader:
         self.engine.max_leverage = float(s["max_leverage"])
         self.max_drawdown_pct = float(s.get("max_drawdown_pct", self.max_drawdown_pct))
         self.max_position_age_hours = float(s.get("max_position_age_hours", self.max_position_age_hours))
+        self.trailing_activate_pct = float(s.get("trailing_activate_pct", self.trailing_activate_pct))
+        self.trailing_sl_pct = float(s.get("trailing_sl_pct", self.trailing_sl_pct))
 
     def _projected_notional(self, price: float, sl: float) -> float:
         """Yeni bir pozisyonun boyutlandirma sonrasi nominal degeri."""
@@ -673,6 +677,8 @@ class AutoTrader:
             if not current_price:
                 continue
             side = pos["side"]
+            if self.trailing_activate_pct > 0 and self.trailing_sl_pct > 0:
+                await self._check_trailing(symbol, pos, side, current_price)
             sl = pos.get("sl")
             tp = pos.get("tp")
             if sl and side == "BUY" and current_price <= sl:
@@ -683,6 +689,43 @@ class AutoTrader:
                 await self.close_position(symbol, tp, "take_profit")
             elif tp and side == "SELL" and current_price <= tp:
                 await self.close_position(symbol, tp, "take_profit")
+
+    async def _check_trailing(self, symbol: str, pos: dict, side: str, price: float):
+        """Kar esigini asan pozisyonun SL'sini fiyati takip edecek sekilde kaydirir.
+
+        `trailing_activate_pct` kari asilinca SL, fiyatin
+        `trailing_sl_pct` kadar gerisinde durur; SL yalnizca kari yonunde
+        hareket eder (geri cekilmez). Exchange'te eski SL iptal edilip
+        yenisi yerlestirilir.
+        """
+        entry = float(pos["entry_price"])
+        if side == "BUY":
+            profit_pct = (price - entry) / entry * 100.0
+            new_sl = price * (1.0 - self.trailing_sl_pct / 100.0)
+            cur_sl = pos.get("sl") or 0.0
+            better = new_sl > cur_sl
+        else:
+            profit_pct = (entry - price) / entry * 100.0
+            new_sl = price * (1.0 + self.trailing_sl_pct / 100.0)
+            cur_sl = pos.get("sl") or float("inf")
+            better = new_sl < cur_sl
+        if profit_pct < self.trailing_activate_pct or not better:
+            return
+        pos["sl"] = new_sl
+        pos["trailing"] = True
+        if self.paper or not pos.get("sl_order_id"):
+            logger.info(f"{symbol}: SL takibe girdi -> {new_sl:.2f} (kar %{profit_pct:.1f})")
+            return
+        try:
+            await self.binance.cancel_algo_order(symbol, pos["sl_order_id"])
+            algo = await self.binance.set_tp_sl(
+                symbol, "LONG" if side == "BUY" else "SHORT", new_sl, 0.0
+            )
+            if algo.get("sl"):
+                pos["sl_order_id"] = algo["sl"]
+                logger.info(f"{symbol}: trailing SL {new_sl:.2f} borsaya yerleştirildi")
+        except Exception as e:
+            logger.error(f"{symbol}: trailing SL guncelleme hatasi: {e}")
 
     async def update_equity(self):
         now = time.monotonic()

@@ -89,7 +89,9 @@ def _positions_payload() -> dict:
     """Acil pozisyonlari koruma durumu isaretli olarak doner."""
     positions = auto_trader.active_positions if auto_trader else {}
     enriched = {
-        symbol: {**pos, "protected": bool(pos.get("sl_order_id") or pos.get("tp_order_id"))}
+        symbol: {**pos,
+                 "protected": bool(pos.get("sl_order_id") or pos.get("tp_order_id")),
+                 "trailing": bool(pos.get("trailing"))}
         for symbol, pos in positions.items()
     }
     return {
@@ -132,6 +134,8 @@ def _telegram_command(text: str):
         lines = ["ATOS X pozisyonlar:"]
         for sym, pos in auto_trader.active_positions.items():
             prot = "korumali" if (pos.get("sl_order_id") or pos.get("tp_order_id")) else "KORUMASIZ"
+            if pos.get("trailing"):
+                prot += " + TRAILING"
             lines.append(f"{sym} {pos['side']} qty={pos['quantity']} @ ${pos['entry_price']} {prot}")
         return "\n".join(lines)
     if cmd.startswith("/durdur") or cmd.startswith("/stop"):

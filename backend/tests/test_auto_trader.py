@@ -693,6 +693,65 @@ async def test_time_stop_fresh_position_stays(trader):
     assert "BTCUSDT" in tr.active_positions
 
 
+async def test_trailing_moves_sl_up_on_profit(trader):
+    tr, fb, db = trader
+    tr.trailing_activate_pct = 3.0
+    tr.trailing_sl_pct = 1.5
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
+    await tr.check_positions({"BTCUSDT": 105.0})
+    pos = tr.active_positions["BTCUSDT"]
+    assert pos["trailing"] is True
+    assert pos["sl"] == pytest.approx(105.0 * 0.985, abs=0.001)
+    assert pos["sl"] > 95.0
+    assert fb.cancel_calls and fb.tp_sl_calls
+
+
+async def test_trailing_ignores_loss(trader):
+    tr, fb, db = trader
+    tr.trailing_activate_pct = 3.0
+    tr.trailing_sl_pct = 1.5
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
+    await tr.check_positions({"BTCUSDT": 98.0})
+    pos = tr.active_positions["BTCUSDT"]
+    assert "trailing" not in pos
+    assert pos["sl"] == 95.0
+
+
+async def test_trailing_does_not_retreat_sl(trader):
+    tr, fb, db = trader
+    tr.trailing_activate_pct = 3.0
+    tr.trailing_sl_pct = 1.5
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
+    await tr.check_positions({"BTCUSDT": 105.0})
+    assert tr.active_positions["BTCUSDT"]["sl"] == pytest.approx(105.0 * 0.985)
+    await tr.check_positions({"BTCUSDT": 103.8})
+    pos = tr.active_positions["BTCUSDT"]
+    assert pos["sl"] == pytest.approx(105.0 * 0.985, abs=0.001)
+
+
+async def test_trailing_disabled_when_activate_zero(trader):
+    tr, fb, db = trader
+    tr.trailing_activate_pct = 0
+    tr.trailing_sl_pct = 1.5
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
+    await tr.check_positions({"BTCUSDT": 105.0})
+    pos = tr.active_positions["BTCUSDT"]
+    assert "trailing" not in pos
+    assert pos["sl"] == 95.0
+
+
+async def test_trailing_moves_sl_down_for_short(trader):
+    tr, fb, db = trader
+    tr.trailing_activate_pct = 3.0
+    tr.trailing_sl_pct = 1.5
+    await tr.open_position("ETHUSDT", "SELL", 100.0, 105.0, 90.0)
+    await tr.check_positions({"ETHUSDT": 95.0})
+    pos = tr.active_positions["ETHUSDT"]
+    assert pos["trailing"] is True
+    assert pos["sl"] == pytest.approx(95.0 * 1.015, abs=0.001)
+    assert pos["sl"] < 105.0
+
+
 async def test_fetch_klines_batch(trader):
     tr, fb, db = trader
     n = 200
