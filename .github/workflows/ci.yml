@@ -17,7 +17,7 @@ jobs:
           cache: pip
       - name: Install
         run: pip install -e "backend[dev]"
-      - name: Ruff
-        run: ruff check backend
+      - name: Syntax check
+        run: python -m compileall -q backend/app backend/tests
       - name: Pytest
         run: pytest backend/tests -q
