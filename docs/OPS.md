@@ -295,10 +295,10 @@ halt bayrakları (`risk_halted`, `daily_loss_halted`, `equity_halted`).
   edilemezse `ATOS X UYARI` ile manuel müdahale çağrısı yapılır.
 - **Günlük rapor**: `DAILY_REPORT_HOUR`'da özet rapor gönderilir. Rapor;
   kapanan işlem (W/L), win rate, profit factor, günlük PnL, günlük net
-  (kapanan), gerçekleşmemiş PnL, en iyi işlem, en iyi sembol, açık
-  pozisyon sayısı, CSV veri tazeliği (guncel/eski/eksik), trailing/breakeven
-  koruma sayıları, aktif durmalar (ardışık/günlük zarar, equity taban) ve
-  son risk olayını içerir.
+  (kapanan), gerçekleşmemiş PnL, en iyi işlem, en iyi sembol, per-sembol
+  dağılım (ilk 5), açık pozisyon sayısı, CSV veri tazeliği
+  (guncel/eski/eksik), trailing/breakeven koruma sayıları, aktif durmalar
+  (ardışık/günlük zarar, equity taban) ve son risk olayını içerir.
 
 ## Telegram Komutları
 

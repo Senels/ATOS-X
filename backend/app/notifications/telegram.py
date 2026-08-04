@@ -178,6 +178,10 @@ def format_daily_summary(trades, equity, open_positions, top_symbols=None,
         msg += f"En iyi: {best[1]} {('+' if best[6] >= 0 else '')}{best[6]:.2f}\n"
     if best_sym:
         msg += f"En iyi sembol: {best_sym[0]} {'+' if best_sym[1] >= 0 else ''}{best_sym[1]:.2f}\n"
+    if by_sym:
+        top_syms = sorted(by_sym.items(), key=lambda kv: kv[1], reverse=True)[:5]
+        msg += "Semboller: " + ", ".join(
+            f"{s} {'+' if p >= 0 else ''}{p:.2f}" for s, p in top_syms) + "\n"
     msg += f"Acik pozisyon: {len(open_positions) if open_positions else 0}"
     if top_symbols:
         msg += f"\nTarama: {', '.join(top_symbols[:8])}"
