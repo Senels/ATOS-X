@@ -290,6 +290,7 @@ def _telegram_command(text: str):
                 "/pozisyon - acik pozisyonlar\n"
                 "/kapat <SEMBOL> - tek pozisyonu kapatir\n"
                 "/sl <SEMBOL> <FIYAT> - acik pozisyonun SL'sini gunceller\n"
+                "/sl breakeven [SEMBOL] - SL'leri giris fiyatina tasir\n"
                 "/tp <SEMBOL> <FIYAT> - acik pozisyonun TP'sini gunceller\n"
                 "/durdur - acil durdurma (tum pozisyonlari kapatir)\n"
                 "/kapatall - acik tum pozisyonlari kapatir\n"
@@ -407,6 +408,26 @@ def _telegram_command(text: str):
         parts = text.strip().split()
         if not auto_trader:
             return "ATOS X: motor calismiyor"
+        if len(parts) >= 2 and parts[1].upper() == "BREAKEVEN":
+            sym = parts[2].upper() if len(parts) == 3 else None
+            if sym:
+                if sym not in auto_trader.active_positions:
+                    return f"ATOS X: {sym} icin acik pozisyon yok"
+                entry = auto_trader.active_positions[sym].get("entry_price")
+                if entry is None:
+                    return f"ATOS X: {sym} giris fiyati bulunamadi"
+                auto_trader.active_positions[sym]["sl"] = entry
+                return f"ATOS X: {sym} SL -> giris fiyati ${entry:g} (breakeven)"
+            syms = list(auto_trader.active_positions.keys())
+            if not syms:
+                return "ATOS X: acik pozisyon yok"
+            count = 0
+            for s in syms:
+                entry = auto_trader.active_positions[s].get("entry_price")
+                if entry is not None:
+                    auto_trader.active_positions[s]["sl"] = entry
+                    count += 1
+            return f"ATOS X: {count} pozisyonun SL'si giris fiyatina tasindi (breakeven)"
         if len(parts) == 3 and parts[1].upper() == "ALL":
             try:
                 new_sl = float(parts[2])
@@ -419,7 +440,7 @@ def _telegram_command(text: str):
                 auto_trader.active_positions[s]["sl"] = new_sl
             return f"ATOS X: tum pozisyonlarin SL guncellendi -> ${new_sl:g} ({len(syms)} pozisyon)"
         if len(parts) != 3:
-            return "ATOS X: kullanim /sl <SEMBOL> <FIYAT> veya /sl all <FIYAT>"
+            return "ATOS X: kullanim /sl <SEMBOL> <FIYAT> veya /sl all <FIYAT> veya /sl breakeven"
         sym = parts[1].upper()
         try:
             new_sl = float(parts[2])
