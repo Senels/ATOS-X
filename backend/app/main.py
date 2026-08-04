@@ -40,6 +40,10 @@ system_status = {"status": "initializing", "start_time": datetime.utcnow()}
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     global auto_trader, daily_report_task
+    import os
+    if os.environ.get("ATOS_TEST_MODE"):
+        yield
+        return
     system_status["status"] = "starting"
     strat_settings.load()
 
@@ -290,6 +294,7 @@ def _telegram_command(text: str):
                 "/temizle [hepsi] - kapanan islem gecmisini temizler (hepsi: +sinyal/backtest/risk/performans)\n"
                 "/izleme [N] - oncelik listesi + canli skor siralamasi\n"
                 "/performans - equity curve ozeti + aylik istatistik\n"
+                "/son - son kapanan islem detayi\n"
                 "/yardim - bu liste")
     if cmd.startswith("/blok"):
         blocks = sorted(auto_trader._conc_blocks) if auto_trader else []
@@ -786,6 +791,39 @@ def _telegram_command(text: str):
                 sign = "+" if d["pnl"] >= 0 else ""
                 lines.append(f"  {m}: {d['count']} islem {sign}{d['pnl']:.2f} (%{mwr:.0f})")
         return "\n".join(lines)
+    if cmd.startswith("/son"):
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        hist = auto_trader.trade_history
+        if not hist:
+            return "ATOS X: kapanan islem yok"
+        t = hist[-1]
+        pnl = t.get("pnl", 0) or 0
+        sign = "+" if pnl >= 0 else ""
+        lines = [
+            f"ATOS X son islem:",
+            f"Sembol: {t['symbol']} {t['side']}",
+        ]
+        entry, exit_p = t.get("entry"), t.get("exit")
+        if entry is not None:
+            lines.append(f"Giris: ${float(entry):g}")
+        if exit_p is not None:
+            lines.append(f"Cikis: ${float(exit_p):g}")
+        lines.append(f"PnL: {sign}{pnl:.2f}")
+        reason = t.get("reason", "")
+        if reason:
+            lines.append(f"Neden: {reason}")
+        prot = []
+        if t.get("trailing"):
+            prot.append("Trailing")
+        if t.get("breakeven"):
+            prot.append("Breakeven")
+        if prot:
+            lines.append(f"Koruma: {' + '.join(prot)}")
+        ts = t.get("time")
+        if ts:
+            lines.append(f"Zaman: {str(ts)[:16].replace('T', ' ')}")
+        return "\n".join(lines)
     return None
 
 async def _run_backfill(symbols: list, days: int):
@@ -1165,7 +1203,7 @@ async def get_status():
 @app.get("/api/v1/priority")
 async def get_priority():
     if not auto_trader:
-        return {"count": 0, "symbols": []}
+        return {"count": 0, "symbols": [], "scanned": []}
     return {
         "count": len(auto_trader.priority),
         "scanned": auto_trader.top_symbols,

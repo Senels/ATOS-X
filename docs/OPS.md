@@ -328,6 +328,7 @@ yoksa dinleyici devre dışıdır.
 | `/temizle [hepsi]` | Kapanan işlem geçmişini siler (in-memory + DB); `hepsi` eklentisi sinyal/backtest/risk/performans tablolarını da boşaltır. Açık pozisyonlar ve ayarlar korunur |
 | `/izleme [N]` | Öncelik listesinin canlı skor sıralaması (varsayılan 10, en fazla 20); her sembol için skor, momentum % ve trend göstergesi (🟢/🔴/⚪) |
 | `/performans` | Equity curve özeti: equity, peak, drawdown %, kazanma oranı ve son 6 aylık istatistik (işlem sayısı, net PnL, kazanma %) |
+| `/son` | Son kapanan işlemin detayı: sembol, yön, giriş/çıkış fiyatı, PnL, neden, koruma (trailing/breakeven) ve zaman |
 | `/yardim` veya `/help` | Komut listesi |
 
 ## Koruma (SL/TP)

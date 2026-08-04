@@ -1426,3 +1426,42 @@ def test_command_performance_requires_trader():
     main_mod.auto_trader = None
     reply = main_mod._telegram_command("/performans")
     assert "motor calismiyor" in reply
+
+
+def test_command_last_trade():
+    fake = _FakeTrader()
+    fake.trade_history = [
+        {"symbol": "BTCUSDT", "side": "BUY", "pnl": 120.0,
+         "entry": 65000.0, "exit": 66000.0, "reason": "take_profit",
+         "trailing": True, "time": "2026-08-04T10:00:00"},
+    ]
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/son")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "BTCUSDT" in reply
+    assert "BUY" in reply
+    assert "+120.00" in reply
+    assert "take_profit" in reply
+    assert "Trailing" in reply
+    assert "65000" in reply
+    assert "66000" in reply
+
+
+def test_command_last_trade_empty():
+    fake = _FakeTrader()
+    fake.trade_history = []
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/son")
+    finally:
+        main_mod.auto_trader = None
+    assert "kapanan islem yok" in reply
+
+
+def test_command_last_trade_requires_trader():
+    main_mod.auto_trader = None
+    reply = main_mod._telegram_command("/son")
+    assert "motor calismiyor" in reply
