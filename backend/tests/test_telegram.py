@@ -1044,3 +1044,58 @@ def test_send_symbol_signal_failure(monkeypatch):
     monkeypatch.setattr(main_mod.telegram, "send", fake_send)
     asyncio.run(main_mod._send_symbol_signal("BTCUSDT"))
     assert messages and "alinamadi" in messages[0]
+
+
+def test_send_batch_signals_summary(monkeypatch):
+    async def fake_signal(symbol, interval="4h"):
+        table = {
+            "BTCUSDT": {"signal": "BUY", "price": 65000.0, "reason": "trend up"},
+            "ETHUSDT": {"signal": "SELL", "price": 3000.0, "reason": "dump"},
+        }
+        return table.get(symbol, {})
+
+    monkeypatch.setattr(main_mod, "_signal_for_symbol", fake_signal)
+    messages = []
+
+    async def fake_send(message):
+        messages.append(message)
+
+    monkeypatch.setattr(main_mod.telegram, "send", fake_send)
+    asyncio.run(main_mod._send_batch_signals(["BTCUSDT", "ETHUSDT", "SOLUSDT"]))
+    assert len(messages) == 1
+    msg = messages[0]
+    assert "ATOS X tarama (4h):" in msg
+    assert "BTCUSDT" in msg and "BUY" in msg
+    assert "ETHUSDT" in msg and "SELL" in msg
+    assert "SOLUSDT" not in msg
+
+
+def test_command_scan_schedules(monkeypatch):
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+    captured = []
+
+    def fake_run_later(coro):
+        captured.append(coro)
+        coro.close()
+        return True
+
+    monkeypatch.setattr(main_mod, "_run_later", fake_run_later)
+    try:
+        reply = main_mod._telegram_command("/sinyalall 3")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "2 sembol taranacak" in reply
+    assert len(captured) == 1
+
+
+def test_command_scan_bad_n():
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/sinyalall abc")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "kullanim" in reply

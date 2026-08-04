@@ -106,6 +106,22 @@ async def _send_symbol_signal(symbol: str, interval: str = "4h"):
         return
     await telegram.send_signal(symbol, signal, sig.get("price") or 0.0, sig.get("reason", ""))
 
+async def _send_batch_signals(symbols: list, interval: str = "4h"):
+    """Tarama listesi icin toplu sinyal ozetini Telegram'a gonderir."""
+    arrows = {"BUY": "🟢", "SELL": "🔴", "HOLD": "⚪"}
+    lines = [f"ATOS X tarama ({interval}):"]
+    for sym in symbols:
+        sig = await _signal_for_symbol(sym, interval)
+        signal = sig.get("signal")
+        if not signal:
+            continue
+        arrow = arrows.get(signal, "")
+        price = sig.get("price") or 0.0
+        lines.append(f"{sym} {arrow} {signal} ${price:.4g} - {sig.get('reason', '')[:60]}")
+    if len(lines) == 1:
+        lines.append("Sinyal alinamadi")
+    await telegram.send("\n".join(lines))
+
 async def _set_sl(symbol: str, new_sl: float):
     """Pozisyonun SL'sini gunceller ve sonucu Telegram'a bildirir."""
     res = await auto_trader.update_sl(symbol, new_sl)
@@ -261,6 +277,7 @@ def _telegram_command(text: str):
                 "/durdur - acil durdurma (tum pozisyonlari kapatir)\n"
                 "/kapatall - acik tum pozisyonlari kapatir\n"
                 "/sinyal <SEMBOL> - sembol icin canli sinyal gonder\n"
+                "/sinyalall [N] - ilk N sembolun toplu tarama ozeti\n"
                 "/koruma [ANAHTAR] [DEGER] - risk ayarlarini gor/degistir\n"
                 "/ac - motoru yeniden baslatir\n"
                 "/rapor - gunluk rapor gonder\n"
@@ -372,6 +389,23 @@ def _telegram_command(text: str):
         if not _run_later(_set_tp(sym, new_tp)):
             return "ATOS X: komut arka planda calistirilamadi"
         return f"ATOS X: {sym} TP guncelleniyor -> ${new_tp}"
+    if cmd.startswith("/sinyalall") or cmd.startswith("/scan"):
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        parts = text.strip().split()
+        n = 5
+        if len(parts) > 1:
+            try:
+                n = int(parts[1])
+            except ValueError:
+                return "ATOS X: kullanim /sinyalall [N]"
+        n = max(1, min(n, 10))
+        symbols = (auto_trader.priority or auto_trader.trading_symbols)[:n]
+        if not symbols:
+            return "ATOS X: tarama listesi bos"
+        if not _run_later(_send_batch_signals(symbols)):
+            return "ATOS X: komut arka planda calistirilamadi"
+        return f"ATOS X: {len(symbols)} sembol taranacak"
     if cmd.startswith("/sinyal") or cmd.startswith("/signal"):
         parts = text.strip().split()
         if not auto_trader:
