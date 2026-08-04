@@ -815,6 +815,18 @@ def _telegram_command(text: str):
             var = sum((p - avg_pnl) ** 2 for p in pnls) / (total - 1)
             std = var ** 0.5
             sharpe = avg_pnl / std if std > 0 else 0.0
+        win_streak = loss_streak = cur_w = cur_l = 0
+        for p in pnls:
+            if p > 0:
+                cur_w += 1
+                cur_l = 0
+            elif p < 0:
+                cur_l += 1
+                cur_w = 0
+            else:
+                cur_w = cur_l = 0
+            win_streak = max(win_streak, cur_w)
+            loss_streak = max(loss_streak, cur_l)
         by_month = {}
         for t in hist:
             ts = str(t.get("time", ""))
@@ -831,6 +843,7 @@ def _telegram_command(text: str):
             f"Equity: ${auto_trader.equity:.2f} | Peak: ${peak:.2f}",
             f"Drawdown: %{dd_pct:.1f} | Kazanma: %{wr:.0f}",
             f"Sharpe: {sharpe:.2f} | Ort PnL: {avg_pnl:+.2f}",
+            f"Seri: {win_streak}W max / {loss_streak}L max",
         ]
         if months:
             lines.append("Aylik ozet:")
