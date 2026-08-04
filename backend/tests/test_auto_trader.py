@@ -1569,3 +1569,53 @@ async def test_refresh_ranking_disabled_keeps_backtest_order(trader, monkeypatch
                         lambda: {"use_score_ranking": False})
     await tr._refresh_ranking()
     assert tr.priority == ["BTCUSDT", "ETHUSDT"]
+
+
+async def test_ensure_data_freshness_backfills_stale(trader, monkeypatch):
+    tr, fb, db = trader
+    tr.priority = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+    now = datetime.utcnow()
+
+    def fake_load(symbol, interval="4h", data_dir=None, limit=None):
+        if symbol == "BTCUSDT":
+            idx = pd.DatetimeIndex([now - timedelta(hours=48)])
+        elif symbol == "SOLUSDT":
+            idx = pd.DatetimeIndex([now - timedelta(hours=1)])
+        else:
+            raise FileNotFoundError("missing")
+        df = pd.DataFrame({"open": [100.0], "high": [101.0], "low": [99.0],
+                           "close": [100.0], "volume": [1.0]}, index=idx)
+        df.index = df.index.tz_localize("UTC")
+        return df
+
+    monkeypatch.setattr(at_mod.loader, "load_csv", fake_load)
+    captured = {}
+
+    async def fake_backfill(client, symbols, interval="4h", days=30,
+                            data_dir=None, skip_stablecoins=True):
+        captured["symbols"] = list(symbols)
+        return {"written": list(symbols), "failed": [], "interval": interval,
+                "days": days, "path": "/tmp"}
+
+    monkeypatch.setattr(at_mod, "backfill_klines", fake_backfill)
+    await tr._ensure_data_freshness()
+    assert set(captured["symbols"]) == {"BTCUSDT", "ETHUSDT"}
+
+
+async def test_ensure_data_freshness_all_fresh(trader, monkeypatch):
+    tr, fb, db = trader
+    tr.priority = ["BTCUSDT"]
+    now = datetime.utcnow()
+    idx = pd.DatetimeIndex([now - timedelta(hours=1)]).tz_localize("UTC")
+    df = pd.DataFrame({"open": [100.0], "high": [101.0], "low": [99.0],
+                       "close": [100.0], "volume": [1.0]}, index=idx)
+    monkeypatch.setattr(at_mod.loader, "load_csv",
+                        lambda symbol, interval="4h", data_dir=None, limit=None: df)
+    called = []
+
+    async def fake_backfill(*a, **k):
+        called.append(1)
+
+    monkeypatch.setattr(at_mod, "backfill_klines", fake_backfill)
+    await tr._ensure_data_freshness()
+    assert called == []

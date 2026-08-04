@@ -703,6 +703,32 @@ def test_command_koruma_view_shows_score_ranking(monkeypatch):
     assert "Skor siralamasi" in reply
 
 
+def test_command_koruma_set_backfill_interval(monkeypatch):
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+    applied = {}
+    monkeypatch.setattr(main_mod.strat_settings, "update_settings",
+                        lambda patch: applied.update(patch) or main_mod.strat_settings.get_settings())
+    monkeypatch.setattr(main_mod.strat_settings, "persist", lambda: {})
+    try:
+        reply = main_mod._telegram_command("/koruma data_backfill_hours 6")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert applied["data_backfill_hours"] == 6.0
+
+
+def test_command_koruma_view_shows_backfill(monkeypatch):
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/koruma")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "Otomatik backfill" in reply
+
+
 def test_command_koruma_unknown_key():
     main_mod.auto_trader = _FakeTrader()
     try:

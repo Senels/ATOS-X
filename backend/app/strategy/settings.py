@@ -44,6 +44,9 @@ DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
     "council_min_confidence": 0.6,  # Council kararina gerekli minimum guven (0-1)
     # Coin Intelligence: canli momentum skoruna gore sembol onceligi
     "use_score_ranking": False,     # True iken ranking canli coin_score'a gore yeniden siralanir
+    # Market Collector: ranking icin yerel CSV tazeligi
+    "data_backfill_hours": 0.0,     # Otomatik backfill araligi (saat; 0 = devre disi)
+    "data_freshness_hours": 12.0,   # Son bar bu saatten eskiyse sembol eski sayilir
     # Strateji parametreleri
     "rr_ratio": 1.5,             # TP = SL mesafesi * rr_ratio
     "sl_lookback": 5,            # pivot swing uzunlugu

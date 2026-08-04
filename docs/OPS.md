@@ -459,6 +459,10 @@ yoksa dinleyici devre dışıdır.
 - Ayar editörü (`/dashboard/settings` → Risk sekmesi): Decision Council
   toggle, Council Min Confidence (%) ve Score Ranking toggle'ları eklenmiştir
   (`saveAll`/`loadDefaults`/`refresh` ile eşleşir).
+- Otomatik backfill: `data_backfill_hours` (0 = kapalı) arayla top 100
+  sembolün CSV'si tazelik kontrol edilir; eksik ya da son bari
+  `data_freshness_hours` (varsayılan 12) saatten eski olanlar
+  `backfill_klines` ile tazelenir. `/koruma data_backfill_hours 6` ile açılır.
 - `GET /api/v1/portfolio`: mode (paper/live), `synced` bayrağı, balance,
   available, unrealized PnL, equity/peak/drawdown, day PnL ve pozisyon
   bazlı notional/uPnL listesi.

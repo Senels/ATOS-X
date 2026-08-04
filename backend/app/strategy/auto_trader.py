@@ -12,6 +12,7 @@ from app.strategy import settings as strat_settings
 from app.strategy.tradebot_v23 import TradeBotV23
 from app.strategy.decision import decide as decide_council
 from app.strategy.coin_intel import coin_score as score_symbol
+from app.data.collector import backfill as backfill_klines
 
 _SCORE_POOL = 200  # skor bazli siralama icin canli degerlendirilen sembol sayisi
 
@@ -239,6 +240,56 @@ class AutoTrader:
         )
         return reordered
 
+    async def _ensure_data_freshness(self):
+        """Ranking icin gerekli yerel CSV verisini taze tutar.
+
+        Top sembollerin CSV'si kontrol edilir; eksik ya da son bari
+        `data_freshness_hours`'tan eski olanlar `backfill_klines` ile tazelenir.
+        """
+        s = strat_settings.get_settings()
+        fresh_h = float(s.get("data_freshness_hours", 12.0))
+        stale = []
+        for symbol in self.priority[:100]:
+            try:
+                df = loader.load_csv(symbol, "4h", limit=30)
+            except Exception:
+                stale.append(symbol)
+                continue
+            last = df.index[-1].to_pydatetime()
+            if last.tzinfo is not None:
+                last = last.replace(tzinfo=None)
+            age_h = (datetime.utcnow() - last).total_seconds() / 3600.0
+            if age_h > fresh_h:
+                stale.append(symbol)
+        if not stale:
+            logger.info("Veri tazeligi kontrolu: tum semboller guncel")
+            return
+        logger.info(
+            f"{len(stale)} sembol verisi eski; backfill basliyor: "
+            f"{', '.join(stale[:10])}"
+        )
+        try:
+            await backfill_klines(self.binance, stale, interval="4h", days=30)
+        except Exception as e:
+            logger.error(f"Otomatik backfill hatasi: {e}")
+
+    async def _data_backfill_loop(self):
+        """`data_backfill_hours` arayla eski CSV verisini otomatik tazeler."""
+        while self.running:
+            try:
+                hours = float(strat_settings.get_settings().get(
+                    "data_backfill_hours", 0.0) or 0.0)
+                if hours > 0:
+                    await asyncio.sleep(hours * 3600)
+                    await self._ensure_data_freshness()
+                else:
+                    await asyncio.sleep(600)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Veri tazelik dongusu hatasi: {e}")
+                await asyncio.sleep(300)
+
     def update_price(self, symbol: str, price: float):
         self.live_prices[symbol] = float(price)
 
@@ -290,6 +341,7 @@ class AutoTrader:
         await self._check_concentration()
         await self._notify_startup_state()
         asyncio.create_task(self._refresh_ranking())
+        asyncio.create_task(self._data_backfill_loop())
 
         while self.running:
             try:
