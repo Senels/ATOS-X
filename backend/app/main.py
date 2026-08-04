@@ -809,6 +809,12 @@ def _telegram_command(text: str):
         wins = sum(1 for p in pnls if p > 0)
         total = len(pnls)
         wr = wins / total * 100 if total else 0.0
+        avg_pnl = sum(pnls) / total if total else 0.0
+        sharpe = 0.0
+        if total >= 2:
+            var = sum((p - avg_pnl) ** 2 for p in pnls) / (total - 1)
+            std = var ** 0.5
+            sharpe = avg_pnl / std if std > 0 else 0.0
         by_month = {}
         for t in hist:
             ts = str(t.get("time", ""))
@@ -824,6 +830,7 @@ def _telegram_command(text: str):
             f"ATOS X performans ({total} islem):",
             f"Equity: ${auto_trader.equity:.2f} | Peak: ${peak:.2f}",
             f"Drawdown: %{dd_pct:.1f} | Kazanma: %{wr:.0f}",
+            f"Sharpe: {sharpe:.2f} | Ort PnL: {avg_pnl:+.2f}",
         ]
         if months:
             lines.append("Aylik ozet:")
