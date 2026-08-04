@@ -579,3 +579,61 @@ def test_live_signals_interval_param():
     assert resp.status_code == 200
     assert ("BTCUSDT", "1h", 400) in fake_klines.calls
     assert ("ETHUSDT", "1h", 400) in fake_klines.calls
+
+
+def test_market_regime_endpoint():
+    fake_klines = _FakeKlines()
+    main_mod.app.state.binance = fake_klines
+    try:
+        client = TestClient(app)
+        resp = client.get("/api/v1/market/regime?symbol=BTCUSDT&interval=4h")
+        client.close()
+    finally:
+        main_mod.app.state.binance = None
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True
+    assert body["symbol"] == "BTCUSDT"
+    assert body["interval"] == "4h"
+    assert body["trend"]["regime"] in ("UP", "DOWN", "RANGE")
+    assert body["volatility"]["regime"] in ("LOW", "NORMAL", "HIGH", "EXTREME")
+    assert "liquidity" in body
+
+
+def test_market_regimes_endpoint():
+    fake_klines = _FakeKlines()
+    main_mod.app.state.binance = fake_klines
+    ft = _FakeTrader({})
+    ft.priority = ["BTCUSDT", "ETHUSDT"]
+    main_mod.auto_trader = ft
+    try:
+        client = TestClient(app)
+        resp = client.get("/api/v1/market/regimes?limit=5")
+        client.close()
+    finally:
+        main_mod.auto_trader = None
+        main_mod.app.state.binance = None
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["count"] == 2
+    assert {r["symbol"] for r in body["regimes"]} == {"BTCUSDT", "ETHUSDT"}
+    assert ("BTCUSDT", "4h", 400) in fake_klines.calls
+
+
+def test_market_regimes_endpoint_not_running():
+    main_mod.auto_trader = None
+    client = TestClient(app)
+    resp = client.get("/api/v1/market/regimes")
+    client.close()
+    assert resp.json() == {"regimes": [], "count": 0, "scanned": []}
+
+
+def test_dashboard_has_market_regime_card():
+    client = TestClient(app)
+    resp = client.get("/dashboard/html")
+    assert resp.status_code == 200
+    assert "Market Regime" in resp.text
+    assert "loadRegimes" in resp.text
+    assert 'id="regimeBody"' in resp.text
+    assert "/api/v1/market/regimes" in resp.text
+    client.close()

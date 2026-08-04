@@ -15,6 +15,7 @@ from app.exchange.binance_client import BinanceClient
 from app.strategy.auto_trader import AutoTrader
 from app.strategy import settings as strat_settings
 from app.strategy.tradebot_v23 import TradeBotV23
+from app.strategy.market_intel import analyze as analyze_market
 from app.api.backtest import router as backtest_router
 from app.api.optimization import router as optimize_router
 from app.websocket.client import BinanceWebSocket
@@ -579,6 +580,42 @@ async def live_signals(limit: int = 12, interval: str = "4h"):
     order = {"BUY": 0, "SELL": 1, "HOLD": 2}
     signals.sort(key=lambda s: order.get(s["signal"], 3))
     return {"signals": signals, "count": len(signals), "scanned": candidates}
+
+@app.get("/api/v1/market/regime")
+async def market_regime(symbol: str = "BTCUSDT", interval: str = "4h"):
+    """Tek sembol icin rejim + volatilite + likidite tespiti."""
+    try:
+        df = await app.state.binance.get_klines(symbol.upper(), interval, 400)
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    out = analyze_market(df)
+    out["ok"] = True
+    out["symbol"] = symbol.upper()
+    out["interval"] = interval
+    return out
+
+@app.get("/api/v1/market/regimes")
+async def market_regimes(limit: int = 10, interval: str = "4h"):
+    """Tarama listesi icin rejim ozeti (dashboard kartı)."""
+    if not auto_trader:
+        return {"regimes": [], "count": 0, "scanned": []}
+    limit = max(1, min(limit, 30))
+    candidates = (auto_trader.priority or auto_trader.trading_symbols)[:limit]
+    if not candidates:
+        return {"regimes": [], "count": 0, "scanned": []}
+
+    async def fetch(symbol):
+        try:
+            df = await app.state.binance.get_klines(symbol, interval, 400)
+            m = analyze_market(df)
+            m["symbol"] = symbol
+            return m
+        except Exception:
+            return None
+
+    results = await asyncio.gather(*(fetch(s) for s in candidates))
+    regimes = [r for r in results if r is not None]
+    return {"regimes": regimes, "count": len(regimes), "scanned": candidates}
 
 @app.get("/api/v1/status")
 async def get_status():

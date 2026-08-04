@@ -67,6 +67,7 @@ tr:hover { background:rgba(59,130,246,0.05); }
 </div>
 <div class="card"><h3>🎯 Priority Watchlist</h3><div id="watchlistBody" style="display:flex;flex-wrap:wrap;gap:6px;">-</div></div>
 <div class="card"><h3>📡 Live Signals <select id="signalsInterval" onchange="signalsIntervalChange()" style="margin-left:8px;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:3px 6px;font-size:12px;"><option value="15m">15m</option><option value="30m">30m</option><option value="1h">1h</option><option value="2h">2h</option><option value="4h">4h</option><option value="6h">6h</option><option value="8h">8h</option><option value="12h">12h</option><option value="1d">1d</option></select></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Signal</th><th>Price</th><th>SL</th><th>TP</th><th>Reason</th></tr></thead><tbody id="signalsBody"><tr><td colspan="6" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
+<div class="card"><h3>🌡️ Market Regime</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Trend</th><th>Volatility</th><th>ATR%</th><th>ATR%ile</th></tr></thead><tbody id="regimeBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
 <div class="card"><h3>⚠️ Risk Exposure</h3><div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
 <div><span class="label" style="font-size:11px;color:#94a3b8;text-transform:uppercase;">LONG</span><div class="value" id="longExposure" style="font-size:22px;font-weight:bold;">-</div></div>
 <div><span class="label" style="font-size:11px;color:#94a3b8;text-transform:uppercase;">SHORT</span><div class="value" id="shortExposure" style="font-size:22px;font-weight:bold;">-</div></div>
@@ -179,6 +180,7 @@ loadEquity();
 loadPnl();
 loadRiskPositions();
 loadSignals();
+loadRegimes();
 initSignalsInterval();
 } catch(e) { console.error(e); }
 }
@@ -192,7 +194,9 @@ function signalsIntervalChange() {
 signalsInterval = document.getElementById('signalsInterval').value;
 localStorage.setItem('signalsInterval', signalsInterval);
 lastSignalsLoad = 0;
+lastRegimesLoad = 0;
 loadSignals();
+loadRegimes();
 }
 async function applyPos(sym) {
 const sl = document.querySelector('.sl-ed[data-sym="'+sym+'"]').value;
@@ -240,6 +244,25 @@ const price = s.price != null ? '$'+Number(s.price).toFixed(2) : '-';
 body.innerHTML += '<tr><td><strong>'+s.symbol+'</strong></td><td><span class="'+cls+'">'+s.signal+'</span></td><td>'+price+'</td><td>'+sl+'</td><td>'+tp+'</td><td style="opacity:.8;">'+s.reason+'</td></tr>';
 });
 } else { body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#64748b;padding:20px;">Sinyal yok</td></tr>'; }
+} catch(e) { console.error(e); }
+}
+let lastRegimesLoad = 0;
+async function loadRegimes() {
+if (Date.now() - lastRegimesLoad < 60000) return;
+lastRegimesLoad = Date.now();
+try {
+const r = await fetch('/api/v1/market/regimes?limit=10&interval=' + encodeURIComponent(signalsInterval));
+const d = await r.json();
+const body = document.getElementById('regimeBody');
+const rows = d.regimes || [];
+if (rows.length) {
+body.innerHTML = '';
+rows.forEach(function(x) {
+const tCls = x.trend.regime === 'UP' ? 'badge-buy' : (x.trend.regime === 'DOWN' ? 'badge-sell' : 'badge-hold');
+const vCls = (x.volatility.regime === 'HIGH' || x.volatility.regime === 'EXTREME') ? 'badge-sell' : (x.volatility.regime === 'LOW' ? 'badge-buy' : 'badge-hold');
+body.innerHTML += '<tr><td><strong>'+x.symbol+'</strong></td><td><span class="'+tCls+'">'+x.trend.regime+'</span></td><td><span class="'+vCls+'">'+x.volatility.regime+'</span></td><td>'+x.volatility.atr_pct+'</td><td>'+x.volatility.percentile+'</td></tr>';
+});
+} else { body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Rejim yok</td></tr>'; }
 } catch(e) { console.error(e); }
 }
 async function loadRiskPositions() {

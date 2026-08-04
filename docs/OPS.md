@@ -370,6 +370,22 @@ yoksa dinleyici devre dışıdır.
   işlem reddedilir) ve `AutoTrader.close_position` ile SL/TP algo emirlerini iptal eder.
 - Uçlar `not_running`, `position_not_found`, `price_not_found` hataları döndürür.
 
+## Market Intelligence (Rejim / Volatilite)
+
+- `app/strategy/market_intel.py` kline DataFrame'inden deterministik rejim
+  sinyalleri üretir (`analyze`):
+  - **Volatilite**: ATR%'nin son 100 bar içindeki yüzdelik dilimi → `LOW`
+    (<%30), `NORMAL` (%30-70), `HIGH` (%70-90), `EXTREME` (>=%90). Sabit ATR
+    (`std ≈ 0`) `NORMAL`/%50 sayılır.
+  - **Trend**: hızlı (21) / yavaş (50) EMA hizası + son 100 bar eğimi →
+    `UP`, `DOWN`, `RANGE`.
+  - **Likidite**: son 20 bar ortalama hacim + z-skoru (proxy).
+- Uçlar: `/api/v1/market/regime?symbol=&interval=` (tek sembol),
+  `/api/v1/market/regimes?limit=&interval=` (tarama listesi, dashboard kartı).
+- Dashboard `🌡️ Market Regime` kartında trend/volatilite rozetleri, ATR% ve
+  ATR%ile gösterilir; `📡 Live Signals` ile aynı interval seçimini kullanır.
+- Çıktı ilerleyen batch'lerde risk boyutlandırma ve Decision Council'a girdi olacaktır.
+
 ## API ve Dashboard Görünürlüğü
 
 | Uç | İçerik |
@@ -383,8 +399,10 @@ yoksa dinleyici devre dışıdır.
 | `/api/v1/positions/<S>/sl` | Dashboard/API'den açık pozisyon SL güncelleme (`AutoTrader.update_sl`) |
 | `/api/v1/positions/<S>/tp` | Dashboard/API'den açık pozisyon TP güncelleme (`AutoTrader.update_tp`) |
 | `/api/v1/positions/<S>/close` | Açık pozisyonu canlı fiyatla kapatma (`AutoTrader.close_position`) |
+| `/api/v1/market/regime` | Tek sembol rejim/volatilite/likidite tespiti (`symbol`, `interval`) |
+| `/api/v1/market/regimes` | Tarama listesi için rejim özeti (`limit`, `interval`) |
 | `/dashboard/metrics` | Aynı + pozisyon başına `protected` |
-| `/dashboard` | Pozisyon tablosunda `KORUMALI`/`KORUMASIZ` rozetleri + kart özeti; `🧮 Position Risk` kartında notional, size %, SL mesafesi, risk tutarı, uPnL ve pozisyon yaşı; `📡 Live Signals` kartında tarama listesinin canlı sinyalleri (60 sn'de bir yenilenir; üstten interval seçilir — varsayılan `4h`, seçim `localStorage`'da saklanır); her satırda SL/TP düzenleme + `Uygula`/`Kapat` butonları |
+| `/dashboard` | Pozisyon tablosunda `KORUMALI`/`KORUMASIZ` rozetleri + kart özeti; `🧮 Position Risk` kartında notional, size %, SL mesafesi, risk tutarı, uPnL ve pozisyon yaşı; `📡 Live Signals` kartında tarama listesinin canlı sinyalleri (60 sn'de bir yenilenir; üstten interval seçilir — varsayılan `4h`, seçim `localStorage`'da saklanır); `🌡️ Market Regime` kartında trend/volatilite rejimi + ATR%; her satırda SL/TP düzenleme + `Uygula`/`Kapat` butonları |
 
 ## Doğrulama
 
