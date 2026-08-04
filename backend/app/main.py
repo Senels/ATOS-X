@@ -265,6 +265,7 @@ def _telegram_command(text: str):
                 "/rapor - gunluk rapor gonder\n"
                 "/risk - risk durumu\n"
                 "/gecmis [N] - son N islem\n"
+                "/istatistik - islem performansi ozeti\n"
                 "/yardim - bu liste")
     if cmd.startswith("/blok"):
         blocks = sorted(auto_trader._conc_blocks) if auto_trader else []
@@ -469,14 +470,55 @@ def _telegram_command(text: str):
         history = auto_trader.trade_history[-n:]
         if not history:
             return "ATOS X: kapanis gecmisi yok"
-        lines = ["ATOS X son islemler:"]
+        lines = [f"ATOS X son islemler ({len(history)}):"]
+        pnls = [t.get("pnl", 0) or 0 for t in history]
+        wins = [p for p in pnls if p > 0]
+        net = sum(pnls)
+        win_rate = len(wins) / len(pnls) * 100 if pnls else 0.0
+        gross_w = sum(p for p in pnls if p > 0)
+        gross_l = abs(sum(p for p in pnls if p <= 0))
+        pf = gross_w / gross_l if gross_l > 0 else (float("inf") if gross_w > 0 else 0.0)
+        pf_str = "inf" if pf == float("inf") else f"{pf:.2f}"
+        lines.append(f"Net: {net:+.2f} | Kazanma: %{win_rate:.0f} | PF: {pf_str}")
         for t in reversed(history):
             pnl = t.get("pnl", 0) or 0
             sign = "+" if pnl >= 0 else ""
-            lines.append(
-                f"{t['symbol']} {t['side']} {sign}{pnl:.2f} "
-                f"({t.get('reason', '')})"
-            )
+            line = f"{t['symbol']} {t['side']} {sign}{pnl:.2f} ({t.get('reason', '')})"
+            entry, exit_p = t.get("entry"), t.get("exit")
+            if entry is not None and exit_p is not None:
+                line += f" [{float(entry):g} -> {float(exit_p):g}]"
+            ts = t.get("time")
+            if ts:
+                line += f" {str(ts)[5:16]}"
+            lines.append(line)
+        return "\n".join(lines)
+    if cmd.startswith("/istatistik") or cmd.startswith("/stats"):
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        hist = auto_trader.trade_history
+        if not hist:
+            return "ATOS X: islem gecmisi yok"
+        pnls = [t.get("pnl", 0) or 0 for t in hist]
+        wins = [p for p in pnls if p > 0]
+        losses = [p for p in pnls if p <= 0]
+        net = sum(pnls)
+        gross_w = sum(wins)
+        gross_l = abs(sum(losses))
+        pf = gross_w / gross_l if gross_l > 0 else (float("inf") if gross_w > 0 else 0.0)
+        pf_str = "inf" if pf == float("inf") else f"{pf:.2f}"
+        avg_w = gross_w / len(wins) if wins else 0.0
+        avg_l = gross_l / len(losses) if losses else 0.0
+        by_sym = {}
+        for t in hist:
+            sym = t.get("symbol", "?")
+            by_sym[sym] = by_sym.get(sym, 0.0) + (t.get("pnl", 0) or 0)
+        best = max(by_sym.items(), key=lambda kv: kv[1])
+        lines = [
+            f"ATOS X istatistik ({len(hist)} islem):",
+            f"Net PnL: {net:+.2f} | Kazanma: %{len(wins) / len(pnls) * 100:.0f}",
+            f"PF: {pf_str} | Ort kar: {avg_w:+.2f} | Ort zarar: {avg_l:.2f}",
+            f"En iyi sembol: {best[0]} {best[1]:+.2f}",
+        ]
         return "\n".join(lines)
     return None
 

@@ -392,8 +392,10 @@ def test_command_history_empty():
 def test_command_history_lists_trades():
     fake = _FakeTrader()
     fake.trade_history = [
-        {"symbol": "BTCUSDT", "side": "BUY", "pnl": 120.0, "reason": "take_profit"},
-        {"symbol": "ETHUSDT", "side": "SELL", "pnl": -50.0, "reason": "stop_loss"},
+        {"symbol": "BTCUSDT", "side": "BUY", "pnl": 120.0, "reason": "take_profit",
+         "entry": 100.0, "exit": 108.0, "time": "2026-08-04T07:00:00"},
+        {"symbol": "ETHUSDT", "side": "SELL", "pnl": -50.0, "reason": "stop_loss",
+         "entry": 3000.0, "exit": 3050.0, "time": "2026-08-04T06:00:00"},
     ]
     main_mod.auto_trader = fake
     try:
@@ -404,6 +406,53 @@ def test_command_history_lists_trades():
     assert "son islemler" in reply
     assert "BTCUSDT" in reply and "ETHUSDT" in reply
     assert "+120.00" in reply and "-50.00" in reply
+    assert "100 -> 108" in reply
+    assert "Net: +70.00" in reply
+    assert "Kazanma: %50" in reply
+
+
+def test_command_history_no_prices_ok():
+    fake = _FakeTrader()
+    fake.trade_history = [{"symbol": "BTCUSDT", "side": "BUY", "pnl": 1.0, "reason": "x"}]
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/gecmis")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "BTCUSDT" in reply
+
+
+def test_command_stats_summary():
+    fake = _FakeTrader()
+    fake.trade_history = [
+        {"symbol": "BTCUSDT", "side": "BUY", "pnl": 120.0},
+        {"symbol": "BTCUSDT", "side": "SELL", "pnl": 80.0},
+        {"symbol": "ETHUSDT", "side": "BUY", "pnl": -50.0},
+        {"symbol": "ETHUSDT", "side": "SELL", "pnl": -10.0},
+    ]
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/istatistik")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "istatistik (4 islem)" in reply
+    assert "Net PnL: +140.00" in reply
+    assert "Kazanma: %50" in reply
+    assert "PF: 3.33" in reply
+    assert "Ort kar: +100.00" in reply
+    assert "En iyi sembol: BTCUSDT +200.00" in reply
+
+
+def test_command_stats_empty():
+    main_mod.auto_trader = _FakeTrader()
+    try:
+        reply = main_mod._telegram_command("/istatistik")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "islem gecmisi yok" in reply
 
 
 def test_command_history_bad_n():
