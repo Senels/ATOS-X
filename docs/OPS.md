@@ -422,6 +422,19 @@ yoksa dinleyici devre dışıdır.
 - `/koruma` editörüne `use_decision_council` (bool 1/0) ve
   `council_min_confidence` (0-1) eklendi.
 
+## Market Collector (Veri Toplama / Backfill)
+
+- `app/data/collector.py` Binance kline'larını `legacy/data/futures_{interval}_data/`
+  klasörüne `loader.load_csv` uyumlu CSV olarak yazar (timestamp[ms], OHLCV).
+- `collect`: sembollerin güncel kline'larını çeker/yazar; stablecoin sembolleri
+  atlar; hatayı `failed` listesine işler.
+- `backfill`: `get_klines(..., start_time=...)` ile geçmişe doğru parçalı çekim
+  yapar, tekrar eden bar'lar `drop_duplicates` ile ayıklanır, sıralı yazılır.
+- `BinanceClient.get_klines` artık opsiyonel `start_time` (ms) kabul eder.
+- Uçlar: `POST /api/v1/data/collect` (`symbols=`,`interval=`,`bars=`) ve
+  `POST /api/v1/data/backfill` (`symbols=`,`interval=`,`days=`);
+  sembol verilmezse ilk 10 tarama sembolü kullanılır.
+
 ## API ve Dashboard Görünürlüğü
 
 | Uç | İçerik |
@@ -440,6 +453,8 @@ yoksa dinleyici devre dışıdır.
 | `/api/v1/market/scores` | Tarama listesi için momentum/score sıralaması (`limit`, `interval`) |
 | `/api/v1/market/decision` | Tek sembol Decision Council kararı (`symbol`, `interval`) |
 | `/api/v1/market/decisions` | Tarama listesi karar özeti (BUY/SELL/HOLD + confidence) |
+| `/api/v1/data/collect` | Sembol kline'larını CSV arşivine toplar |
+| `/api/v1/data/backfill` | Sembol geçmiş verisini parçalı çekip arşive yazar |
 | `/dashboard/metrics` | Aynı + pozisyon başına `protected` |
 | `/dashboard` | Pozisyon tablosunda `KORUMALI`/`KORUMASIZ` rozetleri + kart özeti; `🧮 Position Risk` kartında notional, size %, SL mesafesi, risk tutarı, uPnL ve pozisyon yaşı; `📡 Live Signals` kartında tarama listesinin canlı sinyalleri (60 sn'de bir yenilenir; üstten interval seçilir — varsayılan `4h`, seçim `localStorage`'da saklanır); `🌡️ Market Regime` kartında trend/volatilite rejimi + ATR%; `🏆 Coin Scores` kartında skor sıralaması; `⚖️ Decision Council` kartında kararlar + güven + kaynaklar; her satırda SL/TP düzenleme + `Uygula`/`Kapat` butonları |
 

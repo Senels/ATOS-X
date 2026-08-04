@@ -18,6 +18,8 @@ from app.strategy.tradebot_v23 import TradeBotV23
 from app.strategy.market_intel import analyze as analyze_market
 from app.strategy.coin_intel import coin_score
 from app.strategy.decision import decide as decide_symbol
+from app.data.collector import backfill as backfill_klines
+from app.data.collector import collect as collect_klines
 from app.api.backtest import router as backtest_router
 from app.api.optimization import router as optimize_router
 from app.websocket.client import BinanceWebSocket
@@ -686,6 +688,36 @@ async def market_decisions(limit: int = 10, interval: str = "4h"):
     order = {"BUY": 0, "SELL": 1, "HOLD": 2}
     decisions.sort(key=lambda d: (order.get(d["verdict"], 3), -d["confidence"]))
     return {"decisions": decisions, "count": len(decisions), "scanned": candidates}
+
+@app.post("/api/v1/data/collect")
+async def data_collect(symbols: str = "", interval: str = "4h", bars: int = 400,
+                       skip_stablecoins: bool = True):
+    """Belirtilen sembollerin kline'larini CSV arsivine toplar."""
+    if not auto_trader or not auto_trader.binance:
+        return {"ok": False, "error": "not_running"}
+    syms = [s.strip().upper() for s in symbols.split(",") if s.strip()] \
+        or auto_trader.trading_symbols[:10]
+    if not syms:
+        return {"ok": False, "error": "empty_symbols"}
+    res = await collect_klines(auto_trader.binance, syms, interval=interval,
+                               bars=bars, skip_stablecoins=skip_stablecoins)
+    res["ok"] = True
+    return res
+
+@app.post("/api/v1/data/backfill")
+async def data_backfill(symbols: str = "", interval: str = "4h", days: int = 30,
+                        skip_stablecoins: bool = True):
+    """Sembollerin gecmis kline'larini parcalar halinde CSV arsivine yazar."""
+    if not auto_trader or not auto_trader.binance:
+        return {"ok": False, "error": "not_running"}
+    syms = [s.strip().upper() for s in symbols.split(",") if s.strip()] \
+        or auto_trader.trading_symbols[:10]
+    if not syms:
+        return {"ok": False, "error": "empty_symbols"}
+    res = await backfill_klines(auto_trader.binance, syms, interval=interval,
+                                days=days, skip_stablecoins=skip_stablecoins)
+    res["ok"] = True
+    return res
 
 @app.get("/api/v1/status")
 async def get_status():

@@ -1,6 +1,7 @@
 ﻿import asyncio
 import os
 import time
+from typing import Optional
 import urllib3
 import pandas as pd
 from binance.client import Client
@@ -135,18 +136,20 @@ class BinanceClient:
             return self.last_price
 
     async def get_klines(self, symbol: str = "BTCUSDT", interval: str = "1h",
-                         limit: int = 1000) -> pd.DataFrame:
+                         limit: int = 1000, start_time: Optional[int] = None) -> pd.DataFrame:
         """Binance futures kline'larini OHLCV DataFrame olarak dondurur.
 
         Sutunlar: open, high, low, close, volume (index = utc datetime).
-        Public endpoint - API anahtari gerektirmez.
+        Public endpoint - API anahtari gerektirmez. `start_time` (ms) verilirse
+        o andan itibaren `limit` kadar gecmis kline istenir (backfill icin).
         """
         if not self.client:
             await self.connect()
         try:
-            raw = await self._run(
-                self.client.futures_klines, symbol=symbol, interval=interval, limit=limit
-            )
+            kwargs = {"symbol": symbol, "interval": interval, "limit": limit}
+            if start_time is not None:
+                kwargs["startTime"] = int(start_time)
+            raw = await self._run(self.client.futures_klines, **kwargs)
         except Exception as e:
             raise Exception(f"Kline cekilemedi {symbol} {interval}: {e}")
         df = pd.DataFrame(raw).iloc[:, :6]

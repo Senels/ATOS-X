@@ -707,6 +707,72 @@ def test_market_decisions_endpoint_not_running():
     assert resp.json() == {"decisions": [], "count": 0, "scanned": []}
 
 
+def test_data_collect_endpoint(monkeypatch):
+    captured = {}
+
+    async def fake_collect(client, symbols, interval="4h", bars=400, skip_stablecoins=True):
+        captured["symbols"] = symbols
+        captured["interval"] = interval
+        captured["bars"] = bars
+        return {"written": symbols, "skipped": [], "failed": [],
+                "interval": interval, "bars": bars, "path": "/tmp"}
+
+    monkeypatch.setattr(main_mod, "collect_klines", fake_collect)
+    ft = _FakeTrader({})
+    ft.trading_symbols = ["BTCUSDT", "ETHUSDT"]
+    ft.binance = object()
+    main_mod.auto_trader = ft
+    try:
+        client = TestClient(app)
+        resp = client.post("/api/v1/data/collect?symbols=BTCUSDT&interval=4h&bars=500")
+        client.close()
+    finally:
+        main_mod.auto_trader = None
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True
+    assert captured["symbols"] == ["BTCUSDT"]
+    assert captured["interval"] == "4h"
+    assert captured["bars"] == 500
+
+
+def test_data_backfill_endpoint(monkeypatch):
+    captured = {}
+
+    async def fake_backfill(client, symbols, interval="4h", days=30, skip_stablecoins=True):
+        captured["symbols"] = symbols
+        captured["days"] = days
+        return {"written": symbols, "failed": [], "interval": interval,
+                "days": days, "path": "/tmp"}
+
+    monkeypatch.setattr(main_mod, "backfill_klines", fake_backfill)
+    ft = _FakeTrader({})
+    ft.trading_symbols = ["BTCUSDT", "ETHUSDT"]
+    ft.binance = object()
+    main_mod.auto_trader = ft
+    try:
+        client = TestClient(app)
+        resp = client.post("/api/v1/data/backfill?symbols=BTCUSDT&interval=4h&days=7")
+        client.close()
+    finally:
+        main_mod.auto_trader = None
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True
+    assert captured["symbols"] == ["BTCUSDT"]
+    assert captured["days"] == 7
+
+
+def test_data_endpoints_not_running():
+    main_mod.auto_trader = None
+    client = TestClient(app)
+    resp1 = client.post("/api/v1/data/collect")
+    resp2 = client.post("/api/v1/data/backfill")
+    client.close()
+    assert resp1.json()["error"] == "not_running"
+    assert resp2.json()["error"] == "not_running"
+
+
 def test_dashboard_has_decision_council_card():
     client = TestClient(app)
     resp = client.get("/dashboard/html")
