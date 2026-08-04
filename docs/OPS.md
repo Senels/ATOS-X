@@ -453,6 +453,9 @@ yoksa dinleyici devre dışıdır.
 - Varsayılan **kapalı**; `/koruma use_score_ranking 1` ile açılır
   (`_BOOL_RISK_KEYS`'e eklendi, `/koruma` çıktısında `Skor siralamasi` satırı).
 - `_SCORE_POOL = 200` havuz boyutunu belirler.
+- Ayar editörü (`/dashboard/settings` → Risk sekmesi): Decision Council
+  toggle, Council Min Confidence (%) ve Score Ranking toggle'ları eklenmiştir
+  (`saveAll`/`loadDefaults`/`refresh` ile eşleşir).
 - `GET /api/v1/portfolio`: mode (paper/live), `synced` bayrağı, balance,
   available, unrealized PnL, equity/peak/drawdown, day PnL ve pozisyon
   bazlı notional/uPnL listesi.

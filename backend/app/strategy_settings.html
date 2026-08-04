@@ -181,9 +181,15 @@ th { color:#94a3b8; font-weight:500; font-size:10px; text-transform:uppercase; }
 <input type="number" id="r_min_equity" value="5000" min="0" max="10000000" step="100"></div>
 <div class="setting-item" style="border-bottom:none;"><span class="label">Trailing SL Distance (%)</span>
 <input type="number" id="r_trail_sl" value="1.5" min="0" max="50" step="0.5"></div>
-<div class="setting-item" style="border-bottom:none;"><span class="label">Trailing Min Move (%)</span>
+<div class="setting-item"><span class="label">Trailing Min Move (%)</span>
 <input type="number" id="r_trail_min" value="0.1" min="0" max="20" step="0.1"></div>
-<div class="setting-item" style="border-bottom:none;"><span class="label" style="color:#64748b;font-size:11px;">Eşikler equity yüzdesidir; tek sembol veya tek yön bu değeri aşarsa Telegram uyarısı gönderilir ve yeni giriş engellenir. Drawdown peak equity'den düşüşü aşınca yeni girişler durdurulur (yarısına dönünce serbest). Max Position Age, pozisyonun maksimum açık kalma süresidir (0 = devre dışı). Trailing: pozisyon kârı Trailing Activate eşiğini aşınca SL fiyatı Trailing SL Distance kadar geriden takip eder; SL yalnızca Trailing Min Move kadar mesafe değiştiğinde güncellenir. Breakeven Activate: kâr bu eşiği aşınca SL giriş fiyatına taşınır (0 = devre dışı). Max Daily Loss: aynı gün içindeki net zarar bu equity yüzdesini aşınca yeni girişler durdurulur, yeni gün gelince otomatik serbest kalır (0 = devre dışı). Min Equity: equity bu mutlak değerin (USDT) altına düşerse yeni girişler durdurulur; üzerine dönünce serbest kalır (0 = devre dışı). Risk değerleri döngüde canlı uygulanır.</span></div>
+<div class="setting-item"><span class="label">Decision Council</span>
+<button class="toggle-btn off" id="r_council" onclick="toggleButton(this)">OFF</button></div>
+<div class="setting-item"><span class="label">Council Min Confidence (%)</span>
+<input type="number" id="r_council_conf" value="60" min="10" max="100" step="5"></div>
+<div class="setting-item" style="border-bottom:none;"><span class="label">Score Ranking</span>
+<button class="toggle-btn off" id="r_score_rank" onclick="toggleButton(this)">OFF</button></div>
+<div class="setting-item" style="border-bottom:none;"><span class="label" style="color:#64748b;font-size:11px;">Eşikler equity yüzdesidir; tek sembol veya tek yön bu değeri aşarsa Telegram uyarısı gönderilir ve yeni giriş engellenir. Drawdown peak equity'den düşüşü aşınca yeni girişler durdurulur (yarısına dönünce serbest). Max Position Age, pozisyonun maksimum açık kalma süresidir (0 = devre dışı). Trailing: pozisyon kârı Trailing Activate eşiğini aşınca SL fiyatı Trailing SL Distance kadar geriden takip eder; SL yalnızca Trailing Min Move kadar mesafe değiştiğinde güncellenir. Breakeven Activate: kâr bu eşiği aşınca SL giriş fiyatına taşınır (0 = devre dışı). Max Daily Loss: aynı gün içindeki net zarar bu equity yüzdesini aşınca yeni girişler durdurulur, yeni gün gelince otomatik serbest kalır (0 = devre dışı). Min Equity: equity bu mutlak değerin (USDT) altına düşerse yeni girişler durdurulur; üzerine dönünce serbest kalır (0 = devre dışı). Decision Council: açıkken yeni girişler çoklu sinyal oylama kararına ve minimum güven eşiğine tabidir. Score Ranking: açıkken sembol öncelik listesi canlı momentum skoruna göre yeniden sıralanır. Risk değerleri döngüde canlı uygulanır.</span></div>
 </div>
 </div>
 
@@ -266,6 +272,9 @@ trailing_min_move_pct: parseFloat(getValue('r_trail_min')) || 0,
 breakeven_activate_pct: parseFloat(getValue('r_be_act')) || 0,
 max_daily_loss_pct: parseFloat(getValue('r_daily_loss')) || 0,
 min_equity: parseFloat(getValue('r_min_equity')) || 0,
+use_decision_council: getValue('r_council'),
+council_min_confidence: (parseFloat(getValue('r_council_conf')) || 60) / 100,
+use_score_ranking: getValue('r_score_rank'),
 confirmations: {
 ema: getValue('c_ema'),
 '2ma': getValue('c_2ma'),
@@ -331,6 +340,9 @@ document.getElementById('r_daily_loss').value = s.max_daily_loss_pct || 0;
 document.getElementById('r_min_equity').value = s.min_equity || 0;
 document.getElementById('r_trail_sl').value = s.trailing_sl_pct || 0;
 document.getElementById('r_trail_min').value = s.trailing_min_move_pct || 0;
+setToggle('r_council', s.use_decision_council);
+document.getElementById('r_council_conf').value = (s.council_min_confidence != null ? s.council_min_confidence : 0.6) * 100;
+setToggle('r_score_rank', s.use_score_ranking);
 if (s.confirmations) {
 const map = {'ema':'c_ema','2ma':'c_2ma','3ma':'c_3ma','rf':'c_rf','rqk':'c_rqk','st':'c_st','ht':'c_ht','rsi':'c_rsi','macd':'c_macd','stoch':'c_stoch','ichi':'c_ichi','ce':'c_ce'};
 for (const [key,val] of Object.entries(map)) {
@@ -390,6 +402,9 @@ document.getElementById('r_daily_loss').value = s.max_daily_loss_pct || 0;
 document.getElementById('r_min_equity').value = s.min_equity || 0;
 document.getElementById('r_trail_sl').value = s.trailing_sl_pct || 0;
 document.getElementById('r_trail_min').value = s.trailing_min_move_pct || 0;
+setToggle('r_council', s.use_decision_council);
+document.getElementById('r_council_conf').value = (s.council_min_confidence != null ? s.council_min_confidence : 0.6) * 100;
+setToggle('r_score_rank', s.use_score_ranking);
 if (s.confirmations) {
 const map = {'ema':'c_ema','2ma':'c_2ma','3ma':'c_3ma','rf':'c_rf','rqk':'c_rqk','st':'c_st','ht':'c_ht','rsi':'c_rsi','macd':'c_macd','stoch':'c_stoch','ichi':'c_ichi','ce':'c_ce'};
 for (const [key,val] of Object.entries(map)) {

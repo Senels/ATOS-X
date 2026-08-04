@@ -804,3 +804,16 @@ def test_dashboard_has_market_regime_card():
     assert 'id="regimeBody"' in resp.text
     assert "/api/v1/market/regimes" in resp.text
     client.close()
+
+
+def test_settings_has_intelligence_toggles():
+    client = TestClient(app)
+    resp = client.get("/dashboard/settings")
+    client.close()
+    assert resp.status_code == 200
+    assert 'id="r_council"' in resp.text
+    assert 'id="r_council_conf"' in resp.text
+    assert 'id="r_score_rank"' in resp.text
+    assert "use_decision_council" in resp.text
+    assert "use_score_ranking" in resp.text
+    assert "council_min_confidence" in resp.text
