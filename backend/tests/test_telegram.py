@@ -942,6 +942,54 @@ def test_command_tp_no_position():
     assert reply is not None and "acik pozisyon yok" in reply
 
 
+def test_command_sl_all_updates_all_positions():
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/sl all 64000")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "SL guncellendi" in reply
+    assert "64000" in reply
+    assert fake.active_positions["BTCUSDT"]["sl"] == 64000
+    assert fake.active_positions["ETHUSDT"]["sl"] == 64000
+
+
+def test_command_sl_all_empty():
+    fake = _FakeTrader()
+    fake.active_positions = {}
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/sl all 64000")
+    finally:
+        main_mod.auto_trader = None
+    assert "acik pozisyon yok" in reply
+
+
+def test_command_sl_all_invalid_price():
+    main_mod.auto_trader = _FakeTrader()
+    try:
+        reply = main_mod._telegram_command("/sl all abc")
+    finally:
+        main_mod.auto_trader = None
+    assert "gecersiz SL fiyati" in reply
+
+
+def test_command_tp_all_updates_all_positions():
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/tp all 70000")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "TP guncellendi" in reply
+    assert "70000" in reply
+    assert fake.active_positions["BTCUSDT"]["tp"] == 70000
+    assert fake.active_positions["ETHUSDT"]["tp"] == 70000
+
+
 def test_command_tp_schedules(monkeypatch):
     main_mod.auto_trader = _FakeTrader()
 

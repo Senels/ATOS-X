@@ -382,8 +382,19 @@ def _telegram_command(text: str):
         parts = text.strip().split()
         if not auto_trader:
             return "ATOS X: motor calismiyor"
+        if len(parts) == 3 and parts[1].upper() == "ALL":
+            try:
+                new_sl = float(parts[2])
+            except ValueError:
+                return "ATOS X: gecersiz SL fiyati"
+            syms = list(auto_trader.active_positions.keys())
+            if not syms:
+                return "ATOS X: acik pozisyon yok"
+            for s in syms:
+                auto_trader.active_positions[s]["sl"] = new_sl
+            return f"ATOS X: tum pozisyonlarin SL guncellendi -> ${new_sl:g} ({len(syms)} pozisyon)"
         if len(parts) != 3:
-            return "ATOS X: kullanim /sl <SEMBOL> <FIYAT> (orn. /sl BTCUSDT 64000)"
+            return "ATOS X: kullanim /sl <SEMBOL> <FIYAT> veya /sl all <FIYAT>"
         sym = parts[1].upper()
         try:
             new_sl = float(parts[2])
@@ -398,8 +409,19 @@ def _telegram_command(text: str):
         parts = text.strip().split()
         if not auto_trader:
             return "ATOS X: motor calismiyor"
+        if len(parts) == 3 and parts[1].upper() == "ALL":
+            try:
+                new_tp = float(parts[2])
+            except ValueError:
+                return "ATOS X: gecersiz TP fiyati"
+            syms = list(auto_trader.active_positions.keys())
+            if not syms:
+                return "ATOS X: acik pozisyon yok"
+            for s in syms:
+                auto_trader.active_positions[s]["tp"] = new_tp
+            return f"ATOS X: tum pozisyonlarin TP guncellendi -> ${new_tp:g} ({len(syms)} pozisyon)"
         if len(parts) != 3:
-            return "ATOS X: kullanim /tp <SEMBOL> <FIYAT> (orn. /tp BTCUSDT 69000)"
+            return "ATOS X: kullanim /tp <SEMBOL> <FIYAT> veya /tp all <FIYAT>"
         sym = parts[1].upper()
         try:
             new_tp = float(parts[2])

@@ -311,8 +311,8 @@ yoksa dinleyici devre dışıdır.
 | `/blok` | Aktif konsantrasyon engelleri (veya `yok`) |
 | `/pozisyon` | Her pozisyon: sembol, taraf, qty, fiyat + `korumali`/`KORUMASIZ`, varsa SL/TP fiyatları, gerçekleşmemiş PnL ve pozisyon yaşı (saat) |
 | `/kapat <SEMBOL>` | Tek pozisyonu manuel kapatır (canlı fiyat ile) |
-| `/sl <SEMBOL> <FIYAT>` | Açık pozisyonun SL'sini günceller (Telegram üstünden manuel stop) |
-| `/tp <SEMBOL> <FIYAT>` | Açık pozisyonun TP'sini günceller (SL korunur) |
+| `/sl <SEMBOL> <FIYAT>` | Açık pozisyonun SL'sini günceller; `/sl all <FIYAT>` tüm pozisyonlar için toplu güncelleme |
+| `/tp <SEMBOL> <FIYAT>` | Açık pozisyonun TP'sini günceller (SL korunur); `/tp all <FIYAT>` tüm pozisyonlar için toplu güncelleme |
 | `/kapatall` | Açık tüm pozisyonları canlı fiyatlarla kapatır (`close_all`) |
 | `/koruma` veya `/ayar` | Risk eşiklerini gösterir; `/koruma <anahtar> <deger>` ile canlı değiştirir (kalıcı) |
 | `/durdur` veya `/stop` | Acil durdurma; tüm pozisyonları kapatır + kapanış özeti gönderir |
