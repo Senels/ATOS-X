@@ -61,11 +61,12 @@ class TelegramNotifier:
     async def send_daily_summary(self, trades, equity, open_positions, top_symbols=None,
                                  marks=None, risk_events=None, loss_halted=False,
                                  daily_loss_halted=False, equity_halted=False,
-                                 day_pnl=None, data_status=None, protection_stats=None):
+                                 day_pnl=None, drawdown_pct=None, worst_sym=None,
+                                 data_status=None, protection_stats=None):
         await self.send(format_daily_summary(
             trades, equity, open_positions, top_symbols, marks, risk_events,
-            loss_halted, daily_loss_halted, equity_halted, day_pnl, data_status,
-            protection_stats,
+            loss_halted, daily_loss_halted, equity_halted, day_pnl,
+            drawdown_pct, worst_sym, data_status, protection_stats,
         ))
 
     async def send_stop_summary(self, closed):
@@ -136,7 +137,8 @@ def _process_updates(updates: list, handler) -> tuple:
 def format_daily_summary(trades, equity, open_positions, top_symbols=None,
                          marks=None, risk_events=None, loss_halted=False,
                          daily_loss_halted=False, equity_halted=False,
-                         day_pnl=None, data_status=None, protection_stats=None) -> str:
+                         day_pnl=None, drawdown_pct=None, worst_sym=None,
+                         data_status=None, protection_stats=None) -> str:
     """Gunluk ozet rapor metnini kurar. trades satirlari DB trades kolonlaridir."""
     closed = [t for t in trades if t[6] is not None]
     wins = sum(1 for t in closed if t[6] > 0)
@@ -178,10 +180,16 @@ def format_daily_summary(trades, equity, open_positions, top_symbols=None,
         msg += f"En iyi: {best[1]} {('+' if best[6] >= 0 else '')}{best[6]:.2f}\n"
     if best_sym:
         msg += f"En iyi sembol: {best_sym[0]} {'+' if best_sym[1] >= 0 else ''}{best_sym[1]:.2f}\n"
+    if worst_sym and worst_sym[1] < 0:
+        msg += f"En kotu sembol: {worst_sym[0]} {worst_sym[1]:.2f}\n"
     if by_sym:
         top_syms = sorted(by_sym.items(), key=lambda kv: kv[1], reverse=True)[:5]
         msg += "Semboller: " + ", ".join(
             f"{s} {'+' if p >= 0 else ''}{p:.2f}" for s, p in top_syms) + "\n"
+    if drawdown_pct is not None and drawdown_pct > 0:
+        msg += f"Drawdown: %{drawdown_pct:.1f}\n"
+    if risk_events:
+        msg += f"Risk olayi: {len(risk_events)}\n"
     msg += f"Acik pozisyon: {len(open_positions) if open_positions else 0}"
     if top_symbols:
         msg += f"\nTarama: {', '.join(top_symbols[:8])}"

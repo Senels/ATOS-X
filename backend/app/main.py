@@ -288,6 +288,8 @@ def _telegram_command(text: str):
                 "/veri - veri tazeligi ozeti (ok/esk/esik)\n"
                 "/backfill [SEMBOLLER] [GUN] - eksik/eski CSV verisini tazeler\n"
                 "/temizle [hepsi] - kapanan islem gecmisini temizler (hepsi: +sinyal/backtest/risk/performans)\n"
+                "/izleme [N] - oncelik listesi + canli skor siralamasi\n"
+                "/performans - equity curve ozeti + aylik istatistik\n"
                 "/yardim - bu liste")
     if cmd.startswith("/blok"):
         blocks = sorted(auto_trader._conc_blocks) if auto_trader else []
@@ -479,6 +481,13 @@ def _telegram_command(text: str):
             "breakeven": sum(1 for t in hist if t.get("breakeven")),
             "breakeven_pnl": sum(t.get("pnl", 0) or 0 for t in hist if t.get("breakeven")),
         }
+        closed_today = [t for t in trades if t[6] is not None]
+        worst_sym = None
+        if closed_today:
+            by_sym = {}
+            for t in closed_today:
+                by_sym[t[1]] = by_sym.get(t[1], 0.0) + t[6]
+            worst_sym = min(by_sym.items(), key=lambda kv: kv[1]) if by_sym else None
         if not _run_later(telegram.send_daily_summary(
                 trades, auto_trader.equity, auto_trader.active_positions,
                 auto_trader.top_symbols, marks=auto_trader.live_prices,
@@ -487,6 +496,8 @@ def _telegram_command(text: str):
                 daily_loss_halted=auto_trader.daily_loss_halted,
                 equity_halted=auto_trader.equity_halted,
                 day_pnl=auto_trader.day_pnl,
+                drawdown_pct=auto_trader.drawdown_pct,
+                worst_sym=worst_sym,
                 data_status=_data_freshness(300),
                 protection_stats=protection_stats)):
             return "ATOS X: komut arka planda calistirilamadi"
@@ -647,6 +658,56 @@ def _telegram_command(text: str):
         return ("ATOS X kapanan islem gecmisi temizlendi.\n"
                 f"Silinen kayit: {n_closed}\n"
                 "Diger tablolar icin: /temizle hepsi (sinyal, backtest, risk, performans)")
+    if cmd.startswith("/izleme"):
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        parts = text.strip().split()
+        n = 10
+        if len(parts) > 1 and parts[1].isdigit():
+            n = int(parts[1])
+        n = max(1, min(n, 20))
+        symbols = (auto_trader.priority or auto_trader.trading_symbols)[:n]
+        if not symbols:
+            return "ATOS X: tarama listesi bos"
+        if not _run_later(_send_watchlist(symbols)):
+            return "ATOS X: komut arka planda calistirilamadi"
+        return f"ATOS X: {len(symbols)} sembol hesaplaniyor"
+    if cmd.startswith("/performans"):
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        hist = auto_trader.trade_history
+        if not hist:
+            return "ATOS X: islem gecmisi yok"
+        perf = auto_trader.db.get_performance_series(500)
+        peak = max((r[1] for r in perf), default=auto_trader.equity)
+        dd_pct = ((peak - auto_trader.equity) / peak * 100) if peak > 0 else 0.0
+        pnls = [t.get("pnl", 0) or 0 for t in hist]
+        wins = sum(1 for p in pnls if p > 0)
+        total = len(pnls)
+        wr = wins / total * 100 if total else 0.0
+        by_month = {}
+        for t in hist:
+            ts = str(t.get("time", ""))
+            month = ts[:7] if ts else "?"
+            if month not in by_month:
+                by_month[month] = {"count": 0, "pnl": 0.0, "wins": 0}
+            by_month[month]["count"] += 1
+            by_month[month]["pnl"] += t.get("pnl", 0) or 0
+            if (t.get("pnl", 0) or 0) > 0:
+                by_month[month]["wins"] += 1
+        months = sorted(by_month.items(), reverse=True)[:6]
+        lines = [
+            f"ATOS X performans ({total} islem):",
+            f"Equity: ${auto_trader.equity:.2f} | Peak: ${peak:.2f}",
+            f"Drawdown: %{dd_pct:.1f} | Kazanma: %{wr:.0f}",
+        ]
+        if months:
+            lines.append("Aylik ozet:")
+            for m, d in months:
+                mwr = d["wins"] / d["count"] * 100 if d["count"] else 0
+                sign = "+" if d["pnl"] >= 0 else ""
+                lines.append(f"  {m}: {d['count']} islem {sign}{d['pnl']:.2f} (%{mwr:.0f})")
+        return "\n".join(lines)
     return None
 
 async def _run_backfill(symbols: list, days: int):
@@ -664,6 +725,29 @@ async def _run_backfill(symbols: list, days: int):
     except Exception as e:
         logger.error(f"Backfill hatasi: {e}")
         await telegram.send(f"ATOS X backfill hatasi: {e}")
+
+async def _send_watchlist(symbols: list):
+    """Arka planda oncelik listesini skorlarla Telegram'a gonderir."""
+    try:
+        scored = []
+        for sym in symbols:
+            try:
+                df = await app.state.binance.get_klines(sym, "4h", 400)
+                info = coin_score(df)
+                scored.append((info.get("score", 0.0), info.get("trend", "RANGE"),
+                               info.get("momentum_pct", 0.0), sym))
+            except Exception:
+                scored.append((0.0, "RANGE", 0.0, sym))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        lines = [f"ATOS X izleme ({len(scored)} sembol):"]
+        for i, (sc, trend, mom, sym) in enumerate(scored, 1):
+            icon = "🟢" if sc > 0.5 else ("🔴" if sc < -0.5 else "⚪")
+            sign = "+" if mom >= 0 else ""
+            lines.append(f"{i}. {sym}  {sc:+.2f}  {sign}{mom:.1f}% {icon}")
+        await telegram.send("\n".join(lines))
+    except Exception as e:
+        logger.error(f"Watchlist hatasi: {e}")
+        await telegram.send(f"ATOS X izleme hatasi: {e}")
 
 def _is_connected() -> bool:
     return bool(auto_trader and auto_trader.binance and auto_trader.binance.client)

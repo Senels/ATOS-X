@@ -412,6 +412,27 @@ def test_format_daily_summary_protection_pnl():
     assert "Breakeven: 2 (-12.25)" in msg
 
 
+def test_format_daily_summary_drawdown_and_worst():
+    trades = [
+        ("id", "BTCUSDT", "BUY", 100.0, 108.0, 1.0, 120.0, "2026-08-04"),
+        ("id", "ETHUSDT", "BUY", 3000.0, 2900.0, 2.0, -200.0, "2026-08-04"),
+    ]
+    msg = format_daily_summary(
+        trades, 10120.0, {}, marks=None,
+        drawdown_pct=5.3,
+        worst_sym=("ETHUSDT", -200.0),
+        risk_events=[{"time": "2026-08-04T10:00:00", "type": "block_add", "message": "x"}])
+    assert "Drawdown: %5.3" in msg
+    assert "En kotu sembol: ETHUSDT -200.00" in msg
+    assert "Risk olayi: 1" in msg
+
+
+def test_format_daily_summary_no_drawdown_when_zero():
+    trades = [("id", "BTCUSDT", "BUY", 100.0, 108.0, 1.0, 120.0, "2026-08-04")]
+    msg = format_daily_summary(trades, 10120.0, {}, marks=None, drawdown_pct=0.0)
+    assert "Drawdown:" not in msg
+
+
 def test_format_daily_summary_no_protection_line():
     trades = [("id", "BTCUSDT", "BUY", 100.0, 108.0, 1.0, 120.0, "2026-08-04")]
     msg = format_daily_summary(trades, 10120.0, {}, marks=None,
@@ -1235,3 +1256,90 @@ def test_command_scan_interval(monkeypatch):
     assert reply is not None
     assert "2 sembol taranacak (1h)" in reply
     assert len(captured) == 1
+
+
+def test_command_watchlist_schedules(monkeypatch):
+    fake = _FakeTrader()
+    fake.priority = ["BTCUSDT", "ETHUSDT"]
+    fake.trading_symbols = ["BTCUSDT", "ETHUSDT"]
+    main_mod.auto_trader = fake
+    captured = []
+
+    def fake_run_later(coro):
+        captured.append(coro)
+        coro.close()
+        return True
+
+    monkeypatch.setattr(main_mod, "_run_later", fake_run_later)
+    try:
+        reply = main_mod._telegram_command("/izleme")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "2 sembol hesaplaniyor" in reply
+    assert len(captured) == 1
+
+
+def test_command_watchlist_empty_list():
+    fake = _FakeTrader()
+    fake.priority = []
+    fake.trading_symbols = []
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/izleme")
+    finally:
+        main_mod.auto_trader = None
+    assert "tarama listesi bos" in reply
+
+
+def test_command_watchlist_requires_trader():
+    main_mod.auto_trader = None
+    reply = main_mod._telegram_command("/izleme")
+    assert "motor calismiyor" in reply
+
+
+def test_command_performance_summary():
+    fake = _FakeTrader()
+    fake.trade_history = [
+        {"symbol": "BTCUSDT", "side": "BUY", "pnl": 120.0,
+         "time": "2026-08-01T10:00:00"},
+        {"symbol": "ETHUSDT", "side": "SELL", "pnl": -50.0,
+         "time": "2026-08-01T12:00:00"},
+        {"symbol": "SOLUSDT", "side": "BUY", "pnl": 80.0,
+         "time": "2026-08-02T10:00:00"},
+    ]
+    fake.equity = 10150.0
+    fake.db = type("FakeDB", (), {
+        "get_performance_series": lambda self, n: [
+            ("2026-08-01", 10000.0, 0),
+            ("2026-08-02", 10150.0, 1),
+        ]
+    })()
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/performans")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "performans (3 islem)" in reply
+    assert "Equity: $10150" in reply
+    assert "Peak: $10150" in reply
+    assert "Kazanma: %67" in reply
+    assert "2026-08" in reply
+
+
+def test_command_performance_empty():
+    fake = _FakeTrader()
+    fake.trade_history = []
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/performans")
+    finally:
+        main_mod.auto_trader = None
+    assert "islem gecmisi yok" in reply
+
+
+def test_command_performance_requires_trader():
+    main_mod.auto_trader = None
+    reply = main_mod._telegram_command("/performans")
+    assert "motor calismiyor" in reply
