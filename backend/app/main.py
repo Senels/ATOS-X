@@ -307,6 +307,7 @@ def _telegram_command(text: str):
                 "/izleme [N] - oncelik listesi + canli skor siralamasi\n"
                 "/performans - equity curve ozeti + aylik istatistik\n"
                 "/son - son kapanan islem detayi\n"
+                "/ayarla - tum ayarlari ozet goruntusu\n"
                 "/yardim - bu liste")
     if cmd.startswith("/blok"):
         blocks = sorted(auto_trader._conc_blocks) if auto_trader else []
@@ -835,6 +836,23 @@ def _telegram_command(text: str):
         ts = t.get("time")
         if ts:
             lines.append(f"Zaman: {str(ts)[:16].replace('T', ' ')}")
+        return "\n".join(lines)
+    if cmd.startswith("/ayarla"):
+        s = strat_settings.get_settings()
+        lines = [
+            "ATOS X ayarlar:",
+            f"Indikator: {s.get('leading_indicator', '')}",
+            f"Risk/trade: %{s['risk_per_trade']*100:.1f} | Kaldirac: {s['max_leverage']}",
+            f"Pozisyon limit: {s['max_open_positions']} | Max yas: {s['max_position_age_hours']}sa",
+            f"R:R: {s.get('rr_ratio', 1.5)} | ATR: {s.get('atr_mult', 1.5)}",
+            f"Trailing: %{s.get('trailing_activate_pct', 0):g} on / %{s.get('trailing_sl_pct', 0):g} off",
+            f"Breakeven: %{s.get('breakeven_activate_pct', 0):g}",
+            f"Drawdown: %{s['max_daily_loss_pct']:.0f} gunluk / %{s['max_drawdown_pct']:.0f} genel",
+            f"Council: {'Acik' if s.get('use_decision_council') else 'Kapali'}",
+            f"Score ranking: {'Acik' if s.get('use_score_ranking') else 'Kapali'}",
+            f"Backfill: {s.get('data_backfill_hours', 0):g}sa | Tazelik: {s.get('data_freshness_hours', 12):g}sa",
+            f"Min equity: ${s['min_equity']:.0f} | Max zarar: {s['max_consecutive_losses']}",
+        ]
         return "\n".join(lines)
     return None
 
