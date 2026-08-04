@@ -628,6 +628,49 @@ def test_market_regimes_endpoint_not_running():
     assert resp.json() == {"regimes": [], "count": 0, "scanned": []}
 
 
+def test_market_scores_endpoint():
+    fake_klines = _FakeKlines()
+    main_mod.app.state.binance = fake_klines
+    ft = _FakeTrader({})
+    ft.priority = ["BTCUSDT", "ETHUSDT"]
+    main_mod.auto_trader = ft
+    try:
+        client = TestClient(app)
+        resp = client.get("/api/v1/market/scores?limit=5")
+        client.close()
+    finally:
+        main_mod.auto_trader = None
+        main_mod.app.state.binance = None
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["count"] == 2
+    assert len(body["scores"]) == 2
+    scores = [s["score"] for s in body["scores"]]
+    assert scores == sorted(scores, reverse=True)
+    first = body["scores"][0]
+    assert first["symbol"] in ("BTCUSDT", "ETHUSDT")
+    assert "momentum_pct" in first and "trend" in first
+
+
+def test_market_scores_endpoint_not_running():
+    main_mod.auto_trader = None
+    client = TestClient(app)
+    resp = client.get("/api/v1/market/scores")
+    client.close()
+    assert resp.json() == {"scores": [], "count": 0, "scanned": []}
+
+
+def test_dashboard_has_coin_scores_card():
+    client = TestClient(app)
+    resp = client.get("/dashboard/html")
+    assert resp.status_code == 200
+    assert "Coin Scores" in resp.text
+    assert "loadScores" in resp.text
+    assert 'id="scoreBody"' in resp.text
+    assert "/api/v1/market/scores" in resp.text
+    client.close()
+
+
 def test_dashboard_has_market_regime_card():
     client = TestClient(app)
     resp = client.get("/dashboard/html")

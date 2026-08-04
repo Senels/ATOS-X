@@ -16,6 +16,7 @@ from app.strategy.auto_trader import AutoTrader
 from app.strategy import settings as strat_settings
 from app.strategy.tradebot_v23 import TradeBotV23
 from app.strategy.market_intel import analyze as analyze_market
+from app.strategy.coin_intel import coin_score
 from app.api.backtest import router as backtest_router
 from app.api.optimization import router as optimize_router
 from app.websocket.client import BinanceWebSocket
@@ -616,6 +617,30 @@ async def market_regimes(limit: int = 10, interval: str = "4h"):
     results = await asyncio.gather(*(fetch(s) for s in candidates))
     regimes = [r for r in results if r is not None]
     return {"regimes": regimes, "count": len(regimes), "scanned": candidates}
+
+@app.get("/api/v1/market/scores")
+async def market_scores(limit: int = 10, interval: str = "4h"):
+    """Tarama listesi icin canli momentum/score siralamasi."""
+    if not auto_trader:
+        return {"scores": [], "count": 0, "scanned": []}
+    limit = max(1, min(limit, 30))
+    candidates = (auto_trader.priority or auto_trader.trading_symbols)[:limit]
+    if not candidates:
+        return {"scores": [], "count": 0, "scanned": []}
+
+    async def fetch(symbol):
+        try:
+            df = await app.state.binance.get_klines(symbol, interval, 400)
+            s = coin_score(df)
+            s["symbol"] = symbol
+            return s
+        except Exception:
+            return None
+
+    results = await asyncio.gather(*(fetch(s) for s in candidates))
+    scores = [r for r in results if r is not None]
+    scores.sort(key=lambda s: s.get("score", 0.0), reverse=True)
+    return {"scores": scores, "count": len(scores), "scanned": candidates}
 
 @app.get("/api/v1/status")
 async def get_status():

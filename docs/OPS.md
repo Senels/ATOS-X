@@ -386,6 +386,20 @@ yoksa dinleyici devre dışıdır.
   ATR%ile gösterilir; `📡 Live Signals` ile aynı interval seçimini kullanır.
 - Çıktı ilerleyen batch'lerde risk boyutlandırma ve Decision Council'a girdi olacaktır.
 
+## Coin Intelligence (Momentum/Score)
+
+- `app/strategy/coin_intel.py` sembol seçimi için bileşik skor üretir
+  (`coin_score`): ağırlıklı momentum (r20 %40, r10 %30, r5 %20, r1 %10) +
+  trend rejimi skoru (UP +1 / RANGE 0 / DOWN -1, katsayı 2) - volatilite
+  cezası (HIGH -0.5, EXTREME -1.0).
+- Skor yetersiz veride 0 döner (`reason: yetersiz veri`).
+- Uç: `/api/v1/market/scores?limit=&interval=` tarama listesini skora göre
+  azalan sıralar.
+- Dashboard `🏆 Coin Scores` kartında skor (pozitif yeşil/negatif kırmızı),
+  momentum %, trend rozeti ve ATR% gösterilir; interval seçimini Live Signals
+  ile paylaşır.
+- İlerleyen batch'te skor, `auto_trader` sembol seçimine (top_symbols) bağlanabilir.
+
 ## API ve Dashboard Görünürlüğü
 
 | Uç | İçerik |
@@ -401,8 +415,9 @@ yoksa dinleyici devre dışıdır.
 | `/api/v1/positions/<S>/close` | Açık pozisyonu canlı fiyatla kapatma (`AutoTrader.close_position`) |
 | `/api/v1/market/regime` | Tek sembol rejim/volatilite/likidite tespiti (`symbol`, `interval`) |
 | `/api/v1/market/regimes` | Tarama listesi için rejim özeti (`limit`, `interval`) |
+| `/api/v1/market/scores` | Tarama listesi için momentum/score sıralaması (`limit`, `interval`) |
 | `/dashboard/metrics` | Aynı + pozisyon başına `protected` |
-| `/dashboard` | Pozisyon tablosunda `KORUMALI`/`KORUMASIZ` rozetleri + kart özeti; `🧮 Position Risk` kartında notional, size %, SL mesafesi, risk tutarı, uPnL ve pozisyon yaşı; `📡 Live Signals` kartında tarama listesinin canlı sinyalleri (60 sn'de bir yenilenir; üstten interval seçilir — varsayılan `4h`, seçim `localStorage`'da saklanır); `🌡️ Market Regime` kartında trend/volatilite rejimi + ATR%; her satırda SL/TP düzenleme + `Uygula`/`Kapat` butonları |
+| `/dashboard` | Pozisyon tablosunda `KORUMALI`/`KORUMASIZ` rozetleri + kart özeti; `🧮 Position Risk` kartında notional, size %, SL mesafesi, risk tutarı, uPnL ve pozisyon yaşı; `📡 Live Signals` kartında tarama listesinin canlı sinyalleri (60 sn'de bir yenilenir; üstten interval seçilir — varsayılan `4h`, seçim `localStorage`'da saklanır); `🌡️ Market Regime` kartında trend/volatilite rejimi + ATR%; `🏆 Coin Scores` kartında skor sıralaması; her satırda SL/TP düzenleme + `Uygula`/`Kapat` butonları |
 
 ## Doğrulama
 
