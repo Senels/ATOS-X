@@ -283,7 +283,7 @@ def _telegram_command(text: str):
                 "/ac - motoru yeniden baslatir\n"
                 "/rapor - gunluk rapor gonder\n"
                 "/risk - risk durumu\n"
-                "/gecmis [N] - son N islem\n"
+                "/gecmis [N] [SEMBOL] - son N islem (sembol ile filtrelenir)\n"
                 "/istatistik - islem performansi ozeti\n"
                 "/veri - veri tazeligi ozeti (ok/esk/esik)\n"
                 "/backfill [SEMBOLLER] [GUN] - eksik/eski CSV verisini tazeler\n"
@@ -517,16 +517,24 @@ def _telegram_command(text: str):
             return "ATOS X: motor calismiyor"
         parts = text.strip().split()
         n = 5
-        if len(parts) > 1:
-            try:
-                n = int(parts[1])
-            except ValueError:
-                return "ATOS X: kullanim /gecmis [N]"
+        sym_filter = None
+        for p in parts[1:]:
+            if p.isdigit():
+                n = int(p)
+            else:
+                sym_filter = p.upper()
         n = max(1, min(n, 20))
-        history = auto_trader.trade_history[-n:]
+        hist = auto_trader.trade_history
+        if sym_filter:
+            hist = [t for t in hist if t.get("symbol") == sym_filter]
+        history = hist[-n:]
         if not history:
             return "ATOS X: kapanis gecmisi yok"
-        lines = [f"ATOS X son islemler ({len(history)}):"]
+        title = f"ATOS X son islemler ({len(history)}"
+        if sym_filter:
+            title += f", {sym_filter}"
+        title += "):"
+        lines = [title]
         pnls = [t.get("pnl", 0) or 0 for t in history]
         wins = [p for p in pnls if p > 0]
         net = sum(pnls)

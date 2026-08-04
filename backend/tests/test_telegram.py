@@ -516,6 +516,43 @@ def test_command_history_no_prices_ok():
     assert "BTCUSDT" in reply
 
 
+def test_command_history_symbol_filter():
+    fake = _FakeTrader()
+    fake.trade_history = [
+        {"symbol": "BTCUSDT", "side": "BUY", "pnl": 120.0, "reason": "tp",
+         "entry": 100.0, "exit": 108.0, "time": "2026-08-04T07:00:00"},
+        {"symbol": "ETHUSDT", "side": "SELL", "pnl": -50.0, "reason": "sl",
+         "entry": 3000.0, "exit": 3050.0, "time": "2026-08-04T06:00:00"},
+        {"symbol": "BTCUSDT", "side": "BUY", "pnl": 80.0, "reason": "tp",
+         "entry": 200.0, "exit": 220.0, "time": "2026-08-04T05:00:00"},
+    ]
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/gecmis 10 BTCUSDT")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "BTCUSDT" in reply
+    assert "ETHUSDT" not in reply
+    assert "+120.00" in reply
+    assert "+80.00" in reply
+    assert "Net: +200.00" in reply
+
+
+def test_command_history_symbol_filter_empty():
+    fake = _FakeTrader()
+    fake.trade_history = [
+        {"symbol": "BTCUSDT", "side": "BUY", "pnl": 120.0},
+    ]
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/gecmis ETHUSDT")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "kapanis gecmisi yok" in reply
+
+
 def test_command_stats_summary():
     fake = _FakeTrader()
     fake.trade_history = [
@@ -726,7 +763,7 @@ def test_command_history_bad_n():
     finally:
         main_mod.auto_trader = None
     assert reply is not None
-    assert "kullanim" in reply
+    assert "kapanis gecmisi yok" in reply
 
 
 def test_command_signal_bad_usage():

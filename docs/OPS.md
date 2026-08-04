@@ -321,7 +321,7 @@ yoksa dinleyici devre dışıdır.
 | `/ac` veya `/resume` | Motoru yeniden başlatır |
 | `/rapor` veya `/report` | Günlük raporu anında gönderir (gerçekleşmemiş PnL, durmalar, risk olayları) |
 | `/risk` | Risk durumu: equity, LONG/SHORT maruziyeti, drawdown, ardışık/günlük zarar, equity tabanı ve tüm durma durumları |
-| `/gecmis [N]` | Son N kapanış işlemi (varsayılan 5, en fazla 20); satır başına sembol, yön, net PnL, çıkış nedeni, giriş→çıkış fiyatı ve zaman; üstte pencere özeti (Net, Kazanma %, PF) |
+| `/gecmis [N] [SEMBOL]` | Son N kapanış işlemi (varsayılan 5, en fazla 20); sembol verilirse sadece o sembolün işlemleri gösterilir; üstte pencere özeti (Net, Kazanma %, PF) |
 | `/istatistik` veya `/stats` | Tüm geçmişin özeti: işlem sayısı, Net PnL, Kazanma %, Profit Factor, ortalama kar/zarar, en iyi sembol ve trailing/breakeven koruma istatistikleri |
 | `/veri` veya `/data` | CSV veri tazeliği özeti (Guncel/Eski/Eksik) + eski/eksik semboller |
 | `/backfill [SEMBOLLER] [GUN]` | Eski/eksik CSV verisini tazeler; sembol verilmezse otomatik `eski/eksik` seçilir (varsayılan 30 gün, en fazla 90) |
