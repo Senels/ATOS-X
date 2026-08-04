@@ -825,7 +825,18 @@ def test_command_signal_schedules(monkeypatch):
     assert "BTCUSDT" in reply and "hesaplaniyor" in reply
 
 
-def test_command_close_all_schedules(monkeypatch):
+def test_command_close_all_requires_confirmation():
+    main_mod.auto_trader = _FakeTrader()
+    try:
+        reply = main_mod._telegram_command("/kapatall")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "kapatilacak" in reply
+    assert "onay" in reply
+
+
+def test_command_close_all_confirmed(monkeypatch):
     main_mod.auto_trader = _FakeTrader()
 
     def fake_run_later(coro):
@@ -834,7 +845,7 @@ def test_command_close_all_schedules(monkeypatch):
 
     monkeypatch.setattr(main_mod, "_run_later", fake_run_later)
     try:
-        reply = main_mod._telegram_command("/kapatall")
+        reply = main_mod._telegram_command("/kapatall onay")
     finally:
         main_mod.auto_trader = None
     assert reply is not None

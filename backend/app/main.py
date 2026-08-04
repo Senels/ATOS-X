@@ -360,6 +360,13 @@ def _telegram_command(text: str):
             return "ATOS X: motor calismiyor"
         if not auto_trader.active_positions:
             return "ATOS X: kapatilacak pozisyon yok"
+        parts = text.strip().split()
+        confirmed = len(parts) > 1 and parts[1].lower() == "onay"
+        if not confirmed:
+            n = len(auto_trader.active_positions)
+            syms = ", ".join(auto_trader.active_positions.keys())
+            return (f"ATOS X: {n} pozisyon kapatilacak ({syms})\n"
+                    "Devam icin: /kapatall onay")
         if not _run_later(auto_trader.close_all("manual_close_all")):
             return "ATOS X: komut arka planda calistirilamadi"
         return f"ATOS X: {len(auto_trader.active_positions)} pozisyon kapatiliyor"

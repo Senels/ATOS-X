@@ -313,7 +313,7 @@ yoksa dinleyici devre dışıdır.
 | `/kapat <SEMBOL>` | Tek pozisyonu manuel kapatır (canlı fiyat ile) |
 | `/sl <SEMBOL> <FIYAT>` | Açık pozisyonun SL'sini günceller; `/sl all <FIYAT>` tüm pozisyonlar için toplu güncelleme |
 | `/tp <SEMBOL> <FIYAT>` | Açık pozisyonun TP'sini günceller (SL korunur); `/tp all <FIYAT>` tüm pozisyonlar için toplu güncelleme |
-| `/kapatall` | Açık tüm pozisyonları canlı fiyatlarla kapatır (`close_all`) |
+| `/kapatall` | Açık tüm pozisyonları kapatır; onay gerektirir: `/kapatall` → onay isteği, `/kapatall onay` → kapatır |
 | `/koruma` veya `/ayar` | Risk eşiklerini gösterir; `/koruma <anahtar> <deger>` ile canlı değiştirir (kalıcı) |
 | `/durdur` veya `/stop` | Acil durdurma; tüm pozisyonları kapatır + kapanış özeti gönderir |
 | `/sinyal <SEMBOL>` veya `/signal <SEMBOL>` | Canlı kline'dan v23 sinyalini Telegram'a gönderir |
