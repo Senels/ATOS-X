@@ -300,6 +300,7 @@ def _telegram_command(text: str):
         if not auto_trader.active_positions:
             return "ATOS X: acik pozisyon yok"
         lines = ["ATOS X pozisyonlar:"]
+        now = datetime.utcnow()
         for sym, pos in auto_trader.active_positions.items():
             prot = "korumali" if (pos.get("sl_order_id") or pos.get("tp_order_id")) else "KORUMASIZ"
             if pos.get("trailing"):
@@ -320,6 +321,14 @@ def _telegram_command(text: str):
             if upnl is not None:
                 sign = "+" if upnl >= 0 else ""
                 line += f" | PnL: {sign}{upnl:.2f} ({sign}{pct:.2f}%)"
+            ot = pos.get("open_time")
+            if ot:
+                try:
+                    opened = datetime.fromisoformat(ot)
+                    age_h = (now - opened).total_seconds() / 3600.0
+                    line += f" | {age_h:.1f}h"
+                except Exception:
+                    pass
             lines.append(line)
         return "\n".join(lines)
     if cmd.startswith("/koruma") or cmd.startswith("/ayar"):

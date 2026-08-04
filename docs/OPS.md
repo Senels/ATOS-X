@@ -309,7 +309,7 @@ yoksa dinleyici devre dışıdır.
 |---|---|
 | `/durum` veya `/status` | Equity, açık pozisyon + korumalı sayısı, LONG/SHORT maruziyeti, aktif engeller, drawdown ve durma durumu |
 | `/blok` | Aktif konsantrasyon engelleri (veya `yok`) |
-| `/pozisyon` | Her pozisyon: sembol, taraf, qty, fiyat + `korumali`/`KORUMASIZ`, varsa SL/TP fiyatları ve gerçekleşmemiş PnL |
+| `/pozisyon` | Her pozisyon: sembol, taraf, qty, fiyat + `korumali`/`KORUMASIZ`, varsa SL/TP fiyatları, gerçekleşmemiş PnL ve pozisyon yaşı (saat) |
 | `/kapat <SEMBOL>` | Tek pozisyonu manuel kapatır (canlı fiyat ile) |
 | `/sl <SEMBOL> <FIYAT>` | Açık pozisyonun SL'sini günceller (Telegram üstünden manuel stop) |
 | `/tp <SEMBOL> <FIYAT>` | Açık pozisyonun TP'sini günceller (SL korunur) |

@@ -205,6 +205,18 @@ def test_command_positions_shows_sl_tp_prices():
     assert "SL: $64000" in reply and "TP: $68000" in reply
 
 
+def test_command_positions_shows_age():
+    fake = _FakeTrader()
+    fake.active_positions["BTCUSDT"]["open_time"] = "2026-08-04T06:00:00"
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/pozisyon")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "h" in reply
+
+
 def test_command_positions_shows_unrealized_pnl():
     fake = _FakeTrader()
     fake.live_prices = {"BTCUSDT": 70000.0}
