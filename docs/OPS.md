@@ -498,7 +498,7 @@ yoksa dinleyici devre dışıdır.
 | `/api/v1/data/status` | CSV veri tazeliği: sembol bazında `ok`/`stale`/`missing` + toplamlar |
 | `/api/v1/portfolio` | Portföy özeti (senkron equity, bakiye, uPnL, pozisyonlar) |
 | `/dashboard/metrics` | Aynı + pozisyon başına `protected` |
-| `/dashboard` | Pozisyon tablosunda `KORUMALI`/`KORUMASIZ` rozetleri + kart özeti; `🧮 Position Risk` kartında notional, size %, SL mesafesi, risk tutarı, uPnL ve pozisyon yaşı; `📡 Live Signals` kartında tarama listesinin canlı sinyalleri (60 sn'de bir yenilenir; üstten interval seçilir — varsayılan `4h`, seçim `localStorage`'da saklanır); `🌡️ Market Regime` kartında trend/volatilite rejimi + ATR%; `🏆 Coin Scores` kartında skor sıralaması; `⚖️ Decision Council` kartında kararlar + güven + kaynaklar; her satırda SL/TP düzenleme + `Uygula`/`Kapat` butonları |
+| `/dashboard` | Pozisyon tablosunda `KORUMALI`/`KORUMASIZ` rozetleri + kart özeti; `🧮 Position Risk` kartında notional, size %, SL mesafesi, risk tutarı, uPnL ve pozisyon yaşı; `📡 Live Signals` kartında tarama listesinin canlı sinyalleri (60 sn'de bir yenilenir; üstten interval seçilir — varsayılan `4h`, seçim `localStorage`'da saklanır); `🌡️ Market Regime` kartında trend/volatilite rejimi + ATR%; `🏆 Coin Scores` kartında skor sıralaması; `⚖️ Decision Council` kartında kararlar + güven + kaynaklar; `🗃️ Data Freshness` kartında CSV tazeliği (guncel/eski/eksik özeti + sembol tablosu); her satırda SL/TP düzenleme + `Uygula`/`Kapat` butonları |
 
 ## Doğrulama
 
