@@ -123,7 +123,18 @@ async def _send_batch_signals(symbols: list, interval: str = "4h"):
             continue
         arrow = arrows.get(signal, "")
         price = sig.get("price") or 0.0
-        lines.append(f"{sym} {arrow} {signal} ${price:.4g} - {sig.get('reason', '')[:60]}")
+        sl, tp = sig.get("sl"), sig.get("tp")
+        extra = ""
+        if sl and tp:
+            risk = abs(price - sl)
+            reward = abs(tp - price)
+            rr = reward / risk if risk > 0 else 0.0
+            extra = f" SL:${sl:g} TP:${tp:g} R:R{rr:.1f}"
+        elif sl:
+            extra = f" SL:${sl:g}"
+        elif tp:
+            extra = f" TP:${tp:g}"
+        lines.append(f"{sym} {arrow} {signal} ${price:.4g}{extra} - {sig.get('reason', '')[:40]}")
     if len(lines) == 1:
         lines.append("Sinyal alinamadi")
     await telegram.send("\n".join(lines))
