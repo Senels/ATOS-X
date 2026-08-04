@@ -435,6 +435,20 @@ yoksa dinleyici devre dışıdır.
   `POST /api/v1/data/backfill` (`symbols=`,`interval=`,`days=`);
   sembol verilmezse ilk 10 tarama sembolü kullanılır.
 
+## Portföy Senkronu (Sprint 10)
+
+- `BinanceClient.get_account_balance()`: futures hesap özeti
+  (`totalWalletBalance` / `availableBalance` / `totalUnrealizedProfit`).
+- `AutoTrader._sync_balance()`: `reconcile_positions` başında canlı dengeden
+  iç `equity`'yi hizalar (`balance + unrealized`), `peak_equity`/`drawdown_pct`
+  günceller ve kalıcı risk durumunu yazar; borsa yöntemi yoksa/geçersiz
+  değerde sessizce atlanır (test uyumluluğu).
+- `GET /api/v1/portfolio`: mode (paper/live), `synced` bayrağı, balance,
+  available, unrealized PnL, equity/peak/drawdown, day PnL ve pozisyon
+  bazlı notional/uPnL listesi.
+- Dashboard `💼 Portfolio` kartı: equity, available, uPnL, drawdown, day PnL,
+  toplam maruziyet.
+
 ## API ve Dashboard Görünürlüğü
 
 | Uç | İçerik |
@@ -455,6 +469,7 @@ yoksa dinleyici devre dışıdır.
 | `/api/v1/market/decisions` | Tarama listesi karar özeti (BUY/SELL/HOLD + confidence) |
 | `/api/v1/data/collect` | Sembol kline'larını CSV arşivine toplar |
 | `/api/v1/data/backfill` | Sembol geçmiş verisini parçalı çekip arşive yazar |
+| `/api/v1/portfolio` | Portföy özeti (senkron equity, bakiye, uPnL, pozisyonlar) |
 | `/dashboard/metrics` | Aynı + pozisyon başına `protected` |
 | `/dashboard` | Pozisyon tablosunda `KORUMALI`/`KORUMASIZ` rozetleri + kart özeti; `🧮 Position Risk` kartında notional, size %, SL mesafesi, risk tutarı, uPnL ve pozisyon yaşı; `📡 Live Signals` kartında tarama listesinin canlı sinyalleri (60 sn'de bir yenilenir; üstten interval seçilir — varsayılan `4h`, seçim `localStorage`'da saklanır); `🌡️ Market Regime` kartında trend/volatilite rejimi + ATR%; `🏆 Coin Scores` kartında skor sıralaması; `⚖️ Decision Council` kartında kararlar + güven + kaynaklar; her satırda SL/TP düzenleme + `Uygula`/`Kapat` butonları |
 

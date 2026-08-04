@@ -65,6 +65,14 @@ tr:hover { background:rgba(59,130,246,0.05); }
 <div class="stat-box"><div class="label">Equity</div><div class="value green" id="equity">$10k</div></div>
 <div class="stat-box"><div class="label">Status</div><div class="value green" id="statusText">Active</div></div>
 </div>
+<div class="card"><h3>💼 Portfolio <span id="portSync" style="color:#64748b;font-weight:400;font-size:12px;"></span></h3><div class="stats-row" style="margin-bottom:0;">
+<div class="stat-box"><div class="label">Equity</div><div class="value green" id="portEquity">-</div></div>
+<div class="stat-box"><div class="label">Available</div><div class="value" id="portAvailable">-</div></div>
+<div class="stat-box"><div class="label">uPnL</div><div class="value" id="portUpnl">-</div></div>
+<div class="stat-box"><div class="label">Drawdown</div><div class="value" id="portDrawdown">-</div></div>
+<div class="stat-box"><div class="label">Day PnL</div><div class="value" id="portDayPnl">-</div></div>
+<div class="stat-box"><div class="label">Exposure</div><div class="value" id="portNotional">-</div></div>
+</div></div>
 <div class="card"><h3>🎯 Priority Watchlist</h3><div id="watchlistBody" style="display:flex;flex-wrap:wrap;gap:6px;">-</div></div>
 <div class="card"><h3>📡 Live Signals <select id="signalsInterval" onchange="signalsIntervalChange()" style="margin-left:8px;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:3px 6px;font-size:12px;"><option value="15m">15m</option><option value="30m">30m</option><option value="1h">1h</option><option value="2h">2h</option><option value="4h">4h</option><option value="6h">6h</option><option value="8h">8h</option><option value="12h">12h</option><option value="1d">1d</option></select></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Signal</th><th>Price</th><th>SL</th><th>TP</th><th>Reason</th></tr></thead><tbody id="signalsBody"><tr><td colspan="6" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
 <div class="card"><h3>🌡️ Market Regime</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Trend</th><th>Volatility</th><th>ATR%</th><th>ATR%ile</th></tr></thead><tbody id="regimeBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
@@ -185,6 +193,7 @@ loadSignals();
 loadRegimes();
 loadScores();
 loadDecisions();
+loadPortfolio();
 initSignalsInterval();
 } catch(e) { console.error(e); }
 }
@@ -309,6 +318,26 @@ const confPct = Math.round((x.confidence || 0) * 100);
 body.innerHTML += '<tr><td><strong>'+x.symbol+'</strong></td><td><span class="'+cls+'">'+x.verdict+'</span></td><td>'+confPct+'%</td><td>'+(x.votes||[]).map(function(v){return v.source;}).join(', ')+'</td><td style="opacity:.8;">'+x.reason+'</td></tr>';
 });
 } else { body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Karar yok</td></tr>'; }
+} catch(e) { console.error(e); }
+}
+async function loadPortfolio() {
+try {
+const r = await fetch('/api/v1/portfolio');
+const d = await r.json();
+document.getElementById('portEquity').textContent = '$' + (d.equity || 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+const av = d.available;
+document.getElementById('portAvailable').textContent = av != null ? '$' + av.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) : '-';
+const upnl = d.unrealized_pnl;
+const upnlEl = document.getElementById('portUpnl');
+upnlEl.textContent = upnl != null ? '$' + upnl.toFixed(2) : '-';
+upnlEl.style.color = upnl != null && upnl > 0 ? '#22c55e' : (upnl != null && upnl < 0 ? '#ef4444' : '#94a3b8');
+document.getElementById('portDrawdown').textContent = d.drawdown_pct != null ? d.drawdown_pct + '%' : '-';
+const dp = d.day_pnl;
+const dpEl = document.getElementById('portDayPnl');
+dpEl.textContent = dp != null ? '$' + dp.toFixed(2) : '-';
+dpEl.style.color = dp > 0 ? '#22c55e' : (dp < 0 ? '#ef4444' : '#94a3b8');
+document.getElementById('portNotional').textContent = d.total_notional != null ? '$' + d.total_notional.toLocaleString() : '-';
+document.getElementById('portSync').textContent = d.mode === 'live' ? (d.synced ? '• borsa senkron' : '• senkron yok') : '• paper';
 } catch(e) { console.error(e); }
 }
 async function loadRiskPositions() {

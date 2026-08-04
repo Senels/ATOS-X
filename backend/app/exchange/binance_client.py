@@ -200,6 +200,20 @@ class BinanceClient:
         positions = await self._run(self.client.futures_position_information)
         return [p for p in positions if float(p.get('positionAmt', 0)) != 0]
 
+    async def get_account_balance(self) -> dict:
+        """USDT futures cuzdan dengesi (portfolio sync icin).
+
+        Donen: {'balance': wallet, 'available': available, 'unrealized': upnl}
+        """
+        if not self.client:
+            await self.connect()
+        acct = await self._run(self.client.futures_account)
+        return {
+            "balance": float(acct.get("totalWalletBalance", 0.0)),
+            "available": float(acct.get("availableBalance", 0.0)),
+            "unrealized": float(acct.get("totalUnrealizedProfit", 0.0)),
+        }
+
     async def set_tp_sl(self, symbol: str, position_side: str, sl_price: float,
                         tp_price: float) -> dict:
         """Exchange-side SL (STOP_MARKET) + TP (TAKE_PROFIT_MARKET) algo emirleri.

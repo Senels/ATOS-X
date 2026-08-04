@@ -880,6 +880,49 @@ async def risk_positions():
         "max_position_pct": auto_trader.max_position_pct if auto_trader else 0.0,
     }
 
+@app.get("/api/v1/portfolio")
+async def portfolio():
+    """Portfoy ozeti: equity (canli senkron), bakiye, gerceklesmemis PnL, pozisyonlar."""
+    if not auto_trader:
+        return {"mode": "paper", "equity": 10000.0, "positions": [], "count": 0}
+    bal = auto_trader.live_balance or {}
+    positions = []
+    total_unrealized = 0.0
+    for symbol, pos in auto_trader.active_positions.items():
+        mark = auto_trader.live_prices.get(symbol)
+        upnl, pct = _position_upnl(pos, mark)
+        if upnl is not None:
+            total_unrealized += upnl
+        positions.append({
+            "symbol": symbol,
+            "side": pos["side"],
+            "quantity": float(pos["quantity"]),
+            "entry": float(pos["entry_price"]),
+            "mark": mark,
+            "notional": round(float(pos["entry_price"]) * float(pos["quantity"]), 2),
+            "upnl": upnl,
+            "upnl_pct": pct,
+            "sl": pos.get("sl"),
+            "tp": pos.get("tp"),
+            "protected": bool(pos.get("sl_order_id") or pos.get("tp_order_id")),
+        })
+    equity = auto_trader.equity or 0.0
+    peak = auto_trader.peak_equity or equity
+    return {
+        "mode": "paper" if auto_trader.paper else "live",
+        "synced": bool(bal),
+        "balance": bal.get("balance"),
+        "available": bal.get("available"),
+        "unrealized_pnl": bal.get("unrealized") if bal else round(total_unrealized, 2),
+        "equity": round(equity, 2),
+        "peak_equity": round(peak, 2),
+        "drawdown_pct": auto_trader.drawdown_pct,
+        "day_pnl": auto_trader.day_pnl,
+        "positions": positions,
+        "count": len(positions),
+        "total_notional": round(sum(p["notional"] for p in positions), 2),
+    }
+
 @app.post("/api/v1/positions/{symbol}/sl")
 async def position_update_sl(symbol: str, request: Request):
     """Dashboard/API'den acik pozisyonun SL'sini gunceller."""

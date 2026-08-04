@@ -13,13 +13,14 @@
 | 7 | Coin Intelligence | sembol seçimi, momentum/score motoru | ✅ |
 | 8 | Decision Council | çoklu sinyal oylaması, açıklanabilir karar | ✅ |
 | 9 | Governor | risk limitleri, konsantrasyon engelleri, koruma tamiri | ✅ |
-| 10 | Trading | emir yönetimi, TP/SL/trailing, portföy senkronu | 🔶 |
+| 10 | Trading | emir yönetimi, TP/SL/trailing, portföy senkronu | ✅ |
 
-> 🔶 = kısmi: emir yönetimi ve TP/SL/trailing tam; portföy senkronu
-> (reconcile) temel düzeyde. Ayrıca operasyon katmanı eklendi: Telegram
+> Not: Tüm sprintler tamamlandı. Operasyon katmanı eklendi: Telegram
 > komutları (`/sl /tp /koruma /kapat /kapatall /sinyal /rapor /risk /gecmis`),
 > risk durumu restart kalıcılığı, canlı giriş kapısı (Decision Council),
-> market rejim/score/dashboard kartları. Tüm detaylar `docs/OPS.md`'de.
+> market rejim/score/dashboard kartları, kline collect/backfill arşivi,
+> borsa bakiye senkronu ve `/api/v1/portfolio` özeti.
+> Tüm detaylar `docs/OPS.md`'de.
 
 ## Veri
 

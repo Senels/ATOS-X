@@ -93,6 +93,7 @@ class AutoTrader:
         self.reconcile_interval = 300
         self._last_reconcile = 0.0
         self._last_perf = 0.0
+        self.live_balance = None
 
     def _log_risk_event(self, event_type: str, message: str, **extra):
         """Risk/blok olaylarini son-N halka tamponuna ve DB'ye kalici yazar."""
@@ -641,6 +642,36 @@ class AutoTrader:
         self._persist_risk_state()
         logger.success(f"Pozisyon kapatildi: {symbol} PnL: {net:.2f}")
 
+    async def _sync_balance(self):
+        """Canli borsadan gercek USDT dengesi ile ic equity'yi hizalar.
+
+        `balance + unrealized` (margin balance) gercek pozisyon PnL'ini yansitir;
+        peak_equity/drawdown buna gore guncellenir ve kalici durum yazilir.
+        Borsa yontemi yoksa (test) ya da denge gecersizse sessizce atlanir.
+        """
+        fn = getattr(self.binance, "get_account_balance", None)
+        if fn is None:
+            return
+        try:
+            bal = await fn()
+            if not bal or bal.get("balance") is None:
+                return
+            total = float(bal["balance"]) + float(bal.get("unrealized", 0.0))
+            if total <= 0:
+                return
+            self.live_balance = bal
+            self.equity = total
+            if self.equity > self.peak_equity:
+                self.peak_equity = self.equity
+            if self.peak_equity > 0:
+                self.drawdown_pct = round(
+                    (self.peak_equity - self.equity) / self.peak_equity * 100.0, 2
+                )
+            self._persist_risk_state()
+            logger.info(f"Bakiye senkronlandi: equity ${self.equity:.2f}")
+        except Exception as e:
+            logger.warning(f"Bakiye senkronu atlandi: {e}")
+
     async def reconcile_positions(self):
         """Restart sonrasi acik pozisyonlari borsadan geri yukler ve drift temizler.
 
@@ -653,6 +684,7 @@ class AutoTrader:
         if self.paper:
             return
         try:
+            await self._sync_balance()
             positions = await self.binance.get_open_positions()
             algos = await self.binance.get_open_algo_orders()
             algo_map = {}
