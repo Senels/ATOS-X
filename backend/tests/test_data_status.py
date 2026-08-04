@@ -98,6 +98,15 @@ def test_dashboard_has_backfill_button():
     assert "BE</span>" in resp.text
 
 
+def test_dashboard_has_signals_filter():
+    c = _client()
+    resp = c.get("/dashboard/html")
+    c.close()
+    assert resp.status_code == 200
+    assert "signalsFilter" in resp.text
+    assert "signalsFilterChange" in resp.text
+
+
 def test_backfill_stale_endpoint(monkeypatch):
     ft = _FakeTrader()
     ft.binance = SimpleNamespace(client=object())

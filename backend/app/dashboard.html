@@ -74,7 +74,7 @@ tr:hover { background:rgba(59,130,246,0.05); }
 <div class="stat-box"><div class="label">Exposure</div><div class="value" id="portNotional">-</div></div>
 </div></div>
 <div class="card"><h3>🎯 Priority Watchlist</h3><div id="watchlistBody" style="display:flex;flex-wrap:wrap;gap:6px;">-</div></div>
-<div class="card"><h3>📡 Live Signals <select id="signalsInterval" onchange="signalsIntervalChange()" style="margin-left:8px;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:3px 6px;font-size:12px;"><option value="15m">15m</option><option value="30m">30m</option><option value="1h">1h</option><option value="2h">2h</option><option value="4h">4h</option><option value="6h">6h</option><option value="8h">8h</option><option value="12h">12h</option><option value="1d">1d</option></select></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Signal</th><th>Price</th><th>SL</th><th>TP</th><th>Reason</th></tr></thead><tbody id="signalsBody"><tr><td colspan="6" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
+<div class="card"><h3>📡 Live Signals <select id="signalsInterval" onchange="signalsIntervalChange()" style="margin-left:8px;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:3px 6px;font-size:12px;"><option value="15m">15m</option><option value="30m">30m</option><option value="1h">1h</option><option value="2h">2h</option><option value="4h">4h</option><option value="6h">6h</option><option value="8h">8h</option><option value="12h">12h</option><option value="1d">1d</option></select><select id="signalsFilter" onchange="signalsFilterChange()" style="margin-left:8px;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:3px 6px;font-size:12px;"><option value="ALL">Tumu</option><option value="BUY">BUY</option><option value="SELL">SELL</option><option value="HOLD">HOLD</option></select></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Signal</th><th>Price</th><th>SL</th><th>TP</th><th>Reason</th></tr></thead><tbody id="signalsBody"><tr><td colspan="6" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
 <div class="card"><h3>🌡️ Market Regime</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Trend</th><th>Volatility</th><th>ATR%</th><th>ATR%ile</th></tr></thead><tbody id="regimeBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
 <div class="card"><h3>🏆 Coin Scores</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Score</th><th>Momentum%</th><th>Trend</th><th>ATR%</th></tr></thead><tbody id="scoreBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
 <div class="card"><h3>⚖️ Decision Council</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Verdict</th><th>Confidence</th><th>Votes</th><th>Reason</th></tr></thead><tbody id="decisionBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
@@ -202,9 +202,17 @@ initSignalsInterval();
 }
 let lastSignalsLoad = 0;
 let signalsInterval = localStorage.getItem('signalsInterval') || '4h';
+let signalsFilter = localStorage.getItem('signalsFilter') || 'ALL';
 function initSignalsInterval() {
 const sel = document.getElementById('signalsInterval');
 if (sel) sel.value = signalsInterval;
+const fil = document.getElementById('signalsFilter');
+if (fil) fil.value = signalsFilter;
+}
+function signalsFilterChange() {
+signalsFilter = document.getElementById('signalsFilter').value;
+localStorage.setItem('signalsFilter', signalsFilter);
+loadSignals();
 }
 function signalsIntervalChange() {
 signalsInterval = document.getElementById('signalsInterval').value;
@@ -254,9 +262,10 @@ try {
 const r = await fetch('/api/v1/signals?limit=10&interval=' + encodeURIComponent(signalsInterval));
 const d = await r.json();
 const body = document.getElementById('signalsBody');
-if (d.signals && d.signals.length > 0) {
+const rows = (d.signals || []).filter(function(s) { return signalsFilter === 'ALL' || s.signal === signalsFilter; });
+if (rows.length > 0) {
 body.innerHTML = '';
-d.signals.forEach(function(s) {
+rows.forEach(function(s) {
 const cls = s.signal === 'BUY' ? 'badge-buy' : (s.signal === 'SELL' ? 'badge-sell' : 'badge-hold');
 const sl = s.sl != null ? '$'+Number(s.sl).toFixed(2) : '-';
 const tp = s.tp != null ? '$'+Number(s.tp).toFixed(2) : '-';
