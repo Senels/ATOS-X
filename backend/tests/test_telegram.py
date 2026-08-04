@@ -1090,12 +1090,41 @@ def test_command_scan_schedules(monkeypatch):
     assert len(captured) == 1
 
 
-def test_command_scan_bad_n():
+def test_command_scan_bad_n(monkeypatch):
     fake = _FakeTrader()
     main_mod.auto_trader = fake
+    captured = []
+
+    def fake_run_later(coro):
+        captured.append(coro)
+        coro.close()
+        return True
+
+    monkeypatch.setattr(main_mod, "_run_later", fake_run_later)
     try:
         reply = main_mod._telegram_command("/sinyalall abc")
     finally:
         main_mod.auto_trader = None
     assert reply is not None
-    assert "kullanim" in reply
+    assert "2 sembol taranacak (4h)" in reply
+    assert len(captured) == 1
+
+
+def test_command_scan_interval(monkeypatch):
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+    captured = []
+
+    def fake_run_later(coro):
+        captured.append(coro)
+        coro.close()
+        return True
+
+    monkeypatch.setattr(main_mod, "_run_later", fake_run_later)
+    try:
+        reply = main_mod._telegram_command("/sinyalall 3 1h")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "2 sembol taranacak (1h)" in reply
+    assert len(captured) == 1

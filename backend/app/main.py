@@ -20,6 +20,7 @@ from app.strategy.coin_intel import coin_score
 from app.strategy.decision import decide as decide_symbol
 from app.data.collector import backfill as backfill_klines
 from app.data.collector import collect as collect_klines
+from app.data.collector import _INTERVAL_MS
 from app.data import loader
 from app.api.backtest import router as backtest_router
 from app.api.optimization import router as optimize_router
@@ -393,19 +394,19 @@ def _telegram_command(text: str):
         if not auto_trader:
             return "ATOS X: motor calismiyor"
         parts = text.strip().split()
-        n = 5
-        if len(parts) > 1:
-            try:
-                n = int(parts[1])
-            except ValueError:
-                return "ATOS X: kullanim /sinyalall [N]"
+        n, interval = 5, "4h"
+        for p in parts[1:]:
+            if p.lower() in _INTERVAL_MS:
+                interval = p.lower()
+            elif p.isdigit():
+                n = int(p)
         n = max(1, min(n, 10))
         symbols = (auto_trader.priority or auto_trader.trading_symbols)[:n]
         if not symbols:
             return "ATOS X: tarama listesi bos"
-        if not _run_later(_send_batch_signals(symbols)):
+        if not _run_later(_send_batch_signals(symbols, interval)):
             return "ATOS X: komut arka planda calistirilamadi"
-        return f"ATOS X: {len(symbols)} sembol taranacak"
+        return f"ATOS X: {len(symbols)} sembol taranacak ({interval})"
     if cmd.startswith("/sinyal") or cmd.startswith("/signal"):
         parts = text.strip().split()
         if not auto_trader:

@@ -317,7 +317,7 @@ yoksa dinleyici devre dışıdır.
 | `/koruma` veya `/ayar` | Risk eşiklerini gösterir; `/koruma <anahtar> <deger>` ile canlı değiştirir (kalıcı) |
 | `/durdur` veya `/stop` | Acil durdurma; tüm pozisyonları kapatır + kapanış özeti gönderir |
 | `/sinyal <SEMBOL>` veya `/signal <SEMBOL>` | Canlı kline'dan v23 sinyalini Telegram'a gönderir |
-| `/sinyalall [N]` veya `/scan [N]` | İlk N (varsayılan 5, en fazla 10) tarama sembolü için toplu sinyal özeti |
+| `/sinyalall [N] [INTERVAL]` veya `/scan [N] [INTERVAL]` | İlk N (varsayılan 5, en fazla 10) tarama sembolü için toplu sinyal özeti; interval opsiyonel (`15m`…`1d`, varsayılan `4h`) |
 | `/ac` veya `/resume` | Motoru yeniden başlatır |
 | `/rapor` veya `/report` | Günlük raporu anında gönderir (gerçekleşmemiş PnL, durmalar, risk olayları) |
 | `/risk` | Risk durumu: equity, LONG/SHORT maruziyeti, drawdown, ardışık/günlük zarar, equity tabanı ve tüm durma durumları |
