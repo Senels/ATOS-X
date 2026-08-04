@@ -143,6 +143,13 @@ def format_daily_summary(trades, equity, open_positions, top_symbols=None,
     pnl = sum(t[6] for t in closed)
     win_rate = wins / len(closed) * 100 if closed else 0.0
     best = max(closed, key=lambda t: t[6]) if closed else None
+    gross_w = sum(t[6] for t in closed if t[6] > 0)
+    gross_l = abs(sum(t[6] for t in closed if t[6] < 0))
+    pf = gross_w / gross_l if gross_l > 0 else (float("inf") if gross_w > 0 else 0.0)
+    by_sym = {}
+    for t in closed:
+        by_sym[t[1]] = by_sym.get(t[1], 0.0) + t[6]
+    best_sym = max(by_sym.items(), key=lambda kv: kv[1]) if by_sym else None
 
     upnl = 0.0
     if open_positions and marks:
@@ -159,6 +166,8 @@ def format_daily_summary(trades, equity, open_positions, top_symbols=None,
     msg += f"Equity: <b>${equity:.2f}</b>\n"
     msg += f"Kapanan islem: {len(closed)} ({wins}W/{losses}L)\n"
     msg += f"Win Rate: {win_rate:.1f}%\n"
+    pf_str = "inf" if pf == float("inf") else f"{pf:.2f}"
+    msg += f"Profit Factor: {pf_str}\n"
     msg += f"Gunluk PnL: <b>{'+' if pnl >= 0 else ''}{pnl:.2f}</b>\n"
     if day_pnl is not None:
         msg += f"Gunluk net (kapanan): {'+' if day_pnl >= 0 else ''}{day_pnl:.2f}\n"
@@ -166,6 +175,8 @@ def format_daily_summary(trades, equity, open_positions, top_symbols=None,
         msg += f"Gerceklesmemis PnL: <b>{'+' if upnl >= 0 else ''}{upnl:.2f}</b>\n"
     if best:
         msg += f"En iyi: {best[1]} {('+' if best[6] >= 0 else '')}{best[6]:.2f}\n"
+    if best_sym:
+        msg += f"En iyi sembol: {best_sym[0]} {'+' if best_sym[1] >= 0 else ''}{best_sym[1]:.2f}\n"
     msg += f"Acik pozisyon: {len(open_positions) if open_positions else 0}"
     if top_symbols:
         msg += f"\nTarama: {', '.join(top_symbols[:8])}"

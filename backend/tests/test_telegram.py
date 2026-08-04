@@ -7,6 +7,7 @@ import pandas as pd
 
 from app import main as main_mod
 from app.notifications.telegram import TelegramNotifier, _process_updates, format_stop_summary
+from app.notifications.telegram import format_daily_summary
 
 
 def _signal_df(n=120):
@@ -327,6 +328,30 @@ def test_format_stop_summary_empty():
     msg = format_stop_summary([])
     assert "Kapanan pozisyon: 0" in msg
     assert "Kar: 0 / Zarar: 0" in msg
+
+
+def test_format_daily_summary_has_pf_and_best_symbol():
+    trades = [
+        ("id", "BTCUSDT", "BUY", 100.0, 108.0, 1.0, 120.0, "2026-08-04"),
+        ("id", "BTCUSDT", "SELL", 200.0, 190.0, 1.0, 80.0, "2026-08-04"),
+        ("id", "ETHUSDT", "BUY", 3000.0, 2950.0, 1.0, -50.0, "2026-08-04"),
+        ("id", "ETHUSDT", "SELL", 4000.0, 3990.0, 1.0, -10.0, "2026-08-04"),
+    ]
+    msg = format_daily_summary(trades, 10500.0, {}, top_symbols=["BTCUSDT"],
+                               marks=None)
+    assert "Profit Factor: 3.33" in msg
+    assert "En iyi sembol: BTCUSDT +200.00" in msg
+    assert "Win Rate: 50.0%" in msg
+    assert "Gunluk PnL: <b>+140.00</b>" in msg
+
+
+def test_format_daily_summary_pf_inf_when_no_losses():
+    trades = [
+        ("id", "BTCUSDT", "BUY", 100.0, 108.0, 1.0, 120.0, "2026-08-04"),
+    ]
+    msg = format_daily_summary(trades, 10120.0, {}, marks=None)
+    assert "Profit Factor: inf" in msg
+    assert "En iyi sembol: BTCUSDT +120.00" in msg
 
 
 def test_command_report_schedules_daily_summary(monkeypatch):
