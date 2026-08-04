@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 from types import SimpleNamespace
 
 import numpy as np
@@ -54,6 +55,8 @@ class _FakeTrader:
         self.live_prices = {}
         self.db = _FakeDB()
         self.top_symbols = ["BTCUSDT", "ETHUSDT"]
+        self.priority = ["BTCUSDT", "ETHUSDT"]
+        self.trading_symbols = ["BTCUSDT", "ETHUSDT"]
         self.trade_history = []
         self.risk_events = [{"time": "2026-08-03T10:00:00", "type": "block_add",
                              "message": "Engel: side:LONG"}]
@@ -453,6 +456,47 @@ def test_command_stats_empty():
         main_mod.auto_trader = None
     assert reply is not None
     assert "islem gecmisi yok" in reply
+
+
+def _fresh_csv_df():
+    idx = pd.DatetimeIndex([datetime.utcnow() - pd.Timedelta(hours=1)]).tz_localize("UTC")
+    return pd.DataFrame({"open": [100.0], "high": [101.0], "low": [99.0],
+                         "close": [100.0], "volume": [1.0]}, index=idx)
+
+
+def test_command_data_summary(monkeypatch):
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+
+    def fake_load(symbol, interval="4h", data_dir=None, limit=None):
+        if symbol == "ETHUSDT":
+            raise FileNotFoundError("missing")
+        return _fresh_csv_df()
+
+    monkeypatch.setattr(main_mod.loader, "load_csv", fake_load)
+    try:
+        reply = main_mod._telegram_command("/veri")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "Guncel: 1" in reply
+    assert "Esk" in reply
+    assert "Eksik: 1" in reply
+    assert "ETHUSDT" in reply
+
+
+def test_command_data_all_fresh(monkeypatch):
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+    monkeypatch.setattr(main_mod.loader, "load_csv",
+                        lambda symbol, interval="4h", data_dir=None, limit=None: _fresh_csv_df())
+    try:
+        reply = main_mod._telegram_command("/veri")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "Guncel: 2" in reply
+    assert "Eksik: 0" in reply
 
 
 def test_command_history_bad_n():

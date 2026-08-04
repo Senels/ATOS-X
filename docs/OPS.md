@@ -435,6 +435,11 @@ yoksa dinleyici devre dışıdır.
 - Uçlar: `POST /api/v1/data/collect` (`symbols=`,`interval=`,`bars=`) ve
   `POST /api/v1/data/backfill` (`symbols=`,`interval=`,`days=`);
   sembol verilmezse ilk 10 tarama sembolü kullanılır.
+- `GET /api/v1/data/status` (`limit=`): ilk 100 (en fazla 300) sembolün CSV
+  tazeliğini `data_freshness_hours` eşiğiyle `ok`/`stale`/`missing` olarak
+  listeler; `fresh`/`stale`/`missing` toplamlarıyla döner.
+- `/veri` Telegram komutu: veri durumu özetini (Guncel/Eski/Eksik + eski ve
+  eksik sembol listesi) gösterir; otomatik backfill eşiğiyle birebir uyumludur.
 
 ## Portföy Senkronu (Sprint 10)
 
@@ -490,6 +495,7 @@ yoksa dinleyici devre dışıdır.
 | `/api/v1/market/decisions` | Tarama listesi karar özeti (BUY/SELL/HOLD + confidence) |
 | `/api/v1/data/collect` | Sembol kline'larını CSV arşivine toplar |
 | `/api/v1/data/backfill` | Sembol geçmiş verisini parçalı çekip arşive yazar |
+| `/api/v1/data/status` | CSV veri tazeliği: sembol bazında `ok`/`stale`/`missing` + toplamlar |
 | `/api/v1/portfolio` | Portföy özeti (senkron equity, bakiye, uPnL, pozisyonlar) |
 | `/dashboard/metrics` | Aynı + pozisyon başına `protected` |
 | `/dashboard` | Pozisyon tablosunda `KORUMALI`/`KORUMASIZ` rozetleri + kart özeti; `🧮 Position Risk` kartında notional, size %, SL mesafesi, risk tutarı, uPnL ve pozisyon yaşı; `📡 Live Signals` kartında tarama listesinin canlı sinyalleri (60 sn'de bir yenilenir; üstten interval seçilir — varsayılan `4h`, seçim `localStorage`'da saklanır); `🌡️ Market Regime` kartında trend/volatilite rejimi + ATR%; `🏆 Coin Scores` kartında skor sıralaması; `⚖️ Decision Council` kartında kararlar + güven + kaynaklar; her satırda SL/TP düzenleme + `Uygula`/`Kapat` butonları |

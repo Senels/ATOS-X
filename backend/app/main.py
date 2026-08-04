@@ -20,6 +20,7 @@ from app.strategy.coin_intel import coin_score
 from app.strategy.decision import decide as decide_symbol
 from app.data.collector import backfill as backfill_klines
 from app.data.collector import collect as collect_klines
+from app.data import loader
 from app.api.backtest import router as backtest_router
 from app.api.optimization import router as optimize_router
 from app.websocket.client import BinanceWebSocket
@@ -266,6 +267,7 @@ def _telegram_command(text: str):
                 "/risk - risk durumu\n"
                 "/gecmis [N] - son N islem\n"
                 "/istatistik - islem performansi ozeti\n"
+                "/veri - veri tazeligi ozeti (ok/esk/esik)\n"
                 "/yardim - bu liste")
     if cmd.startswith("/blok"):
         blocks = sorted(auto_trader._conc_blocks) if auto_trader else []
@@ -520,10 +522,63 @@ def _telegram_command(text: str):
             f"En iyi sembol: {best[0]} {best[1]:+.2f}",
         ]
         return "\n".join(lines)
+    if cmd.startswith("/veri") or cmd.startswith("/data"):
+        st = _data_freshness(200)
+        if not st.get("ok"):
+            return f"ATOS X: motor calismiyor"
+        lines = [
+            f"ATOS X veri durumu ({st['interval']}, esik {st['freshness_hours']:g} saat):",
+            f"Guncel: {st['fresh']} | Eski: {st['stale']} | Eksik: {st['missing']}",
+        ]
+        bad = [r for r in st["rows"] if r["state"] != "ok"]
+        if bad:
+            lines.append("Eski/Eksik: " + ", ".join(
+                f"{r['symbol']}({r['age_hours'] if r['age_hours'] is not None else 'yok'}s)"
+                for r in bad[:15]))
+        return "\n".join(lines)
     return None
 
 def _is_connected() -> bool:
     return bool(auto_trader and auto_trader.binance and auto_trader.binance.client)
+
+def _data_freshness(limit: int = 100) -> dict:
+    """Trading sembollerinin yerel CSV veri tazeligi durumu.
+
+    `data_freshness_hours` eşiğine gore ok/stale/missing etiketlenir;
+    otomatik backfill ile birlikte ops gorunurlugu saglar.
+    """
+    if not auto_trader:
+        return {"ok": False, "error": "not_running", "count": 0,
+                "fresh": 0, "stale": 0, "missing": 0, "rows": []}
+    limit = max(1, min(limit, 300))
+    symbols = (auto_trader.priority or auto_trader.trading_symbols)[:limit]
+    fresh_h = float(strat_settings.get_settings().get("data_freshness_hours", 12.0))
+    now = datetime.utcnow()
+    rows, fresh, stale, missing = [], 0, 0, 0
+    for symbol in symbols:
+        try:
+            df = loader.load_csv(symbol, "4h", limit=30)
+            last = df.index[-1].to_pydatetime()
+            if last.tzinfo is not None:
+                last = last.replace(tzinfo=None)
+            age_h = (now - last).total_seconds() / 3600.0
+            state = "ok" if age_h <= fresh_h else "stale"
+            if age_h > fresh_h:
+                stale += 1
+            else:
+                fresh += 1
+            rows.append({"symbol": symbol, "bars": len(df),
+                         "last": last.isoformat(), "age_hours": round(age_h, 2),
+                         "state": state})
+        except Exception:
+            missing += 1
+            rows.append({"symbol": symbol, "bars": 0, "last": None,
+                         "age_hours": None, "state": "missing"})
+    order = {"ok": 0, "stale": 1, "missing": 2}
+    rows.sort(key=lambda r: (order[r["state"]], r["symbol"]))
+    return {"ok": True, "interval": "4h", "freshness_hours": fresh_h,
+            "count": len(rows), "fresh": fresh, "stale": stale, "missing": missing,
+            "rows": rows}
 
 def _concentration_summary() -> dict:
     """Maruziyet ve aktif konsantrasyon engelleri (ops gorunurlugu)."""
@@ -765,6 +820,11 @@ async def data_backfill(symbols: str = "", interval: str = "4h", days: int = 30,
                                 days=days, skip_stablecoins=skip_stablecoins)
     res["ok"] = True
     return res
+
+@app.get("/api/v1/data/status")
+async def data_status(limit: int = 100):
+    """Trading sembollerinin CSV veri tazeligi durumu (ok/stale/missing)."""
+    return _data_freshness(limit)
 
 @app.get("/api/v1/status")
 async def get_status():
