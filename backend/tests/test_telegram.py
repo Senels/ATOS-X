@@ -286,12 +286,24 @@ def test_command_close_bad_usage():
     assert "kullanim" in reply
 
 
-def test_command_stop_schedules_stop(monkeypatch):
+def test_command_stop_requires_confirmation():
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/durdur")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "onay" in reply
+    assert "durdurulacak" in reply
+
+
+def test_command_stop_confirmed(monkeypatch):
     fake = _FakeTrader()
     main_mod.auto_trader = fake
     monkeypatch.setattr(main_mod, "_run_later", lambda coro: True)
     try:
-        reply = main_mod._telegram_command("/durdur")
+        reply = main_mod._telegram_command("/durdur onay")
     finally:
         main_mod.auto_trader = None
     assert reply is not None

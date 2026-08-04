@@ -315,7 +315,7 @@ yoksa dinleyici devre dışıdır.
 | `/tp <SEMBOL> <FIYAT>` | Açık pozisyonun TP'sini günceller (SL korunur); `/tp all <FIYAT>` tüm pozisyonlar için toplu güncelleme |
 | `/kapatall` | Açık tüm pozisyonları kapatır; onay gerektirir: `/kapatall` → onay isteği, `/kapatall onay` → kapatır |
 | `/koruma` veya `/ayar` | Risk eşiklerini gösterir; `/koruma <anahtar> <deger>` ile canlı değiştirir (kalıcı) |
-| `/durdur` veya `/stop` | Acil durdurma; tüm pozisyonları kapatır + kapanış özeti gönderir |
+| `/durdur` veya `/stop` | Acil durdurma; tüm pozisyonları kapatır + kapanış özeti gönderir; onay gerektirir: `/durdur` → onay isteği, `/durdur onay` → çalıştırır |
 | `/sinyal <SEMBOL>` veya `/signal <SEMBOL>` | Canlı kline'dan v23 sinyalini Telegram'a gönderir |
 | `/sinyalall [N] [INTERVAL]` veya `/scan [N] [INTERVAL]` | İlk N (varsayılan 5, en fazla 10) tarama sembolü için toplu sinyal özeti; interval opsiyonel (`15m`…`1d`, varsayılan `4h`) |
 | `/ac` veya `/resume` | Motoru yeniden başlatır |

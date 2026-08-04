@@ -469,6 +469,12 @@ def _telegram_command(text: str):
     if cmd.startswith("/durdur") or cmd.startswith("/stop"):
         if not auto_trader or not auto_trader.running:
             return "ATOS X: motor zaten durdurulmus"
+        parts = text.strip().split()
+        confirmed = len(parts) > 1 and parts[1].lower() == "onay"
+        if not confirmed:
+            n = len(auto_trader.active_positions)
+            return (f"ATOS X: motor durdurulacak ve {n} pozisyon kapatilacak\n"
+                    "Devam icin: /durdur onay")
         if not _run_later(auto_trader.stop()):
             return "ATOS X: komut arka planda calistirilamadi"
         return "ATOS X: DURDURULDU - tum pozisyonlar kapatiliyor, yeni girisler kapali"
