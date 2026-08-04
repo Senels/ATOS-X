@@ -95,6 +95,7 @@ def test_dashboard_has_backfill_button():
     assert resp.status_code == 200
     assert "backfillStale" in resp.text
     assert "/api/v1/data/backfill/stale" in resp.text
+    assert "BE</span>" in resp.text
 
 
 def test_backfill_stale_endpoint(monkeypatch):

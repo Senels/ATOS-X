@@ -428,6 +428,11 @@ def _telegram_command(text: str):
         if not auto_trader:
             return "ATOS X: motor calismiyor"
         trades = auto_trader.db.get_closed_trades_since(days=1)
+        hist = auto_trader.trade_history
+        protection_stats = {
+            "trailing": sum(1 for t in hist if t.get("trailing")),
+            "breakeven": sum(1 for t in hist if t.get("breakeven")),
+        }
         if not _run_later(telegram.send_daily_summary(
                 trades, auto_trader.equity, auto_trader.active_positions,
                 auto_trader.top_symbols, marks=auto_trader.live_prices,
@@ -436,7 +441,8 @@ def _telegram_command(text: str):
                 daily_loss_halted=auto_trader.daily_loss_halted,
                 equity_halted=auto_trader.equity_halted,
                 day_pnl=auto_trader.day_pnl,
-                data_status=_data_freshness(300))):
+                data_status=_data_freshness(300),
+                protection_stats=protection_stats)):
             return "ATOS X: komut arka planda calistirilamadi"
         return "ATOS X: gunluk rapor gonderiliyor"
     if cmd.startswith("/risk"):
@@ -675,6 +681,12 @@ async def _daily_report_loop():
                     equity_halted=auto_trader.equity_halted,
                     day_pnl=auto_trader.day_pnl,
                     data_status=_data_freshness(300),
+                    protection_stats={
+                        "trailing": sum(1 for t in auto_trader.trade_history
+                                        if t.get("trailing")),
+                        "breakeven": sum(1 for t in auto_trader.trade_history
+                                         if t.get("breakeven")),
+                    },
                 )
         except Exception as e:
             logger.error(f"Gunluk rapor hatasi: {e}")

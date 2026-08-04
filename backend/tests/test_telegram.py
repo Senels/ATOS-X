@@ -370,6 +370,20 @@ def test_format_daily_summary_without_data_status():
     assert "Veri:" not in msg
 
 
+def test_format_daily_summary_with_protection_stats():
+    trades = [("id", "BTCUSDT", "BUY", 100.0, 108.0, 1.0, 120.0, "2026-08-04")]
+    msg = format_daily_summary(trades, 10120.0, {}, marks=None,
+                               protection_stats={"trailing": 3, "breakeven": 2})
+    assert "Koruma: Trailing: 3 | Breakeven: 2" in msg
+
+
+def test_format_daily_summary_no_protection_line():
+    trades = [("id", "BTCUSDT", "BUY", 100.0, 108.0, 1.0, 120.0, "2026-08-04")]
+    msg = format_daily_summary(trades, 10120.0, {}, marks=None,
+                               protection_stats={"trailing": 0, "breakeven": 0})
+    assert "Koruma:" not in msg
+
+
 def test_command_report_schedules_daily_summary(monkeypatch):
     fake = _FakeTrader()
     main_mod.auto_trader = fake

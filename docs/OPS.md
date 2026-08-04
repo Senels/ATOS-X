@@ -296,8 +296,9 @@ halt bayrakları (`risk_halted`, `daily_loss_halted`, `equity_halted`).
 - **Günlük rapor**: `DAILY_REPORT_HOUR`'da özet rapor gönderilir. Rapor;
   kapanan işlem (W/L), win rate, profit factor, günlük PnL, günlük net
   (kapanan), gerçekleşmemiş PnL, en iyi işlem, en iyi sembol, açık
-  pozisyon sayısı, CSV veri tazeliği (guncel/eski/eksik), aktif durmalar
-  (ardışık/günlük zarar, equity taban) ve son risk olayını içerir.
+  pozisyon sayısı, CSV veri tazeliği (guncel/eski/eksik), trailing/breakeven
+  koruma sayıları, aktif durmalar (ardışık/günlük zarar, equity taban) ve
+  son risk olayını içerir.
 
 ## Telegram Komutları
 
@@ -501,7 +502,7 @@ yoksa dinleyici devre dışıdır.
 | `/api/v1/data/backfill/stale` | Eski/eksik sembolleri otomatik seçip backfill eder (`days=`, varsayılan 30) |
 | `/api/v1/portfolio` | Portföy özeti (senkron equity, bakiye, uPnL, pozisyonlar) |
 | `/dashboard/metrics` | Aynı + pozisyon başına `protected` |
-| `/dashboard` | Pozisyon tablosunda `KORUMALI`/`KORUMASIZ` rozetleri + kart özeti; `🧮 Position Risk` kartında notional, size %, SL mesafesi, risk tutarı, uPnL ve pozisyon yaşı; `📡 Live Signals` kartında tarama listesinin canlı sinyalleri (60 sn'de bir yenilenir; üstten interval seçilir — varsayılan `4h`, seçim `localStorage`'da saklanır); `🌡️ Market Regime` kartında trend/volatilite rejimi + ATR%; `🏆 Coin Scores` kartında skor sıralaması; `⚖️ Decision Council` kartında kararlar + güven + kaynaklar; `🗃️ Data Freshness` kartında CSV tazeliği (guncel/eski/eksik özeti + sembol tablosu) ve `↻ Backfill` butonu (eski/eksik veriyi anında tazeler); her satırda SL/TP düzenleme + `Uygula`/`Kapat` butonları |
+| `/dashboard` | Pozisyon tablosunda `KORUMALI`/`KORUMASIZ` rozetleri + kart özeti; `🧮 Position Risk` kartında notional, size %, SL mesafesi, risk tutarı, uPnL ve pozisyon yaşı; `📡 Live Signals` kartında tarama listesinin canlı sinyalleri (60 sn'de bir yenilenir; üstten interval seçilir — varsayılan `4h`, seçim `localStorage`'da saklanır); `🌡️ Market Regime` kartında trend/volatilite rejimi + ATR%; `🏆 Coin Scores` kartında skor sıralaması; `⚖️ Decision Council` kartında kararlar + güven + kaynaklar; `🗃️ Data Freshness` kartında CSV tazeliği (guncel/eski/eksik özeti + sembol tablosu) ve `↻ Backfill` butonu (eski/eksik veriyi anında tazeler); Trade History kartında `TRAIL`/`BE` rozetleri; her satırda SL/TP düzenleme + `Uygula`/`Kapat` butonları |
 
 ## Doğrulama
 
