@@ -660,6 +660,64 @@ def test_market_scores_endpoint_not_running():
     assert resp.json() == {"scores": [], "count": 0, "scanned": []}
 
 
+def test_market_decision_endpoint():
+    fake_klines = _FakeKlines()
+    main_mod.app.state.binance = fake_klines
+    try:
+        client = TestClient(app)
+        resp = client.get("/api/v1/market/decision?symbol=BTCUSDT&interval=4h")
+        client.close()
+    finally:
+        main_mod.app.state.binance = None
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True
+    assert body["symbol"] == "BTCUSDT"
+    assert body["verdict"] in ("BUY", "SELL", "HOLD")
+    assert "confidence" in body and "votes" in body and "reason" in body
+
+
+def test_market_decisions_endpoint():
+    fake_klines = _FakeKlines()
+    main_mod.app.state.binance = fake_klines
+    ft = _FakeTrader({})
+    ft.priority = ["BTCUSDT", "ETHUSDT"]
+    main_mod.auto_trader = ft
+    try:
+        client = TestClient(app)
+        resp = client.get("/api/v1/market/decisions?limit=5")
+        client.close()
+    finally:
+        main_mod.auto_trader = None
+        main_mod.app.state.binance = None
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["count"] == 2
+    assert {d["symbol"] for d in body["decisions"]} == {"BTCUSDT", "ETHUSDT"}
+    order = {"BUY": 0, "SELL": 1, "HOLD": 2}
+    verdicts = [order[d["verdict"]] for d in body["decisions"]]
+    assert verdicts == sorted(verdicts)
+
+
+def test_market_decisions_endpoint_not_running():
+    main_mod.auto_trader = None
+    client = TestClient(app)
+    resp = client.get("/api/v1/market/decisions")
+    client.close()
+    assert resp.json() == {"decisions": [], "count": 0, "scanned": []}
+
+
+def test_dashboard_has_decision_council_card():
+    client = TestClient(app)
+    resp = client.get("/dashboard/html")
+    assert resp.status_code == 200
+    assert "Decision Council" in resp.text
+    assert "loadDecisions" in resp.text
+    assert 'id="decisionBody"' in resp.text
+    assert "/api/v1/market/decisions" in resp.text
+    client.close()
+
+
 def test_dashboard_has_coin_scores_card():
     client = TestClient(app)
     resp = client.get("/dashboard/html")

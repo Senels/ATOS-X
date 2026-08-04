@@ -17,6 +17,7 @@ from app.strategy import settings as strat_settings
 from app.strategy.tradebot_v23 import TradeBotV23
 from app.strategy.market_intel import analyze as analyze_market
 from app.strategy.coin_intel import coin_score
+from app.strategy.decision import decide as decide_symbol
 from app.api.backtest import router as backtest_router
 from app.api.optimization import router as optimize_router
 from app.websocket.client import BinanceWebSocket
@@ -641,6 +642,44 @@ async def market_scores(limit: int = 10, interval: str = "4h"):
     scores = [r for r in results if r is not None]
     scores.sort(key=lambda s: s.get("score", 0.0), reverse=True)
     return {"scores": scores, "count": len(scores), "scanned": candidates}
+
+@app.get("/api/v1/market/decision")
+async def market_decision(symbol: str = "BTCUSDT", interval: str = "4h"):
+    """Tek sembol icin Decision Council karari."""
+    try:
+        df = await app.state.binance.get_klines(symbol.upper(), interval, 400)
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    out = decide_symbol(df)
+    out["ok"] = True
+    out["symbol"] = symbol.upper()
+    out["interval"] = interval
+    return out
+
+@app.get("/api/v1/market/decisions")
+async def market_decisions(limit: int = 10, interval: str = "4h"):
+    """Tarama listesi icin Decision Council karar ozeti."""
+    if not auto_trader:
+        return {"decisions": [], "count": 0, "scanned": []}
+    limit = max(1, min(limit, 30))
+    candidates = (auto_trader.priority or auto_trader.trading_symbols)[:limit]
+    if not candidates:
+        return {"decisions": [], "count": 0, "scanned": []}
+
+    async def fetch(symbol):
+        try:
+            df = await app.state.binance.get_klines(symbol, interval, 400)
+            d = decide_symbol(df)
+            d["symbol"] = symbol
+            return d
+        except Exception:
+            return None
+
+    results = await asyncio.gather(*(fetch(s) for s in candidates))
+    decisions = [r for r in results if r is not None]
+    order = {"BUY": 0, "SELL": 1, "HOLD": 2}
+    decisions.sort(key=lambda d: (order.get(d["verdict"], 3), -d["confidence"]))
+    return {"decisions": decisions, "count": len(decisions), "scanned": candidates}
 
 @app.get("/api/v1/status")
 async def get_status():

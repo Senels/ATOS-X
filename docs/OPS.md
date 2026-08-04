@@ -400,6 +400,19 @@ yoksa dinleyici devre dışıdır.
   ile paylaşır.
 - İlerleyen batch'te skor, `auto_trader` sembol seçimine (top_symbols) bağlanabilir.
 
+## Decision Council (Çoklu Sinyal Oylaması)
+
+- `app/strategy/decision.py` v23 + trend + momentum + volatilite kapısını
+  oylayarak BUY/SELL/HOLD kararı ve güven (confidence) üretir; `votes` listesi
+  kararın kaynaklarını açıklar (`_vote` saf fonksiyon, `decide` DataFrame sarmalar).
+- Ağırlıklar: v23=1.0, trend=0.4, momentum=0.3 (net max 1.7). Net >= 0.8 → BUY,
+  <= -0.8 → SELL, aksi HOLD. HIGH volatilite -0.3 ceza; EXTREME hard veto (HOLD).
+- Tek başına v23 sinyali tetikleyebilir ama güven düşer; rejim/momentum aynı yönde
+  olduğunda güven 1.0'a yaklaşır, zıt yönde HOLD.
+- Uçlar: `/api/v1/market/decision?symbol=&interval=` (tek), `/api/v1/market/decisions`
+  (tarama listesi, BUY/SELL/HOLD + confidence sıralı). Dashboard `⚖️ Decision Council`
+  kartı kararları ve kaynaklarını gösterir.
+
 ## API ve Dashboard Görünürlüğü
 
 | Uç | İçerik |
@@ -416,8 +429,10 @@ yoksa dinleyici devre dışıdır.
 | `/api/v1/market/regime` | Tek sembol rejim/volatilite/likidite tespiti (`symbol`, `interval`) |
 | `/api/v1/market/regimes` | Tarama listesi için rejim özeti (`limit`, `interval`) |
 | `/api/v1/market/scores` | Tarama listesi için momentum/score sıralaması (`limit`, `interval`) |
+| `/api/v1/market/decision` | Tek sembol Decision Council kararı (`symbol`, `interval`) |
+| `/api/v1/market/decisions` | Tarama listesi karar özeti (BUY/SELL/HOLD + confidence) |
 | `/dashboard/metrics` | Aynı + pozisyon başına `protected` |
-| `/dashboard` | Pozisyon tablosunda `KORUMALI`/`KORUMASIZ` rozetleri + kart özeti; `🧮 Position Risk` kartında notional, size %, SL mesafesi, risk tutarı, uPnL ve pozisyon yaşı; `📡 Live Signals` kartında tarama listesinin canlı sinyalleri (60 sn'de bir yenilenir; üstten interval seçilir — varsayılan `4h`, seçim `localStorage`'da saklanır); `🌡️ Market Regime` kartında trend/volatilite rejimi + ATR%; `🏆 Coin Scores` kartında skor sıralaması; her satırda SL/TP düzenleme + `Uygula`/`Kapat` butonları |
+| `/dashboard` | Pozisyon tablosunda `KORUMALI`/`KORUMASIZ` rozetleri + kart özeti; `🧮 Position Risk` kartında notional, size %, SL mesafesi, risk tutarı, uPnL ve pozisyon yaşı; `📡 Live Signals` kartında tarama listesinin canlı sinyalleri (60 sn'de bir yenilenir; üstten interval seçilir — varsayılan `4h`, seçim `localStorage`'da saklanır); `🌡️ Market Regime` kartında trend/volatilite rejimi + ATR%; `🏆 Coin Scores` kartında skor sıralaması; `⚖️ Decision Council` kartında kararlar + güven + kaynaklar; her satırda SL/TP düzenleme + `Uygula`/`Kapat` butonları |
 
 ## Doğrulama
 
