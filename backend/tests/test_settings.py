@@ -62,3 +62,4 @@ def test_council_defaults():
     state = s.get_settings()
     assert state["use_decision_council"] is False
     assert state["council_min_confidence"] == 0.6
+    assert state["use_score_ranking"] is False

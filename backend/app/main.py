@@ -217,9 +217,10 @@ _EDITABLE_RISK_KEYS = {
     "max_leverage": "max_leverage",
     "use_decision_council": "use_decision_council",
     "council_min_confidence": "council_min_confidence",
+    "use_score_ranking": "use_score_ranking",
 }
 _INT_RISK_KEYS = {"max_open_positions", "max_consecutive_losses", "max_position_age_hours"}
-_BOOL_RISK_KEYS = {"use_decision_council"}
+_BOOL_RISK_KEYS = {"use_decision_council", "use_score_ranking"}
 
 
 def _format_koruma() -> str:
@@ -235,6 +236,7 @@ def _format_koruma() -> str:
         f"Trailing: kar %{s['trailing_activate_pct']:.0f}+ / SL %{s['trailing_sl_pct']:.1f}\n"
         f"Breakeven: %{s['breakeven_activate_pct']:.0f} | Pozisyon yasi: {s['max_position_age_hours']} saat\n"
         f"Decision Council: {'acik' if s.get('use_decision_council') else 'kapali'} | Min guven: %{s.get('council_min_confidence', 0.6) * 100:.0f}\n"
+        f"Skor siralamasi: {'acik' if s.get('use_score_ranking') else 'kapali'}\n"
         "Ayarlamak icin: /koruma <anahtar> <deger> "
         "(anahtarlar: " + ", ".join(sorted(_EDITABLE_RISK_KEYS)) + ")"
     )

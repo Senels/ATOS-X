@@ -443,6 +443,16 @@ yoksa dinleyici devre dışıdır.
   iç `equity`'yi hizalar (`balance + unrealized`), `peak_equity`/`drawdown_pct`
   günceller ve kalıcı risk durumunu yazar; borsa yöntemi yoksa/geçersiz
   değerde sessizce atlanır (test uyumluluğu).
+
+## Canlı Sembol Seçimi (Score Ranking)
+
+- `AutoTrader._rank_by_score()`: `use_score_ranking=True` iken `_refresh_ranking`
+  ilk 200 sembolün canlı 4h kline'larını çeker, `coin_score` ile momentum
+  skoru hesaplar ve listeyi skor azalan şekilde yeniden sıralar; skoru
+  alınamayan semboller backtest sıralamasını koruyarak arkada kalır.
+- Varsayılan **kapalı**; `/koruma use_score_ranking 1` ile açılır
+  (`_BOOL_RISK_KEYS`'e eklendi, `/koruma` çıktısında `Skor siralamasi` satırı).
+- `_SCORE_POOL = 200` havuz boyutunu belirler.
 - `GET /api/v1/portfolio`: mode (paper/live), `synced` bayrağı, balance,
   available, unrealized PnL, equity/peak/drawdown, day PnL ve pozisyon
   bazlı notional/uPnL listesi.

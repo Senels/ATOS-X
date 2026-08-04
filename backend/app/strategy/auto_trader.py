@@ -11,6 +11,9 @@ from app.data import loader
 from app.strategy import settings as strat_settings
 from app.strategy.tradebot_v23 import TradeBotV23
 from app.strategy.decision import decide as decide_council
+from app.strategy.coin_intel import coin_score as score_symbol
+
+_SCORE_POOL = 200  # skor bazli siralama icin canli degerlendirilen sembol sayisi
 
 
 class AutoTrader:
@@ -192,16 +195,49 @@ class AutoTrader:
         return [r[2] for r in rows]
 
     async def _refresh_ranking(self):
+        """Backtest kalitesine gore oncelik listesi; skor siralamasi aciksa canli momentumla birlestirir."""
         loop = asyncio.get_running_loop()
         ranked = await loop.run_in_executor(None, self.rank_symbols)
-        if ranked:
-            self.priority = ranked
-            self.top_symbols = ranked[: self.scan_limit]
-            self._last_rank = time.time()
-            logger.info(
-                f"Backtest oncelik listesi: {len(ranked)} sembol, "
-                f"tarama secimi: {', '.join(self.top_symbols[:10])}"
-            )
+        if not ranked:
+            return
+        if strat_settings.get_settings().get("use_score_ranking", False):
+            ranked = await self._rank_by_score(ranked)
+        self.priority = ranked
+        self.top_symbols = ranked[: self.scan_limit]
+        self._last_rank = time.time()
+        logger.info(
+            f"Backtest oncelik listesi: {len(ranked)} sembol, "
+            f"tarama secimi: {', '.join(self.top_symbols[:10])}"
+        )
+
+    async def _rank_by_score(self, ranked: List[str]) -> List[str]:
+        """Canli coin_score'a gore oncelik listesini yeniden siralar.
+
+        Ilk `_SCORE_POOL` sembol canli 4h kline ile skorlanir ve skor azalan
+        siralama listeye bas koyar; skoru alinamayan ya da havuz disindaki
+        semboller mevcut (backtest) siralama korunarak arkaya eklenir.
+        """
+        pool = ranked[: _SCORE_POOL]
+        klines_map = await self._fetch_klines_batch(pool)
+        scored = []
+        for symbol in pool:
+            df = klines_map.get(symbol)
+            if df is None or len(df) < 25:
+                continue
+            try:
+                info = score_symbol(df)
+                scored.append((info["score"], symbol))
+            except Exception:
+                continue
+        scored.sort(key=lambda x: x[0], reverse=True)
+        reordered = [s for _, s in scored]
+        seen = set(reordered)
+        reordered += [s for s in ranked if s not in seen]
+        logger.info(
+            f"Skor siralamasi: {len(scored)}/{len(pool)} sembol skorlandi; "
+            f"ilk 5: {', '.join(reordered[:5])}"
+        )
+        return reordered
 
     def update_price(self, symbol: str, price: float):
         self.live_prices[symbol] = float(price)

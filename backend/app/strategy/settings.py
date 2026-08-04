@@ -42,6 +42,8 @@ DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
     # Decision Council: canli girislerde coklu sinyal oylamasi filtresi
     "use_decision_council": False,  # True iken girisler council kararina ve min guvene tabi
     "council_min_confidence": 0.6,  # Council kararina gerekli minimum guven (0-1)
+    # Coin Intelligence: canli momentum skoruna gore sembol onceligi
+    "use_score_ranking": False,     # True iken ranking canli coin_score'a gore yeniden siralanir
     # Strateji parametreleri
     "rr_ratio": 1.5,             # TP = SL mesafesi * rr_ratio
     "sl_lookback": 5,            # pivot swing uzunlugu

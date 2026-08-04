@@ -677,6 +677,32 @@ def test_command_koruma_view_shows_council(monkeypatch):
     assert "Decision Council" in reply
 
 
+def test_command_koruma_set_score_ranking(monkeypatch):
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+    applied = {}
+    monkeypatch.setattr(main_mod.strat_settings, "update_settings",
+                        lambda patch: applied.update(patch) or main_mod.strat_settings.get_settings())
+    monkeypatch.setattr(main_mod.strat_settings, "persist", lambda: {})
+    try:
+        reply = main_mod._telegram_command("/koruma use_score_ranking 1")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert applied["use_score_ranking"] is True
+
+
+def test_command_koruma_view_shows_score_ranking(monkeypatch):
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/koruma")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "Skor siralamasi" in reply
+
+
 def test_command_koruma_unknown_key():
     main_mod.auto_trader = _FakeTrader()
     try:

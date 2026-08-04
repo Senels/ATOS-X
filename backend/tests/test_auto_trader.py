@@ -7,6 +7,7 @@ import pytest
 import app.strategy.auto_trader as at_mod
 from app.backtest.engine import BacktestEngine
 from app.core.database import Database
+from app.strategy import settings as strat_settings
 
 
 class FakeTelegram:
@@ -1453,3 +1454,80 @@ async def test_council_gate_includes_min_confidence_setting(trader, monkeypatch)
     allow, decision = tr._council_gate("BUY", klines,
                                        {"use_decision_council": True, "council_min_confidence": 0.8})
     assert allow is False
+
+
+async def test_rank_by_score_reorders_by_score(trader, monkeypatch):
+    tr, fb, db = trader
+    klines = pd.DataFrame({"open": [100.0] * 30, "high": [101.0] * 30,
+                           "low": [99.0] * 30, "close": [100.0] * 30,
+                           "volume": [100.0] * 30})
+
+    async def fetch(candidates):
+        return {s: klines for s in candidates}
+
+    scores = iter([3.0, 1.0, 2.0])
+    monkeypatch.setattr(tr, "_fetch_klines_batch", fetch)
+    monkeypatch.setattr(at_mod, "score_symbol", lambda df: {"score": next(scores)})
+    klines.name = None
+    scored = await tr._rank_by_score(["BTCUSDT", "ETHUSDT", "SOLUSDT"])
+    assert scored == ["BTCUSDT", "SOLUSDT", "ETHUSDT"]
+
+
+async def test_rank_by_score_keeps_unscored_at_end(trader, monkeypatch):
+    tr, fb, db = trader
+
+    async def fetch(candidates):
+        return {}
+
+    monkeypatch.setattr(tr, "_fetch_klines_batch", fetch)
+    monkeypatch.setattr(at_mod, "score_symbol", lambda df: {"score": 1.0})
+    scored = await tr._rank_by_score(["BTCUSDT", "ETHUSDT", "SOLUSDT"])
+    assert scored == ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+
+
+async def test_rank_by_score_drops_low_data(trader, monkeypatch):
+    tr, fb, db = trader
+    short = pd.DataFrame({"open": [100.0] * 10, "high": [101.0] * 10,
+                          "low": [99.0] * 10, "close": [100.0] * 10,
+                          "volume": [100.0] * 10})
+
+    async def fetch(candidates):
+        return {"BTCUSDT": short, "ETHUSDT": short}
+
+    monkeypatch.setattr(tr, "_fetch_klines_batch", fetch)
+    called = []
+    monkeypatch.setattr(at_mod, "score_symbol",
+                        lambda df: called.append(1) or {"score": 1.0})
+    scored = await tr._rank_by_score(["BTCUSDT", "ETHUSDT"])
+    assert called == []
+    assert scored == ["BTCUSDT", "ETHUSDT"]
+
+
+async def test_refresh_ranking_uses_score_when_enabled(trader, monkeypatch):
+    tr, fb, db = trader
+    monkeypatch.setattr(tr, "rank_symbols", lambda limit=500: ["BTCUSDT", "ETHUSDT"])
+    monkeypatch.setattr(strat_settings, "get_settings",
+                        lambda: {"use_score_ranking": True})
+    klines = pd.DataFrame({"open": [100.0] * 30, "high": [101.0] * 30,
+                           "low": [99.0] * 30, "close": [100.0] * 30,
+                           "volume": [100.0] * 30})
+
+    async def fetch(candidates):
+        return {s: klines for s in candidates}
+
+    scores = iter([1.0, 5.0])
+    monkeypatch.setattr(tr, "_fetch_klines_batch", fetch)
+    monkeypatch.setattr(at_mod, "score_symbol", lambda df: {"score": next(scores)})
+    klines.name = None
+    await tr._refresh_ranking()
+    assert tr.priority == ["ETHUSDT", "BTCUSDT"]
+    assert tr.top_symbols == ["ETHUSDT", "BTCUSDT"]
+
+
+async def test_refresh_ranking_disabled_keeps_backtest_order(trader, monkeypatch):
+    tr, fb, db = trader
+    monkeypatch.setattr(tr, "rank_symbols", lambda limit=500: ["BTCUSDT", "ETHUSDT"])
+    monkeypatch.setattr(strat_settings, "get_settings",
+                        lambda: {"use_score_ranking": False})
+    await tr._refresh_ranking()
+    assert tr.priority == ["BTCUSDT", "ETHUSDT"]
