@@ -443,6 +443,9 @@ yoksa dinleyici devre dışıdır.
   iç `equity`'yi hizalar (`balance + unrealized`), `peak_equity`/`drawdown_pct`
   günceller ve kalıcı risk durumunu yazar; borsa yöntemi yoksa/geçersiz
   değerde sessizce atlanır (test uyumluluğu).
+- `reconcile_positions`: borsada açık takipli pozisyonda SL/TP fiyatı tanımlı
+  ama karşılık gelen algo emri borsada yoksa koruma yeniden yerleştirilir
+  (sadece SL/TP fiyatı 0 olmayanlar; fiyatsız pozisyonlar sessizce atlanır).
 
 ## Canlı Sembol Seçimi (Score Ranking)
 

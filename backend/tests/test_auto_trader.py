@@ -507,6 +507,44 @@ async def test_reconcile_alerts_when_repair_fails(trader):
     assert any("SL" in m and "TP" in m and "BTCUSDT" in m for m in tg.sent)
 
 
+async def test_reconcile_repairs_tracked_without_order_ids(trader):
+    tr, fb, db = trader
+    tr.active_positions["BTCUSDT"] = {
+        "side": "BUY", "entry_price": 65000, "quantity": 0.5,
+        "sl": 63000, "tp": 69000,
+        "sl_order_id": None, "tp_order_id": None,
+        "entry_fee": 0.0, "open_time": "x",
+    }
+    fb.open_positions = [
+        {"symbol": "BTCUSDT", "positionAmt": "0.5", "entryPrice": "65000"},
+    ]
+    fb.algo_orders = []
+    await tr.reconcile_positions()
+    assert "BTCUSDT" in tr.active_positions
+    assert ("BTCUSDT", "LONG", 63000.0, 69000.0) in fb.tp_sl_calls
+    assert tr.active_positions["BTCUSDT"]["sl_order_id"] == "SL_1"
+    assert tr.active_positions["BTCUSDT"]["tp_order_id"] == "TP_1"
+
+
+async def test_reconcile_skips_tracked_without_prices(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    tr.active_positions["BTCUSDT"] = {
+        "side": "BUY", "entry_price": 65000, "quantity": 0.5,
+        "sl": 0, "tp": 0,
+        "sl_order_id": None, "tp_order_id": None,
+        "entry_fee": 0.0, "open_time": "x",
+    }
+    fb.open_positions = [
+        {"symbol": "BTCUSDT", "positionAmt": "0.5", "entryPrice": "65000"},
+    ]
+    fb.algo_orders = []
+    await tr.reconcile_positions()
+    assert fb.tp_sl_calls == []
+    assert tg.sent == []
+
+
 async def test_concentration_alerts_single_symbol(trader):
     tr, fb, db = trader
     tg = FakeTelegram()

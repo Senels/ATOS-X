@@ -738,15 +738,14 @@ class AutoTrader:
             exchange_symbols = {p["symbol"] for p in positions}
             for symbol, pos in list(self.active_positions.items()):
                 if symbol in exchange_symbols:
-                    if pos.get("sl_order_id") or pos.get("tp_order_id"):
-                        info = algo_map.get(symbol, {})
-                        missing = []
-                        if info.get("sl_id") is None:
-                            missing.append("SL")
-                        if info.get("tp_id") is None:
-                            missing.append("TP")
-                        if missing:
-                            await self._repair_protection(symbol, pos, missing)
+                    info = algo_map.get(symbol, {})
+                    missing = []
+                    if pos.get("sl") and info.get("sl_id") is None:
+                        missing.append("SL")
+                    if pos.get("tp") and info.get("tp_id") is None:
+                        missing.append("TP")
+                    if missing:
+                        await self._repair_protection(symbol, pos, missing)
                     continue
                 exit_price, reason = self._exchange_close_estimate(symbol, pos)
                 self.active_positions.pop(symbol, None)
