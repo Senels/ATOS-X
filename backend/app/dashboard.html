@@ -78,7 +78,7 @@ tr:hover { background:rgba(59,130,246,0.05); }
 <div class="card"><h3>🌡️ Market Regime</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Trend</th><th>Volatility</th><th>ATR%</th><th>ATR%ile</th></tr></thead><tbody id="regimeBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
 <div class="card"><h3>🏆 Coin Scores</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Score</th><th>Momentum%</th><th>Trend</th><th>ATR%</th></tr></thead><tbody id="scoreBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
 <div class="card"><h3>⚖️ Decision Council</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Verdict</th><th>Confidence</th><th>Votes</th><th>Reason</th></tr></thead><tbody id="decisionBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
-<div class="card"><h3>🗃️ Data Freshness <span id="dataFreshSummary" style="color:#64748b;font-weight:400;font-size:12px;"></span></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Bars</th><th>Last Bar</th><th>Age (h)</th><th>State</th></tr></thead><tbody id="dataFreshBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
+<div class="card"><h3>🗃️ Data Freshness <button class="btn" style="padding:4px 10px;font-size:11px;margin-left:8px;" onclick="backfillStale()">↻ Backfill</button><span id="dataFreshSummary" style="color:#64748b;font-weight:400;font-size:12px;"></span></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Bars</th><th>Last Bar</th><th>Age (h)</th><th>State</th></tr></thead><tbody id="dataFreshBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
 <div class="card"><h3>⚠️ Risk Exposure</h3><div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
 <div><span class="label" style="font-size:11px;color:#94a3b8;text-transform:uppercase;">LONG</span><div class="value" id="longExposure" style="font-size:22px;font-weight:bold;">-</div></div>
 <div><span class="label" style="font-size:11px;color:#94a3b8;text-transform:uppercase;">SHORT</span><div class="value" id="shortExposure" style="font-size:22px;font-weight:bold;">-</div></div>
@@ -341,6 +341,20 @@ dpEl.style.color = dp > 0 ? '#22c55e' : (dp < 0 ? '#ef4444' : '#94a3b8');
 document.getElementById('portNotional').textContent = d.total_notional != null ? '$' + d.total_notional.toLocaleString() : '-';
 document.getElementById('portSync').textContent = d.mode === 'live' ? (d.synced ? '• borsa senkron' : '• senkron yok') : '• paper';
 } catch(e) { console.error(e); }
+}
+async function backfillStale() {
+if (!confirm('Eski/eksik veriler backfill edilsin mi?')) return;
+try {
+const r = await fetch('/api/v1/data/backfill/stale', {method:'POST'});
+const d = await r.json();
+if (d.ok) {
+let msg = 'Backfill: ' + (d.symbols ? d.symbols.length : 0) + ' sembol islendi';
+if (d.failed && d.failed.length) { msg += ' | hatali: ' + d.failed.join(', '); }
+if (d.message) { msg = d.message; }
+alert(msg);
+} else { alert('Hata: ' + (d.error || 'bilinmeyen')); }
+} catch(e) { alert('Hata: ' + e.message); }
+refresh();
 }
 async function loadDataStatus() {
 try {

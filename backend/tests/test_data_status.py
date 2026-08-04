@@ -1,4 +1,5 @@
 from datetime import datetime
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
@@ -85,3 +86,63 @@ def test_dashboard_has_data_freshness_card():
     assert "dataFreshBody" in resp.text
     assert "loadDataStatus" in resp.text
     assert "/api/v1/data/status" in resp.text
+
+
+def test_dashboard_has_backfill_button():
+    c = _client()
+    resp = c.get("/dashboard/html")
+    c.close()
+    assert resp.status_code == 200
+    assert "backfillStale" in resp.text
+    assert "/api/v1/data/backfill/stale" in resp.text
+
+
+def test_backfill_stale_endpoint(monkeypatch):
+    ft = _FakeTrader()
+    ft.binance = SimpleNamespace(client=object())
+    main_mod.auto_trader = ft
+    monkeypatch.setattr(main_mod.loader, "load_csv",
+                        lambda symbol, interval="4h", data_dir=None, limit=None: (_ for _ in ()).throw(FileNotFoundError("missing")))
+
+    async def fake_backfill(client, symbols, interval="4h", days=30,
+                            data_dir=None, skip_stablecoins=True):
+        return {"written": list(symbols), "failed": [], "skipped": [],
+                "interval": interval, "days": days, "path": "/tmp"}
+
+    monkeypatch.setattr(main_mod, "backfill_klines", fake_backfill)
+    try:
+        c = _client()
+        resp = c.post("/api/v1/data/backfill/stale")
+        c.close()
+    finally:
+        main_mod.auto_trader = None
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True
+    assert set(body["symbols"]) == {"BTCUSDT", "ETHUSDT", "SOLUSDT"}
+    assert len(body["written"]) == 3
+
+
+def test_backfill_stale_all_fresh(monkeypatch):
+    ft = _FakeTrader()
+    ft.binance = SimpleNamespace(client=object())
+    main_mod.auto_trader = ft
+    monkeypatch.setattr(main_mod.loader, "load_csv",
+                        lambda symbol, interval="4h", data_dir=None, limit=None: _fresh_df())
+    called = []
+
+    async def fake_backfill(*a, **k):
+        called.append(1)
+
+    monkeypatch.setattr(main_mod, "backfill_klines", fake_backfill)
+    try:
+        c = _client()
+        resp = c.post("/api/v1/data/backfill/stale")
+        c.close()
+    finally:
+        main_mod.auto_trader = None
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True
+    assert body["symbols"] == []
+    assert called == []

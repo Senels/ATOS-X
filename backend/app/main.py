@@ -867,6 +867,23 @@ async def data_status(limit: int = 100):
     """Trading sembollerinin CSV veri tazeligi durumu (ok/stale/missing)."""
     return _data_freshness(limit)
 
+@app.post("/api/v1/data/backfill/stale")
+async def data_backfill_stale(days: int = 30):
+    """Eski/eksik CSV verisini otomatik sembol secimiyle backfill eder."""
+    if not auto_trader or not auto_trader.binance:
+        return {"ok": False, "error": "not_running"}
+    st = _data_freshness(300)
+    symbols = [r["symbol"] for r in st["rows"] if r["state"] != "ok"][:10]
+    if not symbols:
+        return {"ok": True, "written": [], "failed": [], "skipped": [],
+                "symbols": [], "message": "backfill gereken sembol yok"}
+    days = max(1, min(days, 90))
+    res = await backfill_klines(auto_trader.binance, symbols, interval="4h",
+                                days=days)
+    res["ok"] = True
+    res["symbols"] = symbols
+    return res
+
 @app.get("/api/v1/status")
 async def get_status():
     return {
