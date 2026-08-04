@@ -55,3 +55,10 @@ def test_get_settings_returns_copy():
     a = s.get_settings()
     b = s.get_settings()
     assert a is not b
+
+
+def test_council_defaults():
+    _reset()
+    state = s.get_settings()
+    assert state["use_decision_council"] is False
+    assert state["council_min_confidence"] == 0.6

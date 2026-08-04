@@ -213,8 +213,11 @@ _EDITABLE_RISK_KEYS = {
     "breakeven_activate_pct": "breakeven_activate_pct",
     "max_position_age_hours": "max_position_age_hours",
     "max_leverage": "max_leverage",
+    "use_decision_council": "use_decision_council",
+    "council_min_confidence": "council_min_confidence",
 }
 _INT_RISK_KEYS = {"max_open_positions", "max_consecutive_losses", "max_position_age_hours"}
+_BOOL_RISK_KEYS = {"use_decision_council"}
 
 
 def _format_koruma() -> str:
@@ -229,6 +232,7 @@ def _format_koruma() -> str:
         f"Tek sembol: %{s['max_position_pct']:.0f} | Tek yon: %{s['max_side_pct']:.0f}\n"
         f"Trailing: kar %{s['trailing_activate_pct']:.0f}+ / SL %{s['trailing_sl_pct']:.1f}\n"
         f"Breakeven: %{s['breakeven_activate_pct']:.0f} | Pozisyon yasi: {s['max_position_age_hours']} saat\n"
+        f"Decision Council: {'acik' if s.get('use_decision_council') else 'kapali'} | Min guven: %{s.get('council_min_confidence', 0.6) * 100:.0f}\n"
         "Ayarlamak icin: /koruma <anahtar> <deger> "
         "(anahtarlar: " + ", ".join(sorted(_EDITABLE_RISK_KEYS)) + ")"
     )
@@ -293,7 +297,9 @@ def _telegram_command(text: str):
         except ValueError:
             return "ATOS X: gecersiz deger"
         settings_key = _EDITABLE_RISK_KEYS[key]
-        if settings_key in _INT_RISK_KEYS:
+        if settings_key in _BOOL_RISK_KEYS:
+            value = bool(value)
+        elif settings_key in _INT_RISK_KEYS:
             value = int(value)
         strat_settings.update_settings({settings_key: value})
         strat_settings.persist()

@@ -10,6 +10,7 @@ from app.core.database import Database
 from app.data import loader
 from app.strategy import settings as strat_settings
 from app.strategy.tradebot_v23 import TradeBotV23
+from app.strategy.decision import decide as decide_council
 
 
 class AutoTrader:
@@ -290,14 +291,25 @@ class AutoTrader:
                     price = float(klines["close"].iloc[-1])
 
                     if signal.get("signal") in ("BUY", "SELL") and signal.get("sl") and signal.get("tp"):
-                        signals.append({
+                        allow, decision = self._council_gate(signal["signal"], klines, s)
+                        if not allow:
+                            logger.info(
+                                f"{symbol}: council karari sinyali engelledi"
+                                f" ({decision['verdict']}, guven {decision['confidence']})"
+                            )
+                            continue
+                        entry = {
                             "symbol": symbol,
                             "signal": signal["signal"],
                             "price": price,
                             "sl": signal["sl"],
                             "tp": signal["tp"],
                             "reason": signal.get("reason", ""),
-                        })
+                        }
+                        if decision:
+                            entry["council_confidence"] = decision["confidence"]
+                            entry["council_reason"] = decision["reason"]
+                        signals.append(entry)
                         logger.info(f"{symbol}: {signal['signal']} @ {price}")
 
                 await self.process_signals(signals)
@@ -314,6 +326,22 @@ class AutoTrader:
             except Exception as e:
                 logger.error(f"Otomatik islem hatasi: {e}")
                 await asyncio.sleep(10)
+
+    def _council_gate(self, signal, klines, settings):
+        """Decision Council filtresi.
+
+        Kapi kapaliysa (use_decision_council=False) her sinyali gecirir. Acikken
+        council karari sinyal yonunde degilse veya guven esigin altindaysa sinyali
+        reddeder. Donus: (allow, decision|None).
+        """
+        if not settings.get("use_decision_council", False):
+            return True, None
+        decision = decide_council(klines, settings=settings)
+        if decision["verdict"] != signal or decision["confidence"] < float(
+            settings.get("council_min_confidence", 0.6)
+        ):
+            return False, decision
+        return True, decision
 
     async def process_signals(self, signals):
         for signal in signals:

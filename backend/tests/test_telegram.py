@@ -636,6 +636,47 @@ def test_command_koruma_set_int(monkeypatch):
     assert applied["max_open_positions"] == 5
 
 
+def test_command_koruma_set_bool_toggle(monkeypatch):
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+    applied = {}
+    monkeypatch.setattr(main_mod.strat_settings, "update_settings",
+                        lambda patch: applied.update(patch) or main_mod.strat_settings.get_settings())
+    monkeypatch.setattr(main_mod.strat_settings, "persist", lambda: {})
+    try:
+        reply = main_mod._telegram_command("/koruma use_decision_council 1")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert applied["use_decision_council"] is True
+
+
+def test_command_koruma_set_confidence(monkeypatch):
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+    applied = {}
+    monkeypatch.setattr(main_mod.strat_settings, "update_settings",
+                        lambda patch: applied.update(patch) or main_mod.strat_settings.get_settings())
+    monkeypatch.setattr(main_mod.strat_settings, "persist", lambda: {})
+    try:
+        reply = main_mod._telegram_command("/koruma council_min_confidence 0.7")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert applied["council_min_confidence"] == 0.7
+
+
+def test_command_koruma_view_shows_council(monkeypatch):
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/koruma")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "Decision Council" in reply
+
+
 def test_command_koruma_unknown_key():
     main_mod.auto_trader = _FakeTrader()
     try:

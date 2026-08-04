@@ -413,6 +413,15 @@ yoksa dinleyici devre dışıdır.
   (tarama listesi, BUY/SELL/HOLD + confidence sıralı). Dashboard `⚖️ Decision Council`
   kartı kararları ve kaynaklarını gösterir.
 
+**Canlı döngüye bağlantı** (`AutoTrader._council_gate`):
+- `use_decision_council=True` ise taramadaki her BUY/SELL sinyali council'den
+  geçer; council kararı sinyal yönünde değilse veya güven
+  `council_min_confidence` (varsayılan 0.6) altındaysa giriş engellenir.
+- Kabul edilen sinyale `council_confidence` / `council_reason` eklenir.
+- Varsayılan kapalıdır (operatör `/koruma use_decision_council 1` ile açar).
+- `/koruma` editörüne `use_decision_council` (bool 1/0) ve
+  `council_min_confidence` (0-1) eklendi.
+
 ## API ve Dashboard Görünürlüğü
 
 | Uç | İçerik |

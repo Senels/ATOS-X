@@ -39,6 +39,9 @@ DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
     "breakeven_activate_pct": 2.0, # Bu kar esiginde SL giris fiyatina tasinir (%; 0 = devre disi)
     "max_daily_loss_pct": 5.0,     # Gunluk toplam zarar siniri (% equity; asilinca girisler durur; 0 = devre disi)
     "min_equity": 5000.0,          # Equity bu taban degerin altina duserse girisler durur (USDT; 0 = devre disi)
+    # Decision Council: canli girislerde coklu sinyal oylamasi filtresi
+    "use_decision_council": False,  # True iken girisler council kararina ve min guvene tabi
+    "council_min_confidence": 0.6,  # Council kararina gerekli minimum guven (0-1)
     # Strateji parametreleri
     "rr_ratio": 1.5,             # TP = SL mesafesi * rr_ratio
     "sl_lookback": 5,            # pivot swing uzunlugu

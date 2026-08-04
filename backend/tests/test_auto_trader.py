@@ -1400,3 +1400,56 @@ async def test_ensure_connected_alerts_on_give_up():
     assert await tr._ensure_connected(max_attempts=2, delay=0) is False
     assert any("kurulamadi" in m for m in tg.sent)
 
+
+async def test_council_gate_disabled_passes(trader):
+    tr, fb, db = trader
+    klines = pd.DataFrame({"open": [100.0], "high": [101.0], "low": [99.0],
+                           "close": [100.0], "volume": [100.0]})
+    allow, decision = tr._council_gate("BUY", klines, {"use_decision_council": False})
+    assert allow is True
+    assert decision is None
+
+
+async def test_council_gate_mismatch_rejects(trader, monkeypatch):
+    tr, fb, db = trader
+    klines = pd.DataFrame({"open": [100.0], "high": [101.0], "low": [99.0],
+                           "close": [100.0], "volume": [100.0]})
+    monkeypatch.setattr(at_mod, "decide_council", lambda df, settings=None: {
+        "verdict": "HOLD", "confidence": 1.0})
+    allow, decision = tr._council_gate("BUY", klines, {"use_decision_council": True})
+    assert allow is False
+    assert decision["verdict"] == "HOLD"
+
+
+async def test_council_gate_low_confidence_rejects(trader, monkeypatch):
+    tr, fb, db = trader
+    klines = pd.DataFrame({"open": [100.0], "high": [101.0], "low": [99.0],
+                           "close": [100.0], "volume": [100.0]})
+    monkeypatch.setattr(at_mod, "decide_council", lambda df, settings=None: {
+        "verdict": "BUY", "confidence": 0.5})
+    allow, decision = tr._council_gate("BUY", klines,
+                                       {"use_decision_council": True, "council_min_confidence": 0.6})
+    assert allow is False
+
+
+async def test_council_gate_agree_passes(trader, monkeypatch):
+    tr, fb, db = trader
+    klines = pd.DataFrame({"open": [100.0], "high": [101.0], "low": [99.0],
+                           "close": [100.0], "volume": [100.0]})
+    monkeypatch.setattr(at_mod, "decide_council", lambda df, settings=None: {
+        "verdict": "BUY", "confidence": 0.8})
+    allow, decision = tr._council_gate("BUY", klines,
+                                       {"use_decision_council": True, "council_min_confidence": 0.6})
+    assert allow is True
+    assert decision["confidence"] == 0.8
+
+
+async def test_council_gate_includes_min_confidence_setting(trader, monkeypatch):
+    tr, fb, db = trader
+    klines = pd.DataFrame({"open": [100.0], "high": [101.0], "low": [99.0],
+                           "close": [100.0], "volume": [100.0]})
+    monkeypatch.setattr(at_mod, "decide_council", lambda df, settings=None: {
+        "verdict": "BUY", "confidence": 0.7})
+    allow, decision = tr._council_gate("BUY", klines,
+                                       {"use_decision_council": True, "council_min_confidence": 0.8})
+    assert allow is False
