@@ -465,20 +465,54 @@ def _telegram_command(text: str):
         loss_line = "AKTIF" if auto_trader.loss_halted else "yok"
         daily_line = "AKTIF" if auto_trader.daily_loss_halted else "yok"
         eq_line = "AKTIF" if auto_trader.equity_halted else "yok"
-        return (
-            f"ATOS X durum\n"
-            f"Trade motoru: {trading}\n"
-            f"Equity: ${auto_trader.equity:.2f}\n"
-            f"Acik pozisyon: {len(auto_trader.active_positions)} (korumali: {_protected_count()})\n"
-            f"Gerceklesmemis PnL: {_positions_payload()['total_upnl']:.2f}\n"
-            f"Maruziyet - LONG: %{conc['long_pct']} SHORT: %{conc['short_pct']}\n"
-            f"Engeller: {', '.join(blocks) if blocks else 'yok'}\n"
-            f"Drawdown: %{auto_trader.drawdown_pct} | Durma: {halt_line}\n"
-            f"Ardisik zarar: {auto_trader.consecutive_losses}/{auto_trader.max_consecutive_losses} | Zarar durma: {loss_line}\n"
-            f"Gunluk zarar: {auto_trader.day_pnl:.2f} USDT | Gunluk durma: {daily_line}\n"
-            f"Equity taban: ${auto_trader.min_equity:.0f} | Taban durma: {eq_line}\n"
-            f"Risk olayi: {len(events)} (son: {evt_line})"
-        )
+        pos = auto_trader.active_positions
+        prot_n = _protected_count()
+        unprot_n = len(pos) - prot_n
+        n_trail = sum(1 for p in pos.values() if p.get("trailing"))
+        n_be = sum(1 for p in pos.values() if p.get("breakeven"))
+        prot_detail = f"{prot_n} korumali"
+        if unprot_n > 0:
+            prot_detail += f", {unprot_n} KORUMASIZ"
+        extras = []
+        if n_trail:
+            extras.append(f"Trailing: {n_trail}")
+        if n_be:
+            extras.append(f"Breakeven: {n_be}")
+        prot_line = f"Pozisyon: {len(pos)} ({prot_detail})"
+        if extras:
+            prot_line += " | " + " ".join(extras)
+        upnl = _positions_payload()['total_upnl']
+        upnl_sign = "+" if upnl >= 0 else ""
+        now = datetime.utcnow()
+        max_age_h = float(strat_settings.get_settings().get("max_position_age_hours", 0))
+        old_syms = []
+        if max_age_h > 0:
+            for s, p in pos.items():
+                ot = p.get("open_time")
+                if ot:
+                    try:
+                        age = (now - datetime.fromisoformat(ot)).total_seconds() / 3600
+                        if age >= max_age_h * 0.8:
+                            old_syms.append(f"{s}({age:.0f}h)")
+                    except Exception:
+                        pass
+        lines = [
+            f"ATOS X durum",
+            f"Trade motoru: {trading}",
+            f"Equity: ${auto_trader.equity:.2f}",
+            prot_line,
+            f"Gerceklesmemis PnL: {upnl_sign}{upnl:.2f}",
+            f"Maruziyet - LONG: %{conc['long_pct']} SHORT: %{conc['short_pct']}",
+            f"Engeller: {', '.join(blocks) if blocks else 'yok'}",
+            f"Drawdown: %{auto_trader.drawdown_pct} | Durma: {halt_line}",
+            f"Ardisik zarar: {auto_trader.consecutive_losses}/{auto_trader.max_consecutive_losses} | Zarar durma: {loss_line}",
+            f"Gunluk zarar: {auto_trader.day_pnl:.2f} USDT | Gunluk durma: {daily_line}",
+            f"Equity taban: ${auto_trader.min_equity:.0f} | Taban durma: {eq_line}",
+            f"Risk olayi: {len(events)} (son: {evt_line})",
+        ]
+        if old_syms:
+            lines.append(f"Uzun pozisyonlar: {', '.join(old_syms)} (>{max_age_h * 0.8:.0f}h)")
+        return "\n".join(lines)
     if cmd.startswith("/rapor") or cmd.startswith("/report"):
         if not auto_trader:
             return "ATOS X: motor calismiyor"

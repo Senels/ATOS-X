@@ -307,7 +307,7 @@ yoksa dinleyici devre dışıdır.
 
 | Komut | Yanıt |
 |---|---|
-| `/durum` veya `/status` | Equity, açık pozisyon + korumalı sayısı, LONG/SHORT maruziyeti, aktif engeller, drawdown ve durma durumu |
+| `/durum` veya `/status` | Equity, pozisyon özeti (korumalı/korumasız, trailing/breakeven), LONG/SHORT maruziyeti, engeller, drawdown, zincir/günlük/equity taban durmaları, UPnL ve yaş uyarıları |
 | `/blok` | Aktif konsantrasyon engelleri (veya `yok`) |
 | `/pozisyon` | Her pozisyon: sembol, taraf, qty, fiyat + `korumali`/`KORUMASIZ`, varsa SL/TP fiyatları, gerçekleşmemiş PnL ve pozisyon yaşı (saat) |
 | `/kapat <SEMBOL>` | Tek pozisyonu manuel kapatır (canlı fiyat ile) |
