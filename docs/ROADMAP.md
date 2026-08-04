@@ -16,11 +16,11 @@
 | 10 | Trading | emir yönetimi, TP/SL/trailing, portföy senkronu | ✅ |
 
 > Not: Tüm sprintler tamamlandı. Operasyon katmanı eklendi: Telegram
-> komutları (`/sl /tp /koruma /kapat /kapatall /sinyal /rapor /risk /gecmis`),
-> risk durumu restart kalıcılığı, canlı giriş kapısı (Decision Council),
-> market rejim/score/dashboard kartları, kline collect/backfill arşivi,
-> borsa bakiye senkronu ve `/api/v1/portfolio` özeti.
-> Tüm detaylar `docs/OPS.md`'de.
+> komutları (`/sl /tp /koruma /kapat /kapatall /sinyal /rapor /risk /gecmis
+> /istatistik /veri /backfill`), risk durumu restart kalıcılığı, canlı giriş
+> kapısı (Decision Council), market rejim/score/dashboard kartları, kline
+> collect/backfill arşivi + otomatik backfill, borsa bakiye senkronu ve
+> `/api/v1/portfolio` özeti. Tüm detaylar `docs/OPS.md`'de.
 
 ## Veri
 

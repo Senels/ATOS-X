@@ -489,6 +489,39 @@ def test_command_stats_summary():
     assert "En iyi sembol: BTCUSDT +200.00" in reply
 
 
+def test_command_stats_shows_protection_counts():
+    fake = _FakeTrader()
+    fake.trade_history = [
+        {"symbol": "BTCUSDT", "side": "BUY", "pnl": 40.0, "trailing": True},
+        {"symbol": "ETHUSDT", "side": "BUY", "pnl": 5.0, "breakeven": True},
+        {"symbol": "SOLUSDT", "side": "SELL", "pnl": -10.0},
+    ]
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/istatistik")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "Trailing: 1 (+40.00)" in reply
+    assert "Breakeven: 1 (+5.00)" in reply
+
+
+def test_command_stats_no_protection_line():
+    fake = _FakeTrader()
+    fake.trade_history = [
+        {"symbol": "BTCUSDT", "side": "BUY", "pnl": 10.0},
+        {"symbol": "ETHUSDT", "side": "SELL", "pnl": -5.0},
+    ]
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/istatistik")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "Trailing" not in reply
+    assert "Breakeven" not in reply
+
+
 def test_command_stats_empty():
     main_mod.auto_trader = _FakeTrader()
     try:

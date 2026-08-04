@@ -523,6 +523,17 @@ def _telegram_command(text: str):
             f"PF: {pf_str} | Ort kar: {avg_w:+.2f} | Ort zarar: {avg_l:.2f}",
             f"En iyi sembol: {best[0]} {best[1]:+.2f}",
         ]
+        n_trail = sum(1 for t in hist if t.get("trailing"))
+        n_be = sum(1 for t in hist if t.get("breakeven"))
+        prot = []
+        if n_trail:
+            trail_pnl = sum(t.get("pnl", 0) or 0 for t in hist if t.get("trailing"))
+            prot.append(f"Trailing: {n_trail} ({trail_pnl:+.2f})")
+        if n_be:
+            be_pnl = sum(t.get("pnl", 0) or 0 for t in hist if t.get("breakeven"))
+            prot.append(f"Breakeven: {n_be} ({be_pnl:+.2f})")
+        if prot:
+            lines.append(" | ".join(prot))
         return "\n".join(lines)
     if cmd.startswith("/veri") or cmd.startswith("/data"):
         st = _data_freshness(200)
