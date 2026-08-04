@@ -901,12 +901,14 @@ async def _run_backfill(symbols: list, days: int):
         await telegram.send(f"ATOS X backfill hatasi: {e}")
 
 async def _send_watchlist(symbols: list):
-    """Arka planda oncelik listesini skorlarla Telegram'a gonderir."""
+    """Oncelik sirasina gore canli coin skorlarini Telegram'a gonderir."""
     try:
         scored = []
+        freshness = _data_freshness(len(symbols))
+        fresh_map = {r["symbol"]: r.get("state", "missing") for r in freshness.get("rows", [])}
         for sym in symbols:
             try:
-                df = await app.state.binance.get_klines(sym, "4h", 400)
+                df = loader.load_csv(sym, "4h", limit=30)
                 info = coin_score(df)
                 scored.append((info.get("score", 0.0), info.get("trend", "RANGE"),
                                info.get("momentum_pct", 0.0), sym))
@@ -917,7 +919,9 @@ async def _send_watchlist(symbols: list):
         for i, (sc, trend, mom, sym) in enumerate(scored, 1):
             icon = "🟢" if sc > 0.5 else ("🔴" if sc < -0.5 else "⚪")
             sign = "+" if mom >= 0 else ""
-            lines.append(f"{i}. {sym}  {sc:+.2f}  {sign}{mom:.1f}% {icon}")
+            state = fresh_map.get(sym, "missing")
+            ds = "✓" if state == "ok" else ("⚠" if state == "stale" else "?")
+            lines.append(f"{i}. {sym}  {sc:+.2f}  {sign}{mom:.1f}% {icon} {ds}")
         await telegram.send("\n".join(lines))
     except Exception as e:
         logger.error(f"Watchlist hatasi: {e}")
