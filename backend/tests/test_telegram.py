@@ -1234,12 +1234,12 @@ def test_send_symbol_signal_buy(monkeypatch):
     monkeypatch.setattr(main_mod, "_signal_for_symbol", fake_signal)
     sent = []
 
-    async def fake_send_signal(symbol, signal, price, reason=""):
-        sent.append((symbol, signal, price, reason))
+    async def fake_send_signal(symbol, signal, price, reason="", sl=None, tp=None):
+        sent.append((symbol, signal, price, reason, sl, tp))
 
     monkeypatch.setattr(main_mod.telegram, "send_signal", fake_send_signal)
     asyncio.run(main_mod._send_symbol_signal("BTCUSDT"))
-    assert sent == [("BTCUSDT", "BUY", 65000.0, "test")]
+    assert sent == [("BTCUSDT", "BUY", 65000.0, "test", 63000.0, 69000.0)]
 
 
 def test_send_symbol_signal_failure(monkeypatch):

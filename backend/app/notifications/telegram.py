@@ -30,12 +30,23 @@ class TelegramNotifier:
         except Exception as e:
             logger.error(f"❌ Telegram gönderme hatası: {e}")
 
-    async def send_signal(self, symbol: str, signal: str, price: float, reason: str = ""):
+    async def send_signal(self, symbol: str, signal: str, price: float, reason: str = "",
+                          sl: float = None, tp: float = None):
         emoji = {"BUY": "🟢", "SELL": "🔴", "HOLD": "🟡"}.get(signal, "⚪")
         msg = f"{emoji} <b>ATOS X Sinyal</b>\n"
         msg += f"Symbol: {symbol}\n"
         msg += f"Signal: <b>{signal}</b>\n"
         msg += f"Price: ${price:.2f}\n"
+        if sl is not None:
+            msg += f"SL: ${sl:g}"
+            if tp is not None:
+                risk = abs(price - sl)
+                reward = abs(tp - price)
+                rr = reward / risk if risk > 0 else 0.0
+                msg += f" | TP: ${tp:g} | R:R {rr:.1f}"
+            msg += "\n"
+        elif tp is not None:
+            msg += f"TP: ${tp:g}\n"
         if reason:
             msg += f"Reason: {reason}\n"
         await self.send(msg)

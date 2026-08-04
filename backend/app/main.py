@@ -109,7 +109,8 @@ async def _send_symbol_signal(symbol: str, interval: str = "4h"):
     if not signal:
         await telegram.send(f"ATOS X: {symbol} icin sinyal alinamadi")
         return
-    await telegram.send_signal(symbol, signal, sig.get("price") or 0.0, sig.get("reason", ""))
+    await telegram.send_signal(symbol, signal, sig.get("price") or 0.0,
+                               sig.get("reason", ""), sig.get("sl"), sig.get("tp"))
 
 async def _send_batch_signals(symbols: list, interval: str = "4h"):
     """Tarama listesi icin toplu sinyal ozetini Telegram'a gonderir."""
