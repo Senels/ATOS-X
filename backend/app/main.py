@@ -287,6 +287,7 @@ def _telegram_command(text: str):
                 "/istatistik - islem performansi ozeti\n"
                 "/veri - veri tazeligi ozeti (ok/esk/esik)\n"
                 "/backfill [SEMBOLLER] [GUN] - eksik/eski CSV verisini tazeler\n"
+                "/temizle [hepsi] - kapanan islem gecmisini temizler (hepsi: +sinyal/backtest/risk/performans)\n"
                 "/yardim - bu liste")
     if cmd.startswith("/blok"):
         blocks = sorted(auto_trader._conc_blocks) if auto_trader else []
@@ -612,6 +613,22 @@ def _telegram_command(text: str):
             return "ATOS X: motor calismiyor"
         return (f"ATOS X backfill basladi ({src} {len(symbols)} sembol, "
                 f"{days} gun): {', '.join(symbols[:8])}")
+    if cmd.startswith("/temizle"):
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        parts = text.strip().split()
+        hard = len(parts) > 1 and parts[1].lower() == "hepsi"
+        n_closed = auto_trader.db.clear_closed_trades()
+        auto_trader.trade_history = []
+        if hard:
+            counts = auto_trader.db.clear_operational()
+            return ("ATOS X temizlendi (hepsi):\n"
+                    f"Kapanan islem: {n_closed}\n"
+                    f"Sinyal: {counts['signals']} | Backtest: {counts['backtest_runs']} | "
+                    f"Risk olayi: {counts['risk_events']} | Performans: {counts['performance']}")
+        return ("ATOS X kapanan islem gecmisi temizlendi.\n"
+                f"Silinen kayit: {n_closed}\n"
+                "Diger tablolar icin: /temizle hepsi (sinyal, backtest, risk, performans)")
     return None
 
 async def _run_backfill(symbols: list, days: int):

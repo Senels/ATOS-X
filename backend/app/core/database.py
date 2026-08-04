@@ -352,6 +352,26 @@ class Database:
         conn.close()
         return run_id
 
+    def clear_closed_trades(self):
+        """Kapanan islem kayitlarini siler; silinen satir sayisini doner."""
+        conn = sqlite3.connect(self.db_path)
+        cur = conn.execute("DELETE FROM trades WHERE status = 'CLOSED'")
+        conn.commit()
+        n = cur.rowcount
+        conn.close()
+        return n
+
+    def clear_operational(self):
+        """Sinyal/backtest/risk/performans tablolarini bosaltir; sayilar doner."""
+        counts = {}
+        conn = sqlite3.connect(self.db_path)
+        for table in ("signals", "backtest_runs", "risk_events", "performance"):
+            cur = conn.execute(f"DELETE FROM {table}")
+            counts[table] = cur.rowcount
+        conn.commit()
+        conn.close()
+        return counts
+
     def get_backtest_runs(self, limit: int = 20, symbol: str | None = None):
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()

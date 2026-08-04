@@ -127,3 +127,33 @@ def test_update_trade_protection_targets_latest_open(tmp_path):
     assert len(open_rows) == 1
     assert open_rows[0][11] == 0  # trailing
     assert open_rows[0][12] == 1  # breakeven
+
+
+def test_clear_closed_trades_keeps_open(tmp_path):
+    db = Database(str(tmp_path / "t.db"))
+    db.save_trade("BTCUSDT", "BUY", 65000.0, 0.5)
+    db.close_trade_by_symbol("BTCUSDT", 66000.0, 500.0)
+    db.save_trade("ETHUSDT", "BUY", 3000.0, 2.0)
+
+    n = db.clear_closed_trades()
+    assert n == 1
+    rows = db.get_trades(limit=10)
+    assert len(rows) == 1
+    assert rows[0][7] == "OPEN"
+
+
+def test_clear_operational_wipes_tables(tmp_path):
+    db = Database(str(tmp_path / "t.db"))
+    db.save_signal("BTCUSDT", "BUY", 65000.0, 0.8, "test")
+    db.save_backtest_run("BTCUSDT", "4h", "csv", {"a": 1}, {"b": 2})
+    db.save_risk_event("block_add", "Engel: side:LONG", "2026-08-03T10:00:00")
+    db.save_performance(10000.0, 1, 5, 60.0)
+
+    counts = db.clear_operational()
+    assert counts["signals"] == 1
+    assert counts["backtest_runs"] == 1
+    assert counts["risk_events"] == 1
+    assert counts["performance"] == 1
+    assert _signals_count(db) == 0
+    assert db.get_risk_events() == []
+    assert db.get_performance() == []

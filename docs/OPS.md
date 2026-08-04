@@ -325,6 +325,7 @@ yoksa dinleyici devre dışıdır.
 | `/istatistik` veya `/stats` | Tüm geçmişin özeti: işlem sayısı, Net PnL, Kazanma %, Profit Factor, ortalama kar/zarar, en iyi sembol ve trailing/breakeven koruma istatistikleri |
 | `/veri` veya `/data` | CSV veri tazeliği özeti (Guncel/Eski/Eksik) + eski/eksik semboller |
 | `/backfill [SEMBOLLER] [GUN]` | Eski/eksik CSV verisini tazeler; sembol verilmezse otomatik `eski/eksik` seçilir (varsayılan 30 gün, en fazla 90) |
+| `/temizle [hepsi]` | Kapanan işlem geçmişini siler (in-memory + DB); `hepsi` eklentisi sinyal/backtest/risk/performans tablolarını da boşaltır. Açık pozisyonlar ve ayarlar korunur |
 | `/yardim` veya `/help` | Komut listesi |
 
 ## Koruma (SL/TP)

@@ -33,8 +33,19 @@ class _FakeKlines:
 
 
 class _FakeDB:
+    def __init__(self):
+        self.closed = 3
+        self.op_counts = {"signals": 5, "backtest_runs": 1,
+                          "risk_events": 2, "performance": 4}
+
     def get_closed_trades_since(self, days=1):
         return []
+
+    def clear_closed_trades(self):
+        return self.closed
+
+    def clear_operational(self):
+        return dict(self.op_counts)
 
 
 class _FakeTrader:
@@ -586,6 +597,41 @@ def test_command_data_all_fresh(monkeypatch):
     assert reply is not None
     assert "Guncel: 2" in reply
     assert "Eksik: 0" in reply
+
+
+def test_command_temizle_clears_closed_history():
+    fake = _FakeTrader()
+    fake.trade_history = [{"symbol": "BTCUSDT", "side": "BUY", "pnl": 1.0}]
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/temizle")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "temizlendi" in reply
+    assert "3" in reply
+    assert "hepsi" in reply
+    assert fake.trade_history == []
+
+
+def test_command_temizle_hard_wipes_operational():
+    fake = _FakeTrader()
+    fake.trade_history = [{"symbol": "BTCUSDT", "side": "BUY", "pnl": 1.0}]
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/temizle hepsi")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "temizlendi (hepsi)" in reply
+    assert "Sinyal: 5" in reply and "Performans: 4" in reply
+    assert fake.trade_history == []
+
+
+def test_command_temizle_requires_trader():
+    main_mod.auto_trader = None
+    reply = main_mod._telegram_command("/temizle")
+    assert "motor calismiyor" in reply
 
 
 def test_command_backfill_schedules(monkeypatch):
