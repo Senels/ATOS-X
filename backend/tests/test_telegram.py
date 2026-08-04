@@ -724,13 +724,24 @@ def test_command_temizle_hard_wipes_operational():
     fake.trade_history = [{"symbol": "BTCUSDT", "side": "BUY", "pnl": 1.0}]
     main_mod.auto_trader = fake
     try:
-        reply = main_mod._telegram_command("/temizle hepsi")
+        reply = main_mod._telegram_command("/temizle hepsi onay")
     finally:
         main_mod.auto_trader = None
     assert reply is not None
     assert "temizlendi (hepsi)" in reply
     assert "Sinyal: 5" in reply and "Performans: 4" in reply
     assert fake.trade_history == []
+
+
+def test_command_temizle_hard_requires_confirmation():
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/temizle hepsi")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "Onay icin" in reply
 
 
 def test_command_temizle_requires_trader():

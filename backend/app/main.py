@@ -743,17 +743,24 @@ def _telegram_command(text: str):
             return "ATOS X: motor calismiyor"
         parts = text.strip().split()
         hard = len(parts) > 1 and parts[1].lower() == "hepsi"
-        n_closed = auto_trader.db.clear_closed_trades()
-        auto_trader.trade_history = []
-        if hard:
+        confirm = len(parts) > 1 and parts[1].lower() == "onay"
+        hard_and_confirm = hard and len(parts) > 2 and parts[2].lower() == "onay"
+        if hard and not hard_and_confirm and not confirm:
+            return ("ATOS X: /temizle hepsi TUM verileri siler!\n"
+                    "Onay icin: /temizle hepsi onay")
+        if hard_and_confirm:
+            n_closed = auto_trader.db.clear_closed_trades()
+            auto_trader.trade_history = []
             counts = auto_trader.db.clear_operational()
             return ("ATOS X temizlendi (hepsi):\n"
                     f"Kapanan islem: {n_closed}\n"
                     f"Sinyal: {counts['signals']} | Backtest: {counts['backtest_runs']} | "
                     f"Risk olayi: {counts['risk_events']} | Performans: {counts['performance']}")
+        n_closed = auto_trader.db.clear_closed_trades()
+        auto_trader.trade_history = []
         return ("ATOS X kapanan islem gecmisi temizlendi.\n"
                 f"Silinen kayit: {n_closed}\n"
-                "Diger tablolar icin: /temizle hepsi (sinyal, backtest, risk, performans)")
+                "Diger tablolar icin: /temizle hepsi (onay gerekli)")
     if cmd.startswith("/izleme"):
         if not auto_trader:
             return "ATOS X: motor calismiyor"
