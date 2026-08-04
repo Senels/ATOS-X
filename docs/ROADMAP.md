@@ -7,15 +7,19 @@
 | 1 | Core Foundation | config, FastAPI iskeleti, sqlite DB | ✅ |
 | 2 | Backtest | gerçek OHLCV motoru, toplu tarama, optimizasyon | ✅ |
 | 3 | Binance Connector | async REST (signed), websocket akışları | ✅ |
-| 4 | Market Collector | kline/mark price toplama, backfill | ⏳ |
-| 5 | Dashboard | canlı PnL/pozisyon, risk kartı, koruma rozetleri | 🔶 |
-| 6 | Market Intelligence | rejim tespiti, volatilite, likidite analizi | ⏳ |
-| 7 | Coin Intelligence | sembol seçimi, momentum/score motoru | ⏳ |
-| 8 | Decision Council | çoklu sinyal oylaması, açıklanabilir karar | ⏳ |
-| 9 | Governor | risk limitleri, konsantrasyon engelleri, koruma tamiri | 🔶 |
-| 10 | Trading | emir yönetimi, TP/SL/trailing, portföy senkronu | ⏳ |
+| 4 | Market Collector | kline/mark price toplama, backfill | ✅ |
+| 5 | Dashboard | canlı PnL/pozisyon, risk kartı, koruma rozetleri | ✅ |
+| 6 | Market Intelligence | rejim tespiti, volatilite, likidite analizi | ✅ |
+| 7 | Coin Intelligence | sembol seçimi, momentum/score motoru | ✅ |
+| 8 | Decision Council | çoklu sinyal oylaması, açıklanabilir karar | ✅ |
+| 9 | Governor | risk limitleri, konsantrasyon engelleri, koruma tamiri | ✅ |
+| 10 | Trading | emir yönetimi, TP/SL/trailing, portföy senkronu | 🔶 |
 
-> 🔶 = kısmi: ilgili özellikler docs/OPS.md içinde belgelenmiştir.
+> 🔶 = kısmi: emir yönetimi ve TP/SL/trailing tam; portföy senkronu
+> (reconcile) temel düzeyde. Ayrıca operasyon katmanı eklendi: Telegram
+> komutları (`/sl /tp /koruma /kapat /kapatall /sinyal /rapor /risk /gecmis`),
+> risk durumu restart kalıcılığı, canlı giriş kapısı (Decision Council),
+> market rejim/score/dashboard kartları. Tüm detaylar `docs/OPS.md`'de.
 
 ## Veri
 
