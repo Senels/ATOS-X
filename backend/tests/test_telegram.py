@@ -354,6 +354,22 @@ def test_format_daily_summary_pf_inf_when_no_losses():
     assert "En iyi sembol: BTCUSDT +120.00" in msg
 
 
+def test_format_daily_summary_with_data_status():
+    trades = [
+        ("id", "BTCUSDT", "BUY", 100.0, 108.0, 1.0, 120.0, "2026-08-04"),
+    ]
+    ds = {"ok": True, "fresh": 80, "stale": 5, "missing": 2}
+    msg = format_daily_summary(trades, 10120.0, {}, top_symbols=["BTCUSDT"],
+                               marks=None, data_status=ds)
+    assert "Veri: 80 guncel / 5 eski / 2 eksik" in msg
+
+
+def test_format_daily_summary_without_data_status():
+    trades = [("id", "BTCUSDT", "BUY", 100.0, 108.0, 1.0, 120.0, "2026-08-04")]
+    msg = format_daily_summary(trades, 10120.0, {}, marks=None)
+    assert "Veri:" not in msg
+
+
 def test_command_report_schedules_daily_summary(monkeypatch):
     fake = _FakeTrader()
     main_mod.auto_trader = fake

@@ -435,7 +435,8 @@ def _telegram_command(text: str):
                 loss_halted=auto_trader.loss_halted,
                 daily_loss_halted=auto_trader.daily_loss_halted,
                 equity_halted=auto_trader.equity_halted,
-                day_pnl=auto_trader.day_pnl)):
+                day_pnl=auto_trader.day_pnl,
+                data_status=_data_freshness(300))):
             return "ATOS X: komut arka planda calistirilamadi"
         return "ATOS X: gunluk rapor gonderiliyor"
     if cmd.startswith("/risk"):
@@ -662,6 +663,7 @@ async def _daily_report_loop():
                     daily_loss_halted=auto_trader.daily_loss_halted,
                     equity_halted=auto_trader.equity_halted,
                     day_pnl=auto_trader.day_pnl,
+                    data_status=_data_freshness(300),
                 )
         except Exception as e:
             logger.error(f"Gunluk rapor hatasi: {e}")

@@ -61,10 +61,10 @@ class TelegramNotifier:
     async def send_daily_summary(self, trades, equity, open_positions, top_symbols=None,
                                  marks=None, risk_events=None, loss_halted=False,
                                  daily_loss_halted=False, equity_halted=False,
-                                 day_pnl=None):
+                                 day_pnl=None, data_status=None):
         await self.send(format_daily_summary(
             trades, equity, open_positions, top_symbols, marks, risk_events,
-            loss_halted, daily_loss_halted, equity_halted, day_pnl,
+            loss_halted, daily_loss_halted, equity_halted, day_pnl, data_status,
         ))
 
     async def send_stop_summary(self, closed):
@@ -135,7 +135,7 @@ def _process_updates(updates: list, handler) -> tuple:
 def format_daily_summary(trades, equity, open_positions, top_symbols=None,
                          marks=None, risk_events=None, loss_halted=False,
                          daily_loss_halted=False, equity_halted=False,
-                         day_pnl=None) -> str:
+                         day_pnl=None, data_status=None) -> str:
     """Gunluk ozet rapor metnini kurar. trades satirlari DB trades kolonlaridir."""
     closed = [t for t in trades if t[6] is not None]
     wins = sum(1 for t in closed if t[6] > 0)
@@ -180,6 +180,9 @@ def format_daily_summary(trades, equity, open_positions, top_symbols=None,
     msg += f"Acik pozisyon: {len(open_positions) if open_positions else 0}"
     if top_symbols:
         msg += f"\nTarama: {', '.join(top_symbols[:8])}"
+    if data_status and data_status.get("ok"):
+        msg += (f"\nVeri: {data_status['fresh']} guncel / "
+                f"{data_status['stale']} eski / {data_status['missing']} eksik")
     halts = []
     if loss_halted:
         halts.append("ARDISIK ZARAR")
