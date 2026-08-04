@@ -191,9 +191,13 @@ def format_daily_summary(trades, equity, open_positions, top_symbols=None,
     if protection_stats:
         parts = []
         if protection_stats.get("trailing"):
-            parts.append(f"Trailing: {protection_stats['trailing']}")
+            t_pnl = protection_stats.get("trailing_pnl")
+            parts.append(f"Trailing: {protection_stats['trailing']}"
+                         + (f" ({'+' if t_pnl >= 0 else ''}{t_pnl:.2f})" if t_pnl is not None else ""))
         if protection_stats.get("breakeven"):
-            parts.append(f"Breakeven: {protection_stats['breakeven']}")
+            b_pnl = protection_stats.get("breakeven_pnl")
+            parts.append(f"Breakeven: {protection_stats['breakeven']}"
+                         + (f" ({'+' if b_pnl >= 0 else ''}{b_pnl:.2f})" if b_pnl is not None else ""))
         if parts:
             msg += "\nKoruma: " + " | ".join(parts)
     halts = []

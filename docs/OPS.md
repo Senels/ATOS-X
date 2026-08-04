@@ -161,7 +161,7 @@ ise `daily_loss_halted` ve `day_pnl` alanlarını döndürür.
 
 Açık pozisyonların anlık kâr/zararı `live_prices` üzerinden hesaplanır:
 
-- `/pozisyon` yanıtı her pozisyon için `PnL: N (+%P)` ekler.
+- `/pozisyon` yanıtı her pozisyon için `PnL: N (+%P)` ekler; varsa `SL: $` ve `TP: $` fiyatları gösterilir.
 - `/kapat <SEMBOL>` tek pozisyonu güncel fiyattan kapatır (neden
   `manual_close`); sembol açık değilse veya fiyat yoksa işlem iptal edilir.
 - `/api/v1/positions` her pozisyon için `mark`, `upnl`, `upnl_pct` ve
@@ -309,7 +309,7 @@ yoksa dinleyici devre dışıdır.
 |---|---|
 | `/durum` veya `/status` | Equity, açık pozisyon + korumalı sayısı, LONG/SHORT maruziyeti, aktif engeller, drawdown ve durma durumu |
 | `/blok` | Aktif konsantrasyon engelleri (veya `yok`) |
-| `/pozisyon` | Her pozisyon: sembol, taraf, qty, fiyat + `korumali`/`KORUMASIZ` |
+| `/pozisyon` | Her pozisyon: sembol, taraf, qty, fiyat + `korumali`/`KORUMASIZ`, varsa SL/TP fiyatları ve gerçekleşmemiş PnL |
 | `/kapat <SEMBOL>` | Tek pozisyonu manuel kapatır (canlı fiyat ile) |
 | `/sl <SEMBOL> <FIYAT>` | Açık pozisyonun SL'sini günceller (Telegram üstünden manuel stop) |
 | `/tp <SEMBOL> <FIYAT>` | Açık pozisyonun TP'sini günceller (SL korunur) |

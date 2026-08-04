@@ -170,7 +170,7 @@ def _protected_count() -> int:
     if not auto_trader:
         return 0
     return sum(
-        1 for p in auto_trader.active_positions.values()
+        1 for p in list(auto_trader.active_positions.values())
         if p.get("sl_order_id") or p.get("tp_order_id")
     )
 
@@ -307,6 +307,14 @@ def _telegram_command(text: str):
             mark = auto_trader.live_prices.get(sym)
             upnl, pct = _position_upnl(pos, mark)
             line = f"{sym} {pos['side']} qty={pos['quantity']} @ ${pos['entry_price']} {prot}"
+            sl_p, tp_p = pos.get("sl"), pos.get("tp")
+            if sl_p or tp_p:
+                bits = []
+                if sl_p:
+                    bits.append(f"SL: ${sl_p:g}")
+                if tp_p:
+                    bits.append(f"TP: ${tp_p:g}")
+                line += " | " + " ".join(bits)
             if upnl is not None:
                 sign = "+" if upnl >= 0 else ""
                 line += f" | PnL: {sign}{upnl:.2f} ({sign}{pct:.2f}%)"
@@ -467,7 +475,9 @@ def _telegram_command(text: str):
         hist = auto_trader.trade_history
         protection_stats = {
             "trailing": sum(1 for t in hist if t.get("trailing")),
+            "trailing_pnl": sum(t.get("pnl", 0) or 0 for t in hist if t.get("trailing")),
             "breakeven": sum(1 for t in hist if t.get("breakeven")),
+            "breakeven_pnl": sum(t.get("pnl", 0) or 0 for t in hist if t.get("breakeven")),
         }
         if not _run_later(telegram.send_daily_summary(
                 trades, auto_trader.equity, auto_trader.active_positions,
@@ -696,7 +706,7 @@ def _concentration_summary() -> dict:
                 "max_position_pct": 0.0, "max_side_pct": 0.0}
     equity = auto_trader.equity or 1.0
     long_n = short_n = 0.0
-    for p in auto_trader.active_positions.values():
+    for p in list(auto_trader.active_positions.values()):
         notional = float(p["entry_price"]) * float(p["quantity"])
         if p["side"] == "BUY":
             long_n += notional

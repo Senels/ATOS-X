@@ -192,6 +192,19 @@ def test_command_positions_shows_protection():
     assert "ETHUSDT" in reply and "KORUMASIZ" in reply
 
 
+def test_command_positions_shows_sl_tp_prices():
+    fake = _FakeTrader()
+    fake.active_positions["BTCUSDT"]["sl"] = 64000.0
+    fake.active_positions["BTCUSDT"]["tp"] = 68000.0
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/pozisyon")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "SL: $64000" in reply and "TP: $68000" in reply
+
+
 def test_command_positions_shows_unrealized_pnl():
     fake = _FakeTrader()
     fake.live_prices = {"BTCUSDT": 70000.0}
@@ -387,6 +400,16 @@ def test_format_daily_summary_with_protection_stats():
     msg = format_daily_summary(trades, 10120.0, {}, marks=None,
                                protection_stats={"trailing": 3, "breakeven": 2})
     assert "Koruma: Trailing: 3 | Breakeven: 2" in msg
+
+
+def test_format_daily_summary_protection_pnl():
+    trades = [("id", "BTCUSDT", "BUY", 100.0, 108.0, 1.0, 120.0, "2026-08-04")]
+    msg = format_daily_summary(
+        trades, 10120.0, {}, marks=None,
+        protection_stats={"trailing": 3, "trailing_pnl": 45.5,
+                          "breakeven": 2, "breakeven_pnl": -12.25})
+    assert "Trailing: 3 (+45.50)" in msg
+    assert "Breakeven: 2 (-12.25)" in msg
 
 
 def test_format_daily_summary_no_protection_line():
