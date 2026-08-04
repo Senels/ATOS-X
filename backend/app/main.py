@@ -268,6 +268,7 @@ def _telegram_command(text: str):
                 "/gecmis [N] - son N islem\n"
                 "/istatistik - islem performansi ozeti\n"
                 "/veri - veri tazeligi ozeti (ok/esk/esik)\n"
+                "/backfill [SEMBOLLER] [GUN] - eksik/eski CSV verisini tazeler\n"
                 "/yardim - bu liste")
     if cmd.startswith("/blok"):
         blocks = sorted(auto_trader._conc_blocks) if auto_trader else []
@@ -536,7 +537,45 @@ def _telegram_command(text: str):
                 f"{r['symbol']}({r['age_hours'] if r['age_hours'] is not None else 'yok'}s)"
                 for r in bad[:15]))
         return "\n".join(lines)
+    if cmd.startswith("/backfill"):
+        if not auto_trader or not auto_trader.binance:
+            return "ATOS X: motor calismiyor"
+        parts = text.strip().split()
+        symbols, days = [], 30
+        for p in parts[1:]:
+            if p.isdigit():
+                days = int(p)
+            else:
+                symbols += [s.strip().upper() for s in p.split(",") if s.strip()]
+        src = "istenen"
+        if not symbols:
+            st = _data_freshness(300)
+            symbols = [r["symbol"] for r in st["rows"] if r["state"] != "ok"][:10]
+            if not symbols:
+                return "ATOS X: backfill gereken sembol yok (veriler guncel)"
+            src = "eski/eksik"
+        days = max(1, min(days, 90))
+        if not _run_later(_run_backfill(symbols, days)):
+            return "ATOS X: motor calismiyor"
+        return (f"ATOS X backfill basladi ({src} {len(symbols)} sembol, "
+                f"{days} gun): {', '.join(symbols[:8])}")
     return None
+
+async def _run_backfill(symbols: list, days: int):
+    """Arka planda CSV backfill calistirir, sonucu Telegram'dan bildirir."""
+    try:
+        res = await backfill_klines(auto_trader.binance, symbols,
+                                    interval="4h", days=days)
+        msg = (f"ATOS X backfill bitti: {len(res.get('written', []))} yazildi, "
+               f"{len(res.get('failed', []))} hatali")
+        if res.get("skipped"):
+            msg += f", {len(res['skipped'])} atlandi"
+        if res.get("failed"):
+            msg += ": " + ", ".join(map(str, res["failed"]))
+        await telegram.send(msg)
+    except Exception as e:
+        logger.error(f"Backfill hatasi: {e}")
+        await telegram.send(f"ATOS X backfill hatasi: {e}")
 
 def _is_connected() -> bool:
     return bool(auto_trader and auto_trader.binance and auto_trader.binance.client)

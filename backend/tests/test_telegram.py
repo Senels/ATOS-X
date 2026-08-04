@@ -524,6 +524,66 @@ def test_command_data_all_fresh(monkeypatch):
     assert "Eksik: 0" in reply
 
 
+def test_command_backfill_schedules(monkeypatch):
+    fake = _FakeTrader()
+    fake.binance = SimpleNamespace(client=object())
+    main_mod.auto_trader = fake
+    captured = []
+
+    def fake_run_later(coro):
+        captured.append(coro)
+        return True
+
+    monkeypatch.setattr(main_mod, "_run_later", fake_run_later)
+    try:
+        reply = main_mod._telegram_command("/backfill BTCUSDT,ETHUSDT 7")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "backfill basladi" in reply
+    assert "BTCUSDT" in reply and "ETHUSDT" in reply
+    assert "7 gun" in reply
+    assert len(captured) == 1
+
+
+def test_command_backfill_stale_symbols(monkeypatch):
+    fake = _FakeTrader()
+    fake.binance = SimpleNamespace(client=object())
+    main_mod.auto_trader = fake
+    monkeypatch.setattr(main_mod.loader, "load_csv",
+                        lambda symbol, interval="4h", data_dir=None, limit=None: (_ for _ in ()).throw(FileNotFoundError("missing")))
+    captured = []
+    monkeypatch.setattr(main_mod, "_run_later",
+                        lambda coro: (captured.append(coro), True)[1])
+    try:
+        reply = main_mod._telegram_command("/backfill")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "backfill basladi" in reply
+    assert "eski/eksik" in reply
+    assert "BTCUSDT" in reply
+    assert len(captured) == 1
+
+
+def test_command_backfill_all_fresh(monkeypatch):
+    fake = _FakeTrader()
+    fake.binance = SimpleNamespace(client=object())
+    main_mod.auto_trader = fake
+    monkeypatch.setattr(main_mod.loader, "load_csv",
+                        lambda symbol, interval="4h", data_dir=None, limit=None: _fresh_csv_df())
+    captured = []
+    monkeypatch.setattr(main_mod, "_run_later",
+                        lambda coro: (captured.append(coro), True)[1])
+    try:
+        reply = main_mod._telegram_command("/backfill")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "backfill gereken sembol yok" in reply
+    assert captured == []
+
+
 def test_command_history_bad_n():
     fake = _FakeTrader()
     fake.trade_history = [{"symbol": "BTCUSDT", "side": "BUY", "pnl": 1.0, "reason": "x"}]
