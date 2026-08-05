@@ -9,7 +9,7 @@ def test_analyze_produces_orders(btc_df):
     r = TradeBotV23().analyze(btc_df)
     orders = r["orders"]
     assert len(orders) == len(btc_df)
-    assert set(orders.columns) == {"signal", "sl", "tp"}
+    assert set(orders.columns) == {"signal", "sl", "tp", "strength"}
     assert orders["signal"].dropna().between(-1, 1).all()
 
 
@@ -104,7 +104,7 @@ def test_open_uses_position_size(btc_df):
 
 
 # -- risk korumalari (canli ayarlarla ayni davranis) -------------------------
-def _frame(prices, signals=None, sls=None, tps=None):
+def _frame(prices, signals=None, sls=None, tps=None, strengths=None):
     import numpy as np
     import pandas as pd
     df = pd.DataFrame(prices, columns=["open", "high", "low", "close"])
@@ -113,6 +113,8 @@ def _frame(prices, signals=None, sls=None, tps=None):
     sls = sls if sls is not None else [np.nan] * n
     tps = tps if tps is not None else [np.nan] * n
     orders = pd.DataFrame({"signal": sig, "sl": sls, "tp": tps})
+    if strengths is not None:
+        orders["strength"] = strengths
     return df, orders
 
 
@@ -186,3 +188,53 @@ def test_backtest_breakeven_moves_sl_to_entry():
     sl_stop = [t for t in m["trades"] if t["reason"] == "stop_loss"]
     assert sl_stop
     assert sl_stop[0]["exit"] > 98.0
+
+
+def test_backtest_min_signal_strength_blocks_weak_entry():
+    df, orders = _frame([
+        [100.0, 101.0, 99.0, 100.0],
+        [100.5, 101.0, 100.0, 100.5],
+        [101.0, 105.0, 100.5, 104.0],
+    ], signals=[1, 0, 0], sls=[95.0, None, None], tps=[110.0, None, None],
+       strengths=[0.2, 0.0, 0.0])
+    engine = BacktestEngine(initial_equity=10000, risk_per_trade=0.02,
+                            min_signal_strength=0.6)
+    m = engine.run(df, orders, "4h")
+    assert m["total_trades"] == 0
+
+
+def test_backtest_min_signal_strength_allows_strong_entry():
+    df, orders = _frame([
+        [100.0, 101.0, 99.0, 100.0],
+        [100.5, 101.0, 100.0, 100.5],
+        [101.0, 105.0, 100.5, 104.0],
+    ], signals=[1, 0, 0], sls=[95.0, None, None], tps=[110.0, None, None],
+       strengths=[1.0, 0.0, 0.0])
+    engine = BacktestEngine(initial_equity=10000, risk_per_trade=0.02,
+                            min_signal_strength=0.6)
+    m = engine.run(df, orders, "4h")
+    assert m["total_trades"] == 1
+
+
+def test_backtest_min_signal_strength_default_off():
+    df, orders = _frame([
+        [100.0, 101.0, 99.0, 100.0],
+        [100.5, 101.0, 100.0, 100.5],
+        [101.0, 105.0, 100.5, 104.0],
+    ], signals=[1, 0, 0], sls=[95.0, None, None], tps=[110.0, None, None],
+       strengths=[0.1, 0.0, 0.0])
+    engine = BacktestEngine(initial_equity=10000, risk_per_trade=0.02)
+    m = engine.run(df, orders, "4h")
+    assert m["total_trades"] == 1
+
+
+def test_backtest_missing_strength_column_keeps_legacy_behavior():
+    df, orders = _frame([
+        [100.0, 101.0, 99.0, 100.0],
+        [100.5, 101.0, 100.0, 100.5],
+        [101.0, 105.0, 100.5, 104.0],
+    ], signals=[1, 0, 0], sls=[95.0, None, None], tps=[110.0, None, None])
+    engine = BacktestEngine(initial_equity=10000, risk_per_trade=0.02,
+                            min_signal_strength=0.6)
+    m = engine.run(df, orders, "4h")
+    assert m["total_trades"] == 1

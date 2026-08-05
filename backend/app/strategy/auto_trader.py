@@ -2,17 +2,18 @@
 import time
 from datetime import datetime
 from typing import List
+
 from loguru import logger
 
 from app.backtest.engine import BacktestEngine
 from app.core.config import get_settings
 from app.core.database import Database
 from app.data import loader
-from app.strategy import settings as strat_settings
-from app.strategy.tradebot_v23 import TradeBotV23
-from app.strategy.decision import decide as decide_council
-from app.strategy.coin_intel import coin_score as score_symbol
 from app.data.collector import backfill as backfill_klines
+from app.strategy import settings as strat_settings
+from app.strategy.coin_intel import coin_score as score_symbol
+from app.strategy.decision import decide as decide_council
+from app.strategy.tradebot_v23 import TradeBotV23
 
 _SCORE_POOL = 200  # skor bazli siralama icin canli degerlendirilen sembol sayisi
 
@@ -29,11 +30,19 @@ class AutoTrader:
     edilerek kaydedilir (canli riski olmadan uctan uca deneme icin).
     """
 
-    def __init__(self, binance_client, telegram=None, paper=None):
+    def __init__(self, binance_client, telegram=None, paper=None, live_trading_enabled=None,
+                 min_notional=None):
         self.binance = binance_client
         self.db = Database()
         self.telegram = telegram
         self.paper = get_settings().PAPER_TRADING if paper is None else bool(paper)
+        self.live_trading_enabled = (bool(get_settings().LIVE_TRADING_ENABLED)
+                                     if live_trading_enabled is None
+                                     else bool(live_trading_enabled))
+        self.min_notional = (float(get_settings().MIN_NOTIONAL or 0.0)
+                             if min_notional is None else float(min_notional))
+        self.halt_entries = False
+        self.trading_mode = self._resolve_mode()
         s = strat_settings.get_settings()
         self.engine = BacktestEngine(
             initial_equity=s["initial_equity"],
@@ -98,6 +107,16 @@ class AutoTrader:
         self._last_reconcile = 0.0
         self._last_perf = 0.0
         self.live_balance = None
+
+    def _resolve_mode(self) -> str:
+        """Calisma modunu belirler: paper / kill-switch / testnet / live."""
+        if self.paper:
+            return "paper"
+        if not self.live_trading_enabled:
+            return "kill-switch"
+        if getattr(self.binance, "testnet", False):
+            return "testnet"
+        return "live"
 
     def _log_risk_event(self, event_type: str, message: str, **extra):
         """Risk/blok olaylarini son-N halka tamponuna ve DB'ye kalici yazar."""
@@ -330,11 +349,21 @@ class AutoTrader:
 
     async def start(self):
         self.running = True
-        logger.info("Otomatik islem motoru baslatildi")
+        logger.info(f"Otomatik islem motoru baslatildi (mod: {self.trading_mode})")
+        if self.trading_mode == "kill-switch":
+            logger.warning(
+                "LIVE_TRADING_ENABLED=False: yeni pozisyon acis emirleri kod seviyesinde engellendi"
+            )
+            if self.telegram:
+                await self.telegram.send(
+                    "ATOS X: LIVE_TRADING_ENABLED=False — yeni pozisyon acis emirleri "
+                    "kill-switch tarafindan engellendi (mevcut pozisyon koruması aktif)"
+                )
         if not await self._ensure_connected():
             logger.error("Binance baglantisi kurulamadi; motor baslatilamiyor")
             self.running = False
             return
+        self.trading_mode = self._resolve_mode()
         self.trading_symbols = await self.binance.load_all_symbols()
         logger.info(f"{len(self.trading_symbols)} coin taranacak")
         await self.reconcile_positions()
@@ -387,6 +416,19 @@ class AutoTrader:
                                 f" ({decision['verdict']}, guven {decision['confidence']})"
                             )
                             continue
+                        allow_str, str_info = self._strength_gate(signal, s)
+                        if not allow_str:
+                            logger.info(
+                                f"{symbol}: sinyal gucu esigin altinda engellendi"
+                                f" (%{str_info['strength'] * 100:.0f} < %{str_info['threshold'] * 100:.0f})"
+                            )
+                            self._log_risk_event(
+                                "low_signal_strength",
+                                f"{symbol} {signal['signal']} sinyali engellendi",
+                                strength=float(str_info["strength"]),
+                                threshold=float(str_info["threshold"]),
+                            )
+                            continue
                         entry = {
                             "symbol": symbol,
                             "signal": signal["signal"],
@@ -432,6 +474,20 @@ class AutoTrader:
             return False, decision
         return True, decision
 
+    def _strength_gate(self, signal, settings):
+        """Minimum sinyal gucu (konfirmasyon orani) filtresi.
+
+        Esik 0 ise kapali, her sinyali gecirir. Esik > 0 ise sinyalin
+        `strength` alani esigin altindaysa gecirmez. Donus: (allow, info|None).
+        """
+        threshold = float(settings.get("min_signal_strength", 0.0) or 0.0)
+        if threshold <= 0:
+            return True, None
+        strength = float(signal.get("strength", 0.0) or 0.0)
+        if strength < threshold:
+            return False, {"strength": strength, "threshold": threshold}
+        return True, None
+
     async def process_signals(self, signals):
         for signal in signals:
             symbol = signal["symbol"]
@@ -444,6 +500,11 @@ class AutoTrader:
                 if self.risk_halted:
                     logger.info(
                         f"{symbol}: drawdown korumasi aktif, giris engellendi"
+                    )
+                    continue
+                if self.halt_entries:
+                    logger.info(
+                        f"{symbol}: yeni girisler durduruldu (halt_entries), giris atlandi"
                     )
                     continue
                 if self.loss_halted:
@@ -478,6 +539,7 @@ class AutoTrader:
                 await self.open_position(
                     symbol, signal["signal"], signal["price"],
                     signal["sl"], signal["tp"], signal.get("reason"),
+                    float(signal.get("strength", 0.0) or 0.0),
                 )
 
     def _apply_risk_settings(self, s: dict):
@@ -535,6 +597,15 @@ class AutoTrader:
     async def _submit_open(self, symbol: str, side: str, qty: float):
         if self.paper:
             return {"symbol": symbol, "side": side, "quantity": qty, "paper": True}
+        if not self.live_trading_enabled:
+            logger.error(
+                f"{symbol}: CANLI EMIR ENGELLENDI (LIVE_TRADING_ENABLED=False, kill-switch)"
+            )
+            self._log_risk_event(
+                "live_order_blocked",
+                f"{symbol} canli acilis emri kill-switch tarafindan engellendi",
+            )
+            return None
         return await self.binance.place_market_order(symbol, side, qty)
 
     async def _submit_close(self, symbol: str):
@@ -542,12 +613,24 @@ class AutoTrader:
             return {"symbol": symbol, "paper": True}
         return await self.binance.close_position(symbol)
 
-    async def open_position(self, symbol: str, side: str, price: float, sl: float, tp: float, reason: str = ""):
+    async def open_position(self, symbol: str, side: str, price: float, sl: float, tp: float, reason: str = "", strength: float = 0.0):
         try:
             side = "BUY" if side == "BUY" else "SELL"
             sizing = self.engine.position_size(price, sl, self.equity)
             qty = float(sizing["qty"])
             if qty <= 0:
+                return
+            if self.min_notional > 0 and price * qty < self.min_notional:
+                notional = price * qty
+                logger.warning(
+                    f"{symbol}: notional ${notional:.2f} < min ${self.min_notional:.2f}, giris engellendi"
+                )
+                self._log_risk_event(
+                    "min_notional_blocked",
+                    f"{symbol} {side} girisi notional esiginin altinda kaldi",
+                    notional=round(notional, 2),
+                    min_notional=self.min_notional,
+                )
                 return
 
             order = await self._submit_open(symbol, side, qty)
@@ -565,7 +648,7 @@ class AutoTrader:
                 self.db.save_trade(symbol, side, price, qty)
                 self.db.save_signal(symbol, side, price, 0.0, reason or "auto")
                 if self.telegram:
-                    await self.telegram.send_signal(symbol, side, price, reason)
+                    await self.telegram.send_signal(symbol, side, price, reason, sl=sl, tp=tp, strength=strength)
                 if not self.paper:
                     position_side = "LONG" if side == "BUY" else "SHORT"
                     algo = await self.binance.set_tp_sl(symbol, position_side, sl, tp)
@@ -1030,6 +1113,8 @@ class AutoTrader:
         eq_floor = f"${self.min_equity:.0f}" if self.min_equity > 0 else "devre disi"
         msg = (
             f"ATOS X: Motor baslatildi\n"
+            f"Mod: {self.trading_mode.upper()} | "
+            f"Yeni giris: {'KAPALI' if self.halt_entries else 'acik'}\n"
             f"Risk - max pos %{self.max_position_pct:.0f}, max side %{self.max_side_pct:.0f}, "
             f"max drawdown %{self.max_drawdown_pct:.0f} ({halted}), "
             f"max ardisik zarar {self.max_consecutive_losses}, "

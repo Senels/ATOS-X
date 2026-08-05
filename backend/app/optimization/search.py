@@ -143,6 +143,7 @@ class GridSearch:
                 "trailing_min_move_pct": s.get("trailing_min_move_pct", 0.0),
                 "breakeven_activate_pct": s.get("breakeven_activate_pct", 0.0),
                 "max_position_age_hours": s.get("max_position_age_hours", 0.0),
+                "min_signal_strength": s.get("min_signal_strength", 0.0),
             }
 
         combos = [

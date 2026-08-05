@@ -42,6 +42,7 @@ DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
     # Decision Council: canli girislerde coklu sinyal oylamasi filtresi
     "use_decision_council": False,  # True iken girisler council kararina ve min guvene tabi
     "council_min_confidence": 0.6,  # Council kararina gerekli minimum guven (0-1)
+    "min_signal_strength": 0.0,     # Sinyal gucu esigi (0-1; alti giris engellenir; 0 = devre disi)
     # Coin Intelligence: canli momentum skoruna gore sembol onceligi
     "use_score_ranking": False,     # True iken ranking canli coin_score'a gore yeniden siralanir
     # Market Collector: ranking icin yerel CSV tazeligi

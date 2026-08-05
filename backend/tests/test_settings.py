@@ -63,6 +63,7 @@ def test_council_defaults():
     assert state["use_decision_council"] is False
     assert state["council_min_confidence"] == 0.6
     assert state["use_score_ranking"] is False
+    assert state["min_signal_strength"] == 0.0
 
 
 def test_data_freshness_defaults():

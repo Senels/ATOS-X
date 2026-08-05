@@ -92,6 +92,7 @@ tr:hover { background:rgba(59,130,246,0.05); }
 <div class="field"><label>Trailing Min Move %</label><input id="trailing_min_move_pct" placeholder="0.1"></div>
 <div class="field"><label>Breakeven Activate %</label><input id="breakeven_activate_pct" placeholder="2"></div>
 <div class="field"><label>Max Position Age (h)</label><input id="max_position_age_hours" placeholder="8"></div>
+<div class="field"><label>Min Signal Strength (0-1)</label><input id="min_signal_strength" placeholder="0"></div>
 </div>
 <div style="margin-top:16px; display:flex; gap:8px; align-items:center;">
 <button class="btn btn-green" id="runBtn" onclick="run()">▶ Calistir</button>
@@ -148,7 +149,7 @@ max_drawdown_pct:'max_drawdown_pct',max_consecutive_losses:'max_consecutive_loss
 max_daily_loss_pct:'max_daily_loss_pct',min_equity:'min_equity',
 trailing_activate_pct:'trailing_activate_pct',trailing_sl_pct:'trailing_sl_pct',
 trailing_min_move_pct:'trailing_min_move_pct',breakeven_activate_pct:'breakeven_activate_pct',
-max_position_age_hours:'max_position_age_hours'};
+max_position_age_hours:'max_position_age_hours',min_signal_strength:'min_signal_strength'};
 for (const id in map) { const v = num(document.getElementById(id).value); if (v !== null) q.set(map[id], v); }
 q.set('alternate_signal', document.getElementById('alternate_signal').checked ? 'true':'false');
 q.set('atr_fallback', document.getElementById('atr_fallback').checked ? 'true':'false');

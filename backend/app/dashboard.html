@@ -89,6 +89,7 @@ tr:hover { background:rgba(59,130,246,0.05); }
 <div id="dailyHaltBadge" style="display:none;"><span class="badge-unprotected">DAILY HALT</span></div>
 <div id="equityFloorBadge" style="display:none;"><span class="badge-unprotected">EQUITY FLOOR</span></div>
 <div id="tradingOffBadge" style="display:none;"><span class="badge-unprotected">TRADING OFF</span></div>
+<div id="entriesHaltBadge" style="display:none;"><span class="badge-unprotected">GIRIS KAPALI</span></div>
 </div></div>
 <div class="card"><h3>🛡️ Risk Events</h3><div id="riskEvents"><div style="color:#64748b;padding:10px;">-</div></div></div>
 <div class="card"><h3>📈 Equity Curve</h3><canvas id="equityChart" width="1200" height="280" style="width:100%;height:280px;"></canvas></div>
@@ -119,7 +120,10 @@ if (d.status === 'online' && d.connected !== false) {
 } else {
     badge.innerHTML = '<span class="status-dot status-offline"></span>' + (d.status || 'OFFLINE').toUpperCase();
 }
-document.getElementById('paperBadge').style.display = d.paper ? 'inline' : 'none';
+const modeLabels = {paper:'PAPER', testnet:'TESTNET', live:'CANLI', 'kill-switch':'KILL-SWITCH'};
+const modeCls = d.trading_mode === 'live' ? 'badge-unprotected' : (d.trading_mode === 'testnet' ? 'badge-protected' : 'badge-paper');
+document.getElementById('paperBadge').innerHTML = '<span class="' + modeCls + '">' + (modeLabels[d.trading_mode] || (d.trading_mode || '').toUpperCase()) + '</span>';
+document.getElementById('paperBadge').style.display = 'inline';
 const conc = d.concentration || {};
 const maxSide = conc.max_side_pct || 0;
 const maxPos = conc.max_position_pct || 0;
@@ -137,6 +141,7 @@ document.getElementById('lossHaltBadge').style.display = d.loss_halted ? 'inline
 document.getElementById('dailyHaltBadge').style.display = d.daily_loss_halted ? 'inline' : 'none';
 document.getElementById('equityFloorBadge').style.display = d.equity_halted ? 'inline' : 'none';
 document.getElementById('tradingOffBadge').style.display = d.trading === false ? 'inline' : 'none';
+document.getElementById('entriesHaltBadge').style.display = d.halt_entries ? 'inline' : 'none';
 const re = document.getElementById('riskEvents');
 if (d.risk_events && d.risk_events.length) {
 re.innerHTML = d.risk_events.map(function(e){

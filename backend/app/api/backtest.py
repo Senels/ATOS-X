@@ -95,6 +95,7 @@ async def run_backtest(
     trailing_min_move_pct: Optional[float] = None,
     breakeven_activate_pct: Optional[float] = None,
     max_position_age_hours: Optional[float] = None,
+    min_signal_strength: Optional[float] = None,
 ):
     try:
         df = await _load_data(symbol, interval, limit, source)
@@ -124,6 +125,7 @@ async def run_backtest(
         trailing_min_move_pct=trailing_min_move_pct if trailing_min_move_pct is not None else engine_cfg.get("trailing_min_move_pct", 0.0),
         breakeven_activate_pct=breakeven_activate_pct if breakeven_activate_pct is not None else engine_cfg.get("breakeven_activate_pct", 0.0),
         max_position_age_hours=max_position_age_hours if max_position_age_hours is not None else engine_cfg.get("max_position_age_hours", 0.0),
+        min_signal_strength=min_signal_strength if min_signal_strength is not None else engine_cfg.get("min_signal_strength", 0.0),
     )
     bot = TradeBotV23(settings)
     result = bot.analyze(df)

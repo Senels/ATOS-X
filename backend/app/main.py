@@ -355,6 +355,7 @@ _EDITABLE_RISK_KEYS = {
     "max_leverage": "max_leverage",
     "use_decision_council": "use_decision_council",
     "council_min_confidence": "council_min_confidence",
+    "min_signal_strength": "min_signal_strength",
     "use_score_ranking": "use_score_ranking",
     "data_backfill_hours": "data_backfill_hours",
     "data_freshness_hours": "data_freshness_hours",
@@ -376,6 +377,7 @@ def _format_koruma() -> str:
         f"Trailing: kar %{s['trailing_activate_pct']:.0f}+ / SL %{s['trailing_sl_pct']:.1f}\n"
         f"Breakeven: %{s['breakeven_activate_pct']:.0f} | Pozisyon yasi: {s['max_position_age_hours']} saat\n"
         f"Decision Council: {'acik' if s.get('use_decision_council') else 'kapali'} | Min guven: %{s.get('council_min_confidence', 0.6) * 100:.0f}\n"
+        f"Min sinyal gucu: %{float(s.get('min_signal_strength', 0.0) or 0.0) * 100:.0f} (0 = kapali)\n"
         f"Skor siralamasi: {'acik' if s.get('use_score_ranking') else 'kapali'}\n"
         f"Otomatik backfill: {s.get('data_backfill_hours', 0.0):g} saat arayla | Tazelik: {s.get('data_freshness_hours', 12.0):g} saat\n"
         "Ayarlamak icin: /koruma <anahtar> <deger> "
@@ -397,6 +399,7 @@ def _telegram_command(text: str):
                 "/sl breakeven [SEMBOL] - SL'leri giris fiyatina tasir\n"
                 "/tp <SEMBOL> <FIYAT> - acik pozisyonun TP'sini gunceller\n"
                 "/durdur - acil durdurma (tum pozisyonlari kapatir)\n"
+                "/giris [acik|kapali] - yeni pozisyon girislerini durdur/devam ettir\n"
                 "/kapatall [SEMBOLLER] - acik tum/sectik pozisyonlari kapatir (onay gerekli)\n"
                 "/sinyal <SEMBOL> - sembol icin canli sinyal gonder\n"
                 "/sinyalall [N] - ilk N sembolun toplu tarama ozeti\n"
@@ -480,6 +483,8 @@ def _telegram_command(text: str):
             value = bool(value)
         elif settings_key in _INT_RISK_KEYS:
             value = int(value)
+        elif settings_key in ("council_min_confidence", "min_signal_strength"):
+            value = max(0.0, min(1.0, value))
         strat_settings.update_settings({settings_key: value})
         strat_settings.persist()
         if auto_trader:
@@ -689,6 +694,27 @@ def _telegram_command(text: str):
         if not _run_later(_send_symbol_signal(sym)):
             return "ATOS X: komut arka planda calistirilamadi"
         return f"ATOS X: {sym} sinyali hesaplaniyor"
+    if cmd.startswith("/giris"):
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        parts = text.strip().split()
+        if len(parts) == 1:
+            state = "KAPALI (acik pozisyonlar korunuyor)" if auto_trader.halt_entries else "acik"
+            return f"ATOS X: yeni girisler {state}"
+        sub = parts[1].lower()
+        if sub in ("kapali", "dur", "off", "0"):
+            auto_trader.halt_entries = True
+            auto_trader._log_risk_event(
+                "halt_entries", "Yeni girisler durduruldu (acik pozisyonlar korunuyor)"
+            )
+            return "ATOS X: yeni girisler durduruldu (acik pozisyonlar korunuyor)"
+        if sub in ("acik", "ac", "on", "1"):
+            auto_trader.halt_entries = False
+            auto_trader._log_risk_event(
+                "halt_entries", "Yeni girisler yeniden acildi"
+            )
+            return "ATOS X: yeni girisler yeniden acildi"
+        return "ATOS X: kullanim /giris acik | /giris kapali"
     if cmd.startswith("/durdur") or cmd.startswith("/stop"):
         if not auto_trader or not auto_trader.running:
             return "ATOS X: motor zaten durdurulmus"
@@ -717,6 +743,8 @@ def _telegram_command(text: str):
         halt = auto_trader.risk_halted
         halt_line = "AKTIF - girisler durduruldu" if halt else "yok"
         trading = "DURDURULDU" if not auto_trader.running else "calisiyor"
+        mode_label = auto_trader.trading_mode.upper()
+        entries = "KAPALI" if auto_trader.halt_entries else "acik"
         events = auto_trader.risk_events
         last_evt = events[-1] if events else None
         evt_line = f"{last_evt['type']} ({last_evt['time'][:16].replace('T',' ')})" if last_evt else "yok"
@@ -755,8 +783,8 @@ def _telegram_command(text: str):
                     except Exception:
                         pass
         lines = [
-            f"ATOS X durum",
-            f"Trade motoru: {trading}",
+            "ATOS X durum",
+            f"Trade motoru: {trading} (mod: {mode_label}, yeni giris: {entries})",
             f"Equity: ${auto_trader.equity:.2f}",
             prot_line,
             f"Gerceklesmemis PnL: {upnl_sign}{upnl:.2f}",
@@ -1423,6 +1451,8 @@ async def health():
         "day_pnl": auto_trader.day_pnl if auto_trader else 0.0,
         "equity_halted": auto_trader.equity_halted if auto_trader else False,
         "min_equity": auto_trader.min_equity if auto_trader else 0.0,
+        "trading_mode": auto_trader.trading_mode if auto_trader else "paper",
+        "halt_entries": auto_trader.halt_entries if auto_trader else False,
         "trading": auto_trader.running if auto_trader else False,
         "uptime": int((datetime.utcnow() - system_status["start_time"]).total_seconds())
     }
@@ -1633,6 +1663,9 @@ async def get_status():
         "equity_halted": auto_trader.equity_halted if auto_trader else False,
         "min_equity": auto_trader.min_equity if auto_trader else 0.0,
         "paper": auto_trader.paper if auto_trader else True,
+        "trading_mode": auto_trader.trading_mode if auto_trader else "paper",
+        "halt_entries": auto_trader.halt_entries if auto_trader else False,
+        "live_trading_enabled": auto_trader.live_trading_enabled if auto_trader else False,
         "top_symbols": auto_trader.top_symbols if auto_trader else [],
         "equity": auto_trader.equity if auto_trader else 10000
     }
@@ -1740,6 +1773,19 @@ async def emergency_stop():
         return {"status": "ok", "message": "All positions closed"}
     return {"status": "error", "message": "Not running"}
 
+@app.post("/api/v1/halt_entries")
+async def halt_entries(payload: dict = None):
+    """Yeni pozisyon girislerini durdurur/devam ettirir; acik pozisyonlar korunur."""
+    if not auto_trader:
+        return {"ok": False, "error": "motor calismiyor"}
+    halt = bool((payload or {}).get("halt"))
+    auto_trader.halt_entries = halt
+    auto_trader._log_risk_event(
+        "halt_entries",
+        f"Yeni girisler {'durduruldu' if halt else 'yeniden acildi'}",
+    )
+    return {"ok": True, "halt_entries": auto_trader.halt_entries}
+
 @app.get("/api/v1/risk/events")
 async def risk_events(limit: int = 50, type: str = ""):
     events = auto_trader.risk_events if auto_trader else []
@@ -1838,7 +1884,7 @@ async def portfolio():
     equity = auto_trader.equity or 0.0
     peak = auto_trader.peak_equity or equity
     return {
-        "mode": "paper" if auto_trader.paper else "live",
+        "mode": auto_trader.trading_mode,
         "synced": bool(bal),
         "balance": bal.get("balance"),
         "available": bal.get("available"),
@@ -1919,6 +1965,8 @@ async def metrics():
             "day_pnl": auto_trader.day_pnl if auto_trader else 0.0,
             "equity_halted": auto_trader.equity_halted if auto_trader else False,
             "min_equity": auto_trader.min_equity if auto_trader else 0.0,
+            "trading_mode": auto_trader.trading_mode if auto_trader else "paper",
+            "halt_entries": auto_trader.halt_entries if auto_trader else False,
             "trading": auto_trader.running if auto_trader else False,
             "risk_events": auto_trader.risk_events[-10:] if auto_trader else [],
             "uptime": int((datetime.utcnow() - system_status["start_time"]).total_seconds())

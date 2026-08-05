@@ -9,9 +9,10 @@ sekilde simule eder:
   - Risk bazli pozisyon boyutlandirma: risk % = RISK_PER_TRADE
   - Kaldirac siniri: notional <= equity * max_leverage
 """
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 import pandas as pd
-from typing import Any, Dict, List, Optional
 
 _BARS_PER_YEAR = {
     "1m": 525600, "3m": 175200, "5m": 105120, "15m": 35040,
@@ -41,6 +42,7 @@ class BacktestEngine:
         trailing_min_move_pct: float = 0.0,
         breakeven_activate_pct: float = 0.0,
         max_position_age_hours: float = 0.0,
+        min_signal_strength: float = 0.0,
     ):
         self.initial_equity = float(initial_equity)
         self.risk_per_trade = float(risk_per_trade)
@@ -56,6 +58,7 @@ class BacktestEngine:
         self.trailing_min_move_pct = float(trailing_min_move_pct)
         self.breakeven_activate_pct = float(breakeven_activate_pct)
         self.max_position_age_hours = float(max_position_age_hours)
+        self.min_signal_strength = float(min_signal_strength)
 
     # ------------------------------------------------------------------
     def _can_enter(self) -> bool:
@@ -65,6 +68,12 @@ class BacktestEngine:
         if self.max_consecutive_losses > 0 and self.consec >= self.max_consecutive_losses:
             return False
         return True
+
+    def _strength_ok(self, strength: float) -> bool:
+        """Minimum sinyal gucu esigi (canli _strength_gate ile ayni)."""
+        if self.min_signal_strength <= 0:
+            return True
+        return float(strength) >= self.min_signal_strength
 
     def _apply_intra_risk(self, pos: Dict[str, Any], close: float, high: float, low: float):
         """Breakeven + trailing SL yonetimi (canli check_positions ile ayni)."""
@@ -99,6 +108,8 @@ class BacktestEngine:
         sig = orders["signal"].to_numpy(int)
         sl_arr = orders["sl"].to_numpy(float)
         tp_arr = orders["tp"].to_numpy(float)
+        strength_arr = orders["strength"].to_numpy(float) \
+            if "strength" in orders.columns else np.full(len(df), np.inf)
 
         n = len(df)
         self.equity = self.initial_equity
@@ -123,7 +134,8 @@ class BacktestEngine:
                     self._close(pos, o[i], "flip", i, trades)
                     pos = None
 
-                if pos is None and np.isfinite(slp) and self._can_enter():
+                if pos is None and np.isfinite(slp) and self._can_enter() \
+                        and self._strength_ok(strength_arr[i - 1]):
                     px = o[i] * (1 + self.slippage * side)
                     if side == 1:
                         if px <= slp:

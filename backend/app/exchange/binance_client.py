@@ -2,8 +2,9 @@
 import os
 import time
 from typing import Optional
-import urllib3
+
 import pandas as pd
+import urllib3
 from binance.client import Client
 from dotenv import load_dotenv
 
@@ -132,7 +133,7 @@ class BinanceClient:
                 self.last_price = float(price)
                 return self.last_price
             return self.last_price
-        except Exception as e:
+        except Exception:
             return self.last_price
 
     async def get_klines(self, symbol: str = "BTCUSDT", interval: str = "1h",

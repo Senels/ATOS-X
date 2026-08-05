@@ -95,7 +95,7 @@ def trader(tmp_path, monkeypatch):
     db = Database(str(tmp_path / "at.db"))
     monkeypatch.setattr(at_mod, "Database", lambda *a, **k: db)
     fb = FakeBinance()
-    tr = at_mod.AutoTrader(fb, paper=False)
+    tr = at_mod.AutoTrader(fb, paper=False, live_trading_enabled=True)
     return tr, fb, db
 
 
@@ -1117,7 +1117,7 @@ async def test_risk_events_persist_to_db(trader):
 async def test_risk_events_loaded_from_db_on_init(trader):
     tr, fb, db = trader
     tr._log_risk_event("boot_marker", "boot")
-    tr2 = at_mod.AutoTrader(fb, paper=False)
+    tr2 = at_mod.AutoTrader(fb, paper=False, live_trading_enabled=True)
     assert any(e["type"] == "boot_marker" for e in tr2.risk_events)
 
 
@@ -1165,7 +1165,7 @@ async def test_trade_history_and_loss_streak_restored_on_init(trader):
         await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
         await tr.close_position("BTCUSDT", 90.0, "stop_loss")
     assert tr.loss_halted is True
-    tr2 = at_mod.AutoTrader(fb, paper=False)
+    tr2 = at_mod.AutoTrader(fb, paper=False, live_trading_enabled=True)
     assert len(tr2.trade_history) == 5
     assert tr2.trade_history[0]["reason"] == "stop_loss"
     assert tr2.consecutive_losses == 5
@@ -1492,6 +1492,41 @@ async def test_council_gate_includes_min_confidence_setting(trader, monkeypatch)
     allow, decision = tr._council_gate("BUY", klines,
                                        {"use_decision_council": True, "council_min_confidence": 0.8})
     assert allow is False
+
+
+async def test_strength_gate_disabled_passes(trader):
+    tr, fb, db = trader
+    allow, info = tr._strength_gate({"strength": 0.1}, {"min_signal_strength": 0.0})
+    assert allow is True
+    assert info is None
+
+
+async def test_strength_gate_default_off_passes(trader):
+    tr, fb, db = trader
+    allow, info = tr._strength_gate({"strength": 0.1}, {})
+    assert allow is True
+
+
+async def test_strength_gate_below_threshold_rejects(trader):
+    tr, fb, db = trader
+    allow, info = tr._strength_gate({"strength": 0.4}, {"min_signal_strength": 0.6})
+    assert allow is False
+    assert info["strength"] == 0.4
+    assert info["threshold"] == 0.6
+
+
+async def test_strength_gate_meets_threshold_passes(trader):
+    tr, fb, db = trader
+    allow, info = tr._strength_gate({"strength": 0.8}, {"min_signal_strength": 0.6})
+    assert allow is True
+    assert info is None
+
+
+async def test_strength_gate_missing_strength_rejects_when_enabled(trader):
+    tr, fb, db = trader
+    allow, info = tr._strength_gate({"signal": "BUY"}, {"min_signal_strength": 0.5})
+    assert allow is False
+    assert info["strength"] == 0.0
 
 
 async def test_rank_by_score_reorders_by_score(trader, monkeypatch):

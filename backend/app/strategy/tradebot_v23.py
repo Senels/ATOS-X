@@ -308,7 +308,7 @@ class TradeBotV23:
         short_cond = (leading_short & (ls_count <= expiry)).fillna(False)
 
         # 3) Konfirmasyonlar
-        conf_long, conf_short, _, _ = self._confirmations(df)
+        conf_long, conf_short, long_count, short_count = self._confirmations(df)
         long_cond = long_cond & conf_long
         short_cond = short_cond & conf_short
 
@@ -329,8 +329,21 @@ class TradeBotV23:
 
         signal = np.where(long_sig.to_numpy(), 1, np.where(short_sig.to_numpy(), -1, 0)).astype(int)
 
+        # Sinyal gucu (canli generate_signal ile ayni formül): aktif konfirmasyon orani
+        enabled = [k for k, v in self.settings["confirmations"].items() if v]
+        n_total = max(len(enabled), 1)
+        strength = np.where(
+            long_sig.to_numpy(),
+            long_count.fillna(0).to_numpy() / n_total,
+            np.where(
+                short_sig.to_numpy(),
+                short_count.fillna(0).to_numpy() / n_total,
+                0.0,
+            ),
+        )
+
         orders = pd.DataFrame(
-            {"signal": signal, "sl": sl, "tp": tp},
+            {"signal": signal, "sl": sl, "tp": tp, "strength": strength},
             index=df.index,
         )
 

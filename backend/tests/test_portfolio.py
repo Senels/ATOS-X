@@ -1,5 +1,4 @@
 import pytest
-
 from fastapi.testclient import TestClient
 
 from app import main as main_mod
@@ -99,6 +98,8 @@ class _FakeTrader:
         self.drawdown_pct = 16.67
         self.day_pnl = 120.5
         self.paper = False
+        self.trading_mode = "live"
+        self.halt_entries = False
         self.live_balance = {"balance": 12000.0, "available": 8000.0,
                              "unrealized": 500.0}
 
@@ -141,6 +142,7 @@ def test_portfolio_synced_live():
 def test_portfolio_paper_computes_upnl():
     ft = _FakeTrader()
     ft.paper = True
+    ft.trading_mode = "paper"
     ft.live_balance = None
     ft.active_positions = _fake_position(side="SELL", entry=200.0, qty=1.0, mark=190.0)
     ft.live_prices = {"BTCUSDT": 190.0}
