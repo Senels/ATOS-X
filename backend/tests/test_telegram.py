@@ -1703,3 +1703,32 @@ def test_command_ayarla_shows_settings(monkeypatch):
     assert "Decision Council: acik" in reply
     assert "Skor siralamasi: acik" in reply
     assert "Tazelik: 12 saat" in reply
+
+
+# -- /yedek ---------------------------------------------------------------
+def test_command_yedek_takes_backup(monkeypatch):
+    class _BkDB:
+        def backup(self):
+            return {"ok": True, "path": "atos_backup_20260805.db", "kept": 3, "deleted": []}
+
+    main_mod.app.state.db = _BkDB()
+    main_mod.auto_trader = _FakeTrader()
+    try:
+        reply = main_mod._telegram_command("/yedek")
+    finally:
+        main_mod.auto_trader = None
+        main_mod.app.state.db = None
+    assert reply is not None
+    assert "DB yedeklendi" in reply
+    assert "atos_backup_20260805.db" in reply
+
+
+def test_command_yedek_no_db(monkeypatch):
+    main_mod.app.state.db = None
+    main_mod.auto_trader = _FakeTrader()
+    try:
+        reply = main_mod._telegram_command("/yedek")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "motor calismiyor" in reply

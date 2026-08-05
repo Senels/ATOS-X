@@ -38,10 +38,11 @@ daily_report_task = None
 system_status = {"status": "initializing", "start_time": datetime.utcnow()}
 _PRICE_ALERTS = {}  # symbol -> [{price, side, created}]
 _alarm_task = None
+_backup_task = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    global auto_trader, daily_report_task, _alarm_task
+    global auto_trader, daily_report_task, _alarm_task, _backup_task
     import os
     if os.environ.get("ATOS_TEST_MODE"):
         yield
@@ -76,6 +77,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     daily_report_task = asyncio.create_task(_daily_report_loop())
     ws_sync_task = asyncio.create_task(_ws_sync_loop())
     _alarm_task = asyncio.create_task(_alarm_loop())
+    _backup_task = asyncio.create_task(_backup_loop())
     telegram.start_listener(_telegram_command)
     await telegram.send(f"ATOS X v{settings.APP_VERSION} baslatildi!")
 
@@ -86,6 +88,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     ws_sync_task.cancel()
     if _alarm_task:
         _alarm_task.cancel()
+    if _backup_task:
+        _backup_task.cancel()
     telegram.stop_listener()
     await auto_trader.stop()
     await ws.stop()
@@ -246,6 +250,20 @@ def _alarm_list() -> str:
             lines.append(f"  {sym} {side_word} ${a['price']:g}")
     return "\n".join(lines)
 
+async def _backup_loop():
+    """Periyodik DB yedeklemesi (her 6 saatte bir)."""
+    while True:
+        await asyncio.sleep(6 * 3600)
+        try:
+            db = getattr(app.state, "db", None)
+            if not db:
+                continue
+            res = db.backup()
+            if res.get("ok"):
+                logger.info(f"DB yedeklendi: {res['path']} (tutulan: {res['kept']})")
+        except Exception as e:
+            logger.error(f"DB yedekleme hatasi: {e}")
+
 def _protected_count() -> int:
     """Exchange-side SL/TP ile korunan acik pozisyon sayisi."""
     if not auto_trader:
@@ -380,6 +398,7 @@ def _telegram_command(text: str):
                 "/alarm - aktif alarmlari listele\n"
                 "/alarm temizle - tum alarmlari sil\n"
                 "/ayarla - tum ayarlari ozet goruntusu\n"
+                "/yedek - DB yedegini aninda al\n"
                 "/yardim - bu liste")
     if cmd.startswith("/blok"):
         blocks = sorted(auto_trader._conc_blocks) if auto_trader else []
@@ -1193,6 +1212,14 @@ def _telegram_command(text: str):
             f"Min equity: ${s['min_equity']:.0f} | Max zarar: {s['max_consecutive_losses']}",
         ]
         return "\n".join(lines)
+    if cmd.startswith("/yedek"):
+        db = getattr(app.state, "db", None)
+        if not db:
+            return "ATOS X: motor calismiyor"
+        res = db.backup()
+        if not res.get("ok"):
+            return "ATOS X: yedekleme basarisiz (veritabani yok)"
+        return f"ATOS X: DB yedeklendi\n{res['path']}\nTutulan: {res['kept']}"
     return None
 
 async def _run_backfill(symbols: list, days: int):

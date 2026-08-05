@@ -1,4 +1,5 @@
 import sqlite3
+from pathlib import Path
 
 from app.core.database import Database
 
@@ -157,3 +158,36 @@ def test_clear_operational_wipes_tables(tmp_path):
     assert _signals_count(db) == 0
     assert db.get_risk_events() == []
     assert db.get_performance() == []
+
+
+# -- yedekleme ------------------------------------------------------------
+def test_backup_creates_copy(tmp_path):
+    db = Database(str(tmp_path / "t.db"))
+    db.save_trade("BTCUSDT", "BUY", 65000.0, 0.5)
+
+    res = db.backup(backup_dir=str(tmp_path / "bk"))
+    assert res["ok"] is True
+    assert Path(res["path"]).exists()
+
+    conn = sqlite3.connect(res["path"])
+    rows = conn.execute("SELECT * FROM trades").fetchall()
+    conn.close()
+    assert len(rows) == 1
+
+
+def test_backup_retention_deletes_old(tmp_path):
+    db = Database(str(tmp_path / "t.db"))
+    db.save_trade("BTCUSDT", "BUY", 65000.0, 0.5)
+
+    for _ in range(5):
+        db.backup(backup_dir=str(tmp_path / "bk"), keep=3)
+    files = sorted(Path(tmp_path / "bk").glob("t_backup_*.db"))
+    assert len(files) == 3
+
+
+def test_backup_missing_db(tmp_path):
+    db = Database(str(tmp_path / "t.db"))
+    Path(db.db_path).unlink()
+    res = db.backup(backup_dir=str(tmp_path / "bk"))
+    assert res["ok"] is False
+    assert res["error"] == "db_not_found"

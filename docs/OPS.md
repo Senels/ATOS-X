@@ -543,6 +543,23 @@ uyumlu aktif konfirmasyon / toplam açık konfirmasyon oranıdır (HOLD → 0).
 | `/dashboard/metrics` | Aynı + pozisyon başına `protected` |
 | `/dashboard` | Pozisyon tablosunda `KORUMALI`/`KORUMASIZ` rozetleri + kart özeti; `🧮 Position Risk` kartında notional, size %, SL mesafesi, risk tutarı, uPnL ve pozisyon yaşı; `🚀 Performans` kartında Bugun/Haftalik/Aylik/Tum zaman metrikleri; `📡 Live Signals` kartında tarama listesinin canlı sinyalleri (60 sn'de bir yenilenir; üstten interval seçilir — varsayılan `4h`, seçim `localStorage`'da saklanır) ve sinyal tipi filtresi (Tumu/BUY/SELL/HOLD); `🌡️ Market Regime` kartında trend/volatilite rejimi + ATR%; `🏆 Coin Scores` kartında skor sıralaması; `⚖️ Decision Council` kartında kararlar + güven + kaynaklar; `🗃️ Data Freshness` kartında CSV tazeliği (guncel/eski/eksik özeti + sembol tablosu) ve `↻ Backfill` butonu (eski/eksik veriyi anında tazeler); Trade History kartında `TRAIL`/`BE` rozetleri; her satırda SL/TP düzenleme + `Uygula`/`Kapat` butonları |
 
+## Veritabanı Yedekleme
+
+`Database.backup()` SQLite **online backup API**'siyle (`sqlite3` `backup`)
+çalışan süreç sırasında tutarlı bir kopya alır — dosyayı kopyalamaz, bu
+yüzden yazma sırasında bozuk kopya riski yoktur.
+
+- Yedekler DB dosyasının yanındaki `backups/` klasörüne
+  `<adi>_backup_YYYYMMDD_HHMMSS_ffffff.db` adıyla yazılır.
+- **Retention**: en genç 14 yedek saklanır, eskileri otomatik silinir
+  (`keep` parametresiyle değiştirilebilir).
+- **Periyodik**: `_backup_loop` her 6 saatte bir `app.state.db.backup()` çağırır
+  (lifespan'da başlar, shutdown'da iptal edilir).
+- **Manuel**: `/yedek` Telegram komutu anında yedek alır ve dosya yolunu
+  döndürür; `/yardim` listesinde yer alır.
+- Restore: yedek dosyası durdurulmuş süreçte `atos.db`'nin yerine
+  kopyalanarak (veya path override ile) geri yüklenir.
+
 ## Doğrulama
 
 ```bash

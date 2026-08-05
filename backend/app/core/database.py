@@ -400,3 +400,39 @@ class Database:
                 d["metrics"] = {}
             out.append(d)
         return out
+
+    # -- yedekleme ---------------------------------------------------------
+    def backup(self, backup_dir: str = None, keep: int = 14) -> dict:
+        """SQLite online backup API ile tutarli bir kopya alir.
+
+        `keep` adet en genc yedek saklanir; eskileri silinir. Sonuc:
+        `{"ok": True, "path": ..., "kept": N, "deleted": [...]}`.
+        """
+        src = Path(self.db_path)
+        if not src.exists():
+            return {"ok": False, "error": "db_not_found"}
+        base = Path(backup_dir) if backup_dir else src.parent / "backups"
+        base.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        dst = base / f"{src.stem}_backup_{stamp}.db"
+
+        source = sqlite3.connect(str(src))
+        try:
+            target = sqlite3.connect(str(dst))
+            try:
+                source.backup(target)
+            finally:
+                target.close()
+        finally:
+            source.close()
+
+        backups = sorted(base.glob(f"{src.stem}_backup_*.db"))
+        deleted = []
+        for old in backups[:-keep]:
+            try:
+                old.unlink()
+                deleted.append(old.name)
+            except OSError:
+                pass
+        return {"ok": True, "path": str(dst), "kept": min(len(backups), keep),
+                "deleted": deleted}
