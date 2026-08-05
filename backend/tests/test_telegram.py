@@ -1476,3 +1476,230 @@ def test_command_last_trade_requires_trader():
     main_mod.auto_trader = None
     reply = main_mod._telegram_command("/son")
     assert "motor calismiyor" in reply
+
+
+# -- /alarm ---------------------------------------------------------------
+def test_command_alarm_adds_alert():
+    fake = _FakeTrader()
+    fake.live_prices = {"BTCUSDT": 60000.0}
+    main_mod.auto_trader = fake
+    main_mod._PRICE_ALERTS.clear()
+    try:
+        reply = main_mod._telegram_command("/alarm BTCUSDT 65000")
+    finally:
+        main_mod.auto_trader = None
+        main_mod._PRICE_ALERTS.clear()
+    assert reply is not None
+    assert "alarm eklendi" in reply
+    assert "$65000" in reply
+
+
+def test_command_alarm_below_side():
+    fake = _FakeTrader()
+    fake.live_prices = {"ETHUSDT": 3000.0}
+    main_mod.auto_trader = fake
+    main_mod._PRICE_ALERTS.clear()
+    try:
+        reply = main_mod._telegram_command("/alarm ETHUSDT 2900 alt")
+    finally:
+        main_mod.auto_trader = None
+        main_mod._PRICE_ALERTS.clear()
+    assert reply is not None
+    assert "altina inince" in reply
+
+
+def test_command_alarm_list_and_clear():
+    main_mod.auto_trader = _FakeTrader()
+    main_mod._PRICE_ALERTS.clear()
+    try:
+        main_mod._telegram_command("/alarm BTCUSDT 65000")
+        main_mod._telegram_command("/alarm BTCUSDT 55000 alt")
+        reply = main_mod._telegram_command("/alarm")
+        cleared = main_mod._telegram_command("/alarm temizle")
+    finally:
+        main_mod.auto_trader = None
+        main_mod._PRICE_ALERTS.clear()
+    assert reply is not None
+    assert "aktif alarmlar" in reply
+    assert "2" in reply
+    assert "BTCUSDT" in reply
+    assert cleared is not None
+    assert "2 alarm silindi" in cleared
+
+
+def test_command_alarm_invalid_price():
+    main_mod.auto_trader = _FakeTrader()
+    try:
+        reply = main_mod._telegram_command("/alarm BTCUSDT abc")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "gecersiz fiyat" in reply
+
+
+def test_command_alarm_already_above():
+    fake = _FakeTrader()
+    fake.live_prices = {"BTCUSDT": 70000.0}
+    main_mod.auto_trader = fake
+    main_mod._PRICE_ALERTS.clear()
+    try:
+        reply = main_mod._telegram_command("/alarm BTCUSDT 65000")
+    finally:
+        main_mod.auto_trader = None
+        main_mod._PRICE_ALERTS.clear()
+    assert reply is not None
+    assert "zaten" in reply
+
+
+# -- /kapatall sembol listesi ---------------------------------------------
+def test_command_close_all_symbols_requires_confirmation():
+    main_mod.auto_trader = _FakeTrader()
+    try:
+        reply = main_mod._telegram_command("/kapatall BTCUSDT")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "1 pozisyon kapatilacak" in reply
+    assert "BTCUSDT" in reply
+    assert "onay" in reply
+
+
+def test_command_close_all_symbols_confirmed(monkeypatch):
+    main_mod.auto_trader = _FakeTrader()
+
+    def fake_run_later(coro):
+        coro.close()
+        return True
+
+    monkeypatch.setattr(main_mod, "_run_later", fake_run_later)
+    try:
+        reply = main_mod._telegram_command("/kapatall BTCUSDT,ETHUSDT onay")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "2 pozisyon kapatiliyor" in reply
+
+
+def test_command_close_all_symbols_no_match():
+    main_mod.auto_trader = _FakeTrader()
+    try:
+        reply = main_mod._telegram_command("/kapatall SOLUSDT onay")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "belirtilen sembollerde acik pozisyon yok" in reply
+
+
+# -- /risk pozisyon dagilimi ----------------------------------------------
+def test_command_risk_position_breakdown():
+    fake = _FakeTrader()
+    fake.live_prices = {"BTCUSDT": 66000.0, "ETHUSDT": 2950.0}
+    fake.active_positions["BTCUSDT"]["sl"] = 64000.0
+    fake.active_positions["ETHUSDT"]["sl"] = 3050.0
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/risk")
+    finally:
+        main_mod.auto_trader = None
+    assert "Pozisyon risk dagilimi" in reply
+    assert "BTCUSDT BUY notional $33000" in reply
+    assert "ETHUSDT SELL notional $5900" in reply
+    assert "SL mesafe %3.0" in reply
+    assert "risk $1000.00" in reply
+    assert "Toplam notional: $38900.00" in reply
+    assert "%389 equity" in reply
+
+
+# -- /islem ---------------------------------------------------------------
+def test_command_islem_shows_today_trades():
+    class _TodayDB:
+        def get_closed_trades_since(self, days=1):
+            return [
+                ("row_id1", "BTCUSDT", "BUY", 100.0, 108.0, "2026-08-05T07:00:00", 120.0),
+                ("row_id2", "ETHUSDT", "SELL", 3000.0, 3050.0, "2026-08-05T06:00:00", -50.0),
+            ]
+
+    fake = _FakeTrader()
+    fake.db = _TodayDB()
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/islem")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "bugun (2 islem)" in reply
+    assert "BTCUSDT" in reply and "ETHUSDT" in reply
+    assert "+120.00" in reply and "-50.00" in reply
+    assert "Toplam: +70.00" in reply
+
+
+def test_command_islem_empty():
+    main_mod.auto_trader = _FakeTrader()
+    try:
+        reply = main_mod._telegram_command("/islem")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "kapanan islem yok" in reply
+
+
+# -- /bakiye --------------------------------------------------------------
+def test_command_bakiye_shows_summary():
+    fake = _FakeTrader()
+    fake.live_prices = {"BTCUSDT": 66000.0}
+    fake.day_pnl = 42.5
+    fake.drawdown_pct = 2.1
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/bakiye")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "Equity: $10000.00" in reply
+    assert "Pozisyon: 2 (L:1 S:1)" in reply
+    assert "BTCUSDT BUY" in reply and "ETHUSDT SELL" in reply
+    assert "Gunluk PnL: +42.50" in reply
+    assert "Drawdown: %2.1" in reply
+
+
+def test_command_bakiye_requires_trader():
+    main_mod.auto_trader = None
+    reply = main_mod._telegram_command("/bakiye")
+    assert "motor calismiyor" in reply
+
+
+# -- /ayarla --------------------------------------------------------------
+def test_command_ayarla_shows_settings(monkeypatch):
+    settings = {
+        "leading_indicator": "Supertrend",
+        "risk_per_trade": 0.02,
+        "max_leverage": 3,
+        "max_open_positions": 5,
+        "max_position_age_hours": 48,
+        "rr_ratio": 2.0,
+        "atr_mult": 1.5,
+        "trailing_activate_pct": 1.0,
+        "trailing_sl_pct": 0.5,
+        "breakeven_activate_pct": 1.0,
+        "max_daily_loss_pct": 5.0,
+        "max_drawdown_pct": 20.0,
+        "max_position_pct": 75.0,
+        "max_side_pct": 150.0,
+        "council_min_confidence": 0.6,
+        "use_decision_council": True,
+        "use_score_ranking": True,
+        "data_backfill_hours": 6.0,
+        "data_freshness_hours": 12.0,
+        "min_equity": 500.0,
+        "max_consecutive_losses": 3,
+    }
+    monkeypatch.setattr(main_mod.strat_settings, "get_settings", lambda: settings)
+    reply = main_mod._telegram_command("/ayarla")
+    assert reply is not None
+    assert "risk ayarlari" in reply
+    assert "Max pozisyon: 5" in reply
+    assert "Risk/trade: %2.0" in reply
+    assert "Equity taban: $500" in reply
+    assert "Decision Council: acik" in reply
+    assert "Skor siralamasi: acik" in reply
+    assert "Tazelik: 12 saat" in reply
