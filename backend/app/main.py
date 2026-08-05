@@ -1022,6 +1022,28 @@ def _telegram_command(text: str):
             lines.append(f"Gunluk PnL: {sign}{auto_trader.day_pnl:.2f}")
         if auto_trader.drawdown_pct > 0:
             lines.append(f"Drawdown: %{auto_trader.drawdown_pct:.1f}")
+        if pos:
+            now = datetime.utcnow()
+            lines.append("---")
+            for sym, p in pos.items():
+                side = p.get("side", "?")
+                entry = p.get("entry_price", 0)
+                mark = auto_trader.live_prices.get(sym, entry)
+                qty = p.get("quantity", 0)
+                if side == "BUY":
+                    pnl = (mark - entry) * qty
+                else:
+                    pnl = (entry - mark) * qty
+                sign = "+" if pnl >= 0 else ""
+                age_h = ""
+                ot = p.get("open_time")
+                if ot:
+                    try:
+                        h = (now - datetime.fromisoformat(ot)).total_seconds() / 3600
+                        age_h = f" {h:.0f}h"
+                    except Exception:
+                        pass
+                lines.append(f"  {sym} {side} ${entry:g} {sign}{pnl:.2f}{age_h}")
         return "\n".join(lines)
     if cmd.startswith("/ayarla"):
         s = strat_settings.get_settings()
