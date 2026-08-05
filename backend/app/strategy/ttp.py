@@ -338,6 +338,10 @@ class TtpTsl:
         n = len(df)
 
         ts = pd.Timestamp(entry_ts)
+        if df.index.tz is not None and ts.tzinfo is None:
+            ts = ts.tz_localize(df.index.tz)
+        elif df.index.tz is None and ts.tzinfo is not None:
+            ts = ts.tz_convert(None)
         if ts in df.index:
             start = df.index.get_loc(ts)
         else:

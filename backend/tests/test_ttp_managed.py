@@ -301,3 +301,24 @@ def test_ttp_manage_short_side_reversal():
     # 60 -> 110 yukselisi SELL'de SL'yi vurur ya da reversal (cross_up) cikisi olur
     assert res["exit"] in ("sl", "reversal")
     assert res["active"] is False
+
+
+def test_ttp_manage_tolerates_naive_timestamp_on_tz_aware_index():
+    df = _frame([100.0] * 10 + [195.0, 215.0, 215.0, 215.0, 215.0] + [120.0] * 10)
+    df.index = df.index.tz_localize("UTC")
+    bot = _bot()
+    naive = str(df.index[10].tz_localize(None))
+    res = bot.manage(df, naive, 195.0, "BUY", 1.0)
+    assert res["exit"] == "tp_partial"
+
+
+def test_ttp_manage_tolerates_mid_bar_open_time_fallback():
+    # restore sonrasi `open_time` fallback'i: naive, mikro saniyeli, bar ortasi
+    df = _frame([100.0] * 10 + [195.0, 215.0, 215.0, 215.0, 215.0] + [120.0] * 10)
+    df.index = df.index.tz_localize("UTC")
+    bot = _bot()
+    aware = df.index[10] + pd.Timedelta(minutes=7, seconds=30, microseconds=123456)
+    naive_mid = str(aware.tz_localize(None))
+    res = bot.manage(df, naive_mid, 195.0, "BUY", 1.0)
+    assert res["exit"] == "tp_partial"
+    assert res["exit_bar_idx"] == 11
