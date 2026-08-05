@@ -321,6 +321,7 @@ def _telegram_command(text: str):
                 "/performans - equity curve ozeti + aylik istatistik\n"
                 "/son - son kapanan islem detayi\n"
                 "/islem - bugunun kapanan islemleri\n"
+                "/bekleyen - bekleyen TP/SL emirleri\n"
                 "/ayarla - tum ayarlari ozet goruntusu\n"
                 "/yardim - bu liste")
     if cmd.startswith("/blok"):
@@ -925,6 +926,30 @@ def _telegram_command(text: str):
         wins = sum(1 for t in closed if (t[6] or 0) > 0)
         lines.append(f"Toplam: {total_pnl:+.2f} ({wins}W/{len(closed)-wins}L)")
         return "\n".join(lines)
+    if cmd.startswith("/bekleyen"):
+        if not auto_trader or not auto_trader.binance:
+            return "ATOS X: motor calismiyor"
+        async def _fetch_orders():
+            try:
+                orders = await auto_trader.binance.get_open_algo_orders()
+            except Exception as e:
+                await telegram.send(f"ATOS X: emir sorgusu hatasi: {e}")
+                return
+            if not orders:
+                await telegram.send("ATOS X: bekleyen emir yok")
+                return
+            lines = [f"ATOS X bekleyen emirler ({len(orders)}):"]
+            for o in orders[:15]:
+                sym = o.get("symbol", "?")
+                side = o.get("side", "?")
+                tp = o.get("triggerPrice") or o.get("price", "")
+                otype = "TP" if "TP" in str(o.get("ordType", "")).upper() else "SL"
+                lines.append(f"  {sym} {otype} {side} @{tp}")
+            if len(orders) > 15:
+                lines.append(f"  ...+{len(orders)-15} daha")
+            await telegram.send("\n".join(lines))
+        _run_later(_fetch_orders())
+        return "ATOS X: bekleyen emirler sorgulanıyor"
     if cmd.startswith("/ayarla"):
         s = strat_settings.get_settings()
         lines = [
