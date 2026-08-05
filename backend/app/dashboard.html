@@ -92,6 +92,7 @@ tr:hover { background:rgba(59,130,246,0.05); }
 </div></div>
 <div class="card"><h3>🛡️ Risk Events</h3><div id="riskEvents"><div style="color:#64748b;padding:10px;">-</div></div></div>
 <div class="card"><h3>📈 Equity Curve</h3><canvas id="equityChart" width="1200" height="280" style="width:100%;height:280px;"></canvas></div>
+<div class="card"><h3>🚀 Performans</h3><div class="table-wrap"><table><thead><tr><th>Donem</th><th>Islem</th><th>W/L</th><th>Win Rate</th><th>PnL</th><th>PF</th></tr></thead><tbody id="perfBody"><tr><td colspan="6" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
 <div class="card"><h3>💰 PnL by Symbol</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Trades</th><th>W/L</th><th>Net PnL</th></tr></thead><tbody id="pnlBody"><tr><td colspan="4" style="text-align:center;color:#64748b;padding:20px;">No closed trades yet</td></tr></tbody></table></div></div>
 <div class="card"><h3>📊 Active Positions <span id="posSummary" style="color:#64748b;font-weight:400;font-size:12px;"></span></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Qty</th><th>SL</th><th>TP</th><th>PnL</th><th>Protection</th><th>Time</th><th>Actions</th></tr></thead><tbody id="positionsBody"><tr><td colspan="10" style="text-align:center;color:#64748b;padding:20px;">No active positions</td></tr></tbody></table></div></div>
 <div class="card"><h3>🧮 Position Risk <span id="riskPosSummary" style="color:#64748b;font-weight:400;font-size:12px;"></span></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Notional</th><th>Size %</th><th>SL Dist %</th><th>Risk $</th><th>uPnL</th><th>Protection</th><th>Age (h)</th></tr></thead><tbody id="riskPosBody"><tr><td colspan="8" style="text-align:center;color:#64748b;padding:20px;">No active positions</td></tr></tbody></table></div></div>
@@ -190,6 +191,7 @@ tradeBody.innerHTML += '<tr><td><strong>'+(t.symbol||'-')+'</strong></td><td><sp
 document.getElementById('lastUpdate').textContent = 'Last update: ' + new Date().toLocaleString();
 loadEquity();
 loadPnl();
+loadPerformance();
 loadRiskPositions();
 loadSignals();
 loadRegimes();
@@ -444,6 +446,24 @@ d.symbols.slice(0, 12).forEach(function(s) {
 body.innerHTML += '<tr><td><strong>'+s.symbol+'</strong></td><td>'+s.trades+'</td><td>'+s.wins+'/'+s.losses+'</td><td style="color:'+(s.net_pnl>=0?'#22c55e':'#ef4444')+'">'+(s.net_pnl>=0?'+':'')+s.net_pnl.toFixed(2)+'</td></tr>';
 });
 } else { body.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#64748b;padding:20px;">No closed trades yet</td></tr>'; }
+} catch(e) { console.error(e); }
+}
+async function loadPerformance() {
+try {
+const r = await fetch('/api/v1/performance/summary');
+const d = await r.json();
+const body = document.getElementById('perfBody');
+if (!d.ok) { body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#64748b;padding:20px;">Motor calismiyor</td></tr>'; return; }
+const keys = [['Bugun','today'],['Haftalik','weekly'],['Aylik','monthly'],['Tum zaman','all_time']];
+body.innerHTML = '';
+keys.forEach(function(k) {
+const label = k[0], s = d[k[1]];
+if (!s) return;
+const pnlCol = s.pnl >= 0 ? '#22c55e' : '#ef4444';
+const pnlStr = (s.pnl >= 0 ? '+' : '') + s.pnl.toFixed(2);
+const pf = s.pf === 'inf' ? 'inf' : s.pf;
+body.innerHTML += '<tr><td><strong>'+label+'</strong></td><td>'+s.trades+'</td><td>'+s.wins+'/'+s.losses+'</td><td>'+s.win_rate+'%</td><td style="color:'+pnlCol+';font-weight:bold;">$'+pnlStr+'</td><td>'+pf+'</td></tr>';
+});
 } catch(e) { console.error(e); }
 }
 async function emergencyStop() {

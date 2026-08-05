@@ -1469,6 +1469,40 @@ async def trades_summary():
     symbols = auto_trader.db.get_symbol_pnl(limit=100)
     return {"symbols": symbols, "count": len(symbols)}
 
+@app.get("/api/v1/performance/summary")
+async def performance_summary():
+    """Haftalik/aylik/tum-zaman PnL + win rate ozeti (dashboard performans karti)."""
+    if not auto_trader:
+        return {"ok": False, "error": "not_running"}
+    hist = auto_trader.trade_history
+    now = datetime.utcnow()
+
+    def _period_stats(trades, days):
+        cutoff = now - timedelta(days=days)
+        sel = [t for t in trades if t.get("time") and datetime.fromisoformat(str(t["time"][:19])) >= cutoff]
+        pnls = [t.get("pnl", 0) or 0 for t in sel]
+        wins = sum(1 for p in pnls if p > 0)
+        losses = sum(1 for p in pnls if p < 0)
+        gross_w = sum(p for p in pnls if p > 0)
+        gross_l = abs(sum(p for p in pnls if p < 0))
+        pf = gross_w / gross_l if gross_l > 0 else (float("inf") if gross_w > 0 else 0.0)
+        return {
+            "trades": len(pnls),
+            "wins": wins,
+            "losses": losses,
+            "win_rate": round(wins / len(pnls) * 100, 1) if pnls else 0.0,
+            "pnl": round(sum(pnls), 2),
+            "pf": ("inf" if pf == float("inf") else round(pf, 2)),
+        }
+
+    return {
+        "ok": True,
+        "all_time": _period_stats(hist, 3650),
+        "monthly": _period_stats(hist, 30),
+        "weekly": _period_stats(hist, 7),
+        "today": _period_stats(hist, 1),
+    }
+
 # ============ STRATEJİ AYARLARI ENDPOINT'LERİ ============
 @app.get("/api/v1/strategy/settings")
 async def get_strategy_settings():
