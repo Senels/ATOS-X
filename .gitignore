@@ -21,3 +21,6 @@ backend/.env
 *.db
 opencode-memory.md
 backend/app/strategy/settings.json
+
+# TensorFlow AI modelleri (egitim ciktisi)
+backend/app/models/

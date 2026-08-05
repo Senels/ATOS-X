@@ -47,6 +47,10 @@ DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
     "min_signal_strength": 0.6,     # Sinyal gucu esigi (0-1; alti giris engellenir; 0 = devre disi)
     # Coin Intelligence: canli momentum skoruna gore sembol onceligi
     "use_score_ranking": True,      # True iken ranking canli coin_score'a gore yeniden siralanir
+    # AI (TensorFlow): derin ogrenme yon tahmini kapisi
+    "use_ai_model": True,           # True iken AI tahmini sinyal yonuyle uyusmali (model yoksa pasif)
+    "ai_min_confidence": 0.55,      # AI tahminini gecirmek icin gereken min guven (0-1)
+    "ai_model_path": "ai_direction",  # backend/models/ altindaki model adi
     # Market Collector: ranking icin yerel CSV tazeligi
     "data_backfill_hours": 24.0,    # Otomatik backfill araligi (saat; 0 = devre disi)
     "data_freshness_hours": 12.0,   # Son bar bu saatten eskiyse sembol eski sayilir

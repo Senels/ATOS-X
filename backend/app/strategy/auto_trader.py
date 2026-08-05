@@ -84,6 +84,7 @@ class AutoTrader:
         self._conc_alerts = {"symbols": set(), "sides": set()}
         self._conc_blocks = set()
         self._last_block_state = set()
+        self._ai_predictor_cache = None
         self._last_block_summary = 0.0
         self.block_summary_interval = 3600
         self.risk_events = []
@@ -429,6 +430,18 @@ class AutoTrader:
                                 threshold=float(str_info["threshold"]),
                             )
                             continue
+                        allow_ai, ai_info = self._ai_gate(signal, klines, s)
+                        if not allow_ai:
+                            logger.info(
+                                f"{symbol}: AI tahmini sinyali engelledi"
+                                f" ({ai_info['direction']}, guven {ai_info['confidence']:.2f})"
+                            )
+                            self._log_risk_event(
+                                "ai_gate_block",
+                                f"{symbol} {signal['signal']} sinyali AI tarafindan engellendi",
+                                confidence=float(ai_info["confidence"]),
+                            )
+                            continue
                         entry = {
                             "symbol": symbol,
                             "signal": signal["signal"],
@@ -441,6 +454,9 @@ class AutoTrader:
                         if decision:
                             entry["council_confidence"] = decision["confidence"]
                             entry["council_reason"] = decision["reason"]
+                        if ai_info:
+                            entry["ai_direction"] = ai_info["direction"]
+                            entry["ai_confidence"] = ai_info["confidence"]
                         signals.append(entry)
                         logger.info(f"{symbol}: {signal['signal']} @ {price}")
 
@@ -488,6 +504,36 @@ class AutoTrader:
         if strength < threshold:
             return False, {"strength": strength, "threshold": threshold}
         return True, None
+
+    def _ai_gate(self, signal, df, settings):
+        """TensorFlow AI yon tahmini kapisi.
+
+        `use_ai_model` kapali ya da model yuklenememisse her sinyali gecirir
+        (pasif). Model yukluyse tahmin yonu sinyal yonunde degilse veya guven
+        `ai_min_confidence` altindaysa sinyali engeller.
+        """
+        if not settings.get("use_ai_model", False):
+            return True, None
+        predictor = self._ai_predictor()
+        if predictor is None:
+            return True, None
+        pred = predictor.predict(df)
+        threshold = float(settings.get("ai_min_confidence", 0.0) or 0.0)
+        if pred["direction"] != signal.get("signal") or pred["confidence"] < threshold:
+            return False, pred
+        return True, pred
+
+    def _ai_predictor(self):
+        """Yuklenmis AI predictorunu modul seviyesinde otelemeli dondurur."""
+        if self._ai_predictor_cache is None:
+            try:
+                from app.ai.model import load_predictor
+                model_name = str(strat_settings.get_settings().get("ai_model_path", "ai_direction"))
+                self._ai_predictor_cache = load_predictor(model_name) or False
+            except Exception as e:
+                logger.warning(f"AI predictor yuklenemedi: {e}")
+                self._ai_predictor_cache = False
+        return None if self._ai_predictor_cache is False else self._ai_predictor_cache
 
     async def process_signals(self, signals):
         for signal in signals:

@@ -79,7 +79,7 @@ def main():
             if metrics.get("total_trades", 0) < args.min_trades:
                 continue
             rows.append({"symbol": symbol, **{k: metrics.get(k) for k in SUMMARY_COLS if k != "symbol"}})
-        except Exception as e:
+        except Exception:
             errors += 1
         if i % 100 == 0:
             print(f"[{i}/{len(symbols)}] {len(rows)} basarili, {errors} hata")
