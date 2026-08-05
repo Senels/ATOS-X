@@ -320,6 +320,7 @@ def _telegram_command(text: str):
                 "/izleme [N] - oncelik listesi + canli skor siralamasi\n"
                 "/performans - equity curve ozeti + aylik istatistik\n"
                 "/son - son kapanan islem detayi\n"
+                "/islem - bugunun kapanan islemleri\n"
                 "/ayarla - tum ayarlari ozet goruntusu\n"
                 "/yardim - bu liste")
     if cmd.startswith("/blok"):
@@ -904,6 +905,25 @@ def _telegram_command(text: str):
         ts = t.get("time")
         if ts:
             lines.append(f"Zaman: {str(ts)[:16].replace('T', ' ')}")
+        return "\n".join(lines)
+    if cmd.startswith("/islem"):
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        trades = auto_trader.db.get_closed_trades_since(days=1)
+        closed = [t for t in trades if t[6] is not None]
+        if not closed:
+            return "ATOS X: bugun kapanan islem yok"
+        lines = [f"ATOS X bugun ({len(closed)} islem):"]
+        for t in closed[:15]:
+            sym, side, entry, exit_p = t[1], t[2], t[3], t[4]
+            pnl = t[6] or 0
+            sign = "+" if pnl >= 0 else ""
+            lines.append(f"  {sym} {side} ${exit_p:g} {sign}{pnl:.2f}")
+        if len(closed) > 15:
+            lines.append(f"  ...+{len(closed)-15} daha")
+        total_pnl = sum(t[6] or 0 for t in closed)
+        wins = sum(1 for t in closed if (t[6] or 0) > 0)
+        lines.append(f"Toplam: {total_pnl:+.2f} ({wins}W/{len(closed)-wins}L)")
         return "\n".join(lines)
     if cmd.startswith("/ayarla"):
         s = strat_settings.get_settings()
