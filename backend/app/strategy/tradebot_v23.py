@@ -308,7 +308,7 @@ class TradeBotV23:
         short_cond = (leading_short & (ls_count <= expiry)).fillna(False)
 
         # 3) Konfirmasyonlar
-        conf_long, conf_short = self._confirmations(df)
+        conf_long, conf_short, _, _ = self._confirmations(df)
         long_cond = long_cond & conf_long
         short_cond = short_cond & conf_short
 
@@ -345,7 +345,7 @@ class TradeBotV23:
         }
 
     def generate_signal(self, df: pd.DataFrame) -> Dict[str, Any]:
-        """Canli kullanim: son barin sinyali + SL/TP + aciklama."""
+        """Canli kullanim: son barin sinyali + SL/TP + aciklama + guc."""
         if df is None or len(df) < 30:
             return {"signal": "HOLD", "reason": "Yetersiz veri", "price": None}
         result = self.analyze(df)
@@ -357,14 +357,24 @@ class TradeBotV23:
         tp = last["tp"]
 
         name = self.settings["leading_indicator"]
+        _, _, long_count, short_count = self._confirmations(df)
+        enabled = [k for k, v in self.settings["confirmations"].items() if v]
+        n_total = max(len(enabled), 1)
+        n_active = int(long_count.iloc[-1]) if sig == 1 else (
+            int(short_count.iloc[-1]) if sig == -1 else 0)
+        strength = round(n_active / n_total, 2) if sig != 0 else 0.0
+
         if sig == 1 and not (pd.isna(sl)):
             return {"signal": "BUY", "price": price, "sl": float(sl), "tp": float(tp),
-                    "reason": f"v23: {name} yukari + konfirmasyon", "indicator": name}
+                    "reason": f"v23: {name} yukari + konfirmasyon", "indicator": name,
+                    "strength": strength}
         if sig == -1 and not (pd.isna(sl)):
             return {"signal": "SELL", "price": price, "sl": float(sl), "tp": float(tp),
-                    "reason": f"v23: {name} asagi + konfirmasyon", "indicator": name}
+                    "reason": f"v23: {name} asagi + konfirmasyon", "indicator": name,
+                    "strength": strength}
         return {"signal": "HOLD", "price": price, "sl": None, "tp": None,
-                "reason": "Aktif sinyal yok", "indicator": name}
+                "reason": "Aktif sinyal yok", "indicator": name,
+                "strength": 0.0}
 
     # -- yardimcilar --------------------------------------------------------
     def _prepare(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -420,62 +430,63 @@ class TradeBotV23:
         # Bilinmeyen -> varsayilan Range Filter
         return range_filter(df, int(s["rangefilt_length"]), float(s["range_filt_mult"]))
 
-    def _confirmations(self, df: pd.DataFrame) -> Tuple[pd.Series, pd.Series]:
+    def _confirmations(self, df: pd.DataFrame) -> Tuple[pd.Series, pd.Series, pd.Series, pd.Series]:
         conf = self.settings["confirmations"]
         close = df["close"]
-        long_ok = pd.Series(True, index=df.index)
-        short_ok = pd.Series(True, index=df.index)
+        long_conds, short_conds = [], []
+
+        def _add(long_c, short_c):
+            long_conds.append(long_c)
+            short_conds.append(short_c)
 
         if conf.get("rqk"):
             f = rqk(close, 5, 8)
-            long_ok &= close > f
-            short_ok &= close < f
+            _add(close > f, close < f)
         if conf.get("rf"):
             up, down = range_filter(df, int(self.settings["rangefilt_length"]), float(self.settings["range_filt_mult"]))
-            long_ok &= up
-            short_ok &= down
+            _add(up, down)
         if conf.get("ema"):
             e = ema(close, 200)
-            long_ok &= close > e
-            short_ok &= close < e
+            _add(close > e, close < e)
         if conf.get("2ma"):
             e50, e200 = ema(close, 50), ema(close, 200)
-            long_ok &= e50 > e200
-            short_ok &= e50 < e200
+            _add(e50 > e200, e50 < e200)
         if conf.get("3ma"):
             e9, e21, e55 = ema(close, 9), ema(close, 21), ema(close, 55)
-            long_ok &= (e9 > e21) & (e21 > e55)
-            short_ok &= (e9 < e21) & (e21 < e55)
+            _add((e9 > e21) & (e21 > e55), (e9 < e21) & (e21 < e55))
         if conf.get("st"):
             _, trend = supertrend(df, 10, 3)
-            long_ok &= trend == 1
-            short_ok &= trend == -1
+            _add(trend == 1, trend == -1)
         if conf.get("ht"):
             trend = halftrend(df)
-            long_ok &= trend == 1
-            short_ok &= trend == -1
+            _add(trend == 1, trend == -1)
         if conf.get("rsi"):
             r = rsi(close)
-            long_ok &= r > 50
-            short_ok &= r < 50
+            _add(r > 50, r < 50)
         if conf.get("macd"):
             m, sg, _ = macd(close)
-            long_ok &= m > sg
-            short_ok &= m < sg
+            _add(m > sg, m < sg)
         if conf.get("stoch"):
             k, d = stochastic(df)
-            long_ok &= k > d
-            short_ok &= k < d
+            _add(k > d, k < d)
         if conf.get("ichi"):
             senkou_a, _, _ = ichimoku(df)
-            long_ok &= close > senkou_a
-            short_ok &= close < senkou_a
+            _add(close > senkou_a, close < senkou_a)
         if conf.get("ce"):
             long_exit, short_exit = chandelier_exit(df)
-            long_ok &= close > long_exit
-            short_ok &= close < short_exit
+            _add(close > long_exit, close < short_exit)
 
-        return long_ok.fillna(False), short_ok.fillna(False)
+        long_ok = pd.Series(True, index=df.index)
+        short_ok = pd.Series(True, index=df.index)
+        long_count = pd.Series(0, index=df.index, dtype=int)
+        short_count = pd.Series(0, index=df.index, dtype=int)
+        for lc, sc in zip(long_conds, short_conds):
+            long_ok &= lc
+            short_ok &= sc
+            long_count += lc.fillna(False).astype(int)
+            short_count += sc.fillna(False).astype(int)
+
+        return long_ok.fillna(False), short_ok.fillna(False), long_count, short_count
 
     def _sl_tp(self, df: pd.DataFrame, long_sig: pd.Series, short_sig: pd.Series,
                rr: float, sw_len: int) -> Tuple[pd.Series, pd.Series]:

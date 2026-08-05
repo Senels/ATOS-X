@@ -43,8 +43,21 @@ def test_backtest_returns_metrics(btc_df):
 def test_generate_signal_valid(btc_df):
     s = TradeBotV23().generate_signal(btc_df)
     assert s["signal"] in ("BUY", "SELL", "HOLD")
+    assert 0.0 <= s.get("strength", 0.0) <= 1.0
     if s["signal"] in ("BUY", "SELL"):
         assert s["sl"] is not None and s["tp"] is not None
+
+
+def test_signal_strength_reflects_confirmations(btc_df):
+    bot = TradeBotV23()
+    s = bot.generate_signal(btc_df)
+    if s["signal"] == "HOLD":
+        assert s["strength"] == 0.0
+    else:
+        _, _, lc, sc = bot._confirmations(btc_df)
+        n_active = int(lc.iloc[-1]) if s["signal"] == "BUY" else int(sc.iloc[-1])
+        enabled = [k for k, v in bot.settings["confirmations"].items() if v]
+        assert s["strength"] == round(n_active / max(len(enabled), 1), 2)
 
 
 def test_no_lookahead_entry(btc_df):

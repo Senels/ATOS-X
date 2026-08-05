@@ -115,7 +115,8 @@ async def _send_symbol_signal(symbol: str, interval: str = "4h"):
         await telegram.send(f"ATOS X: {symbol} icin sinyal alinamadi")
         return
     await telegram.send_signal(symbol, signal, sig.get("price") or 0.0,
-                               sig.get("reason", ""), sig.get("sl"), sig.get("tp"))
+                               sig.get("reason", ""), sig.get("sl"), sig.get("tp"),
+                               strength=sig.get("strength"))
 
 async def _send_batch_signals(symbols: list, interval: str = "4h", sig_filter: str = None):
     """Tarama listesi icin toplu sinyal ozetini Telegram'a gonderir."""
@@ -157,7 +158,8 @@ async def _send_batch_signals(symbols: list, interval: str = "4h", sig_filter: s
                 trend_str = f" {ti}" if ti else ""
         except Exception:
             pass
-        lines.append(f"{sym} {arrow} {signal} ${price:.4g}{extra}{trend_str} - {sig.get('reason', '')[:40]}")
+        lines.append(f"{sym} {arrow} {signal} ${price:.4g}{extra} "
+                     f"guc:%{sig.get('strength', 0) * 100:.0f}{trend_str} - {sig.get('reason', '')[:40]}")
     if len(lines) == 1:
         lines.append("Sinyal alinamadi")
     await telegram.send("\n".join(lines))
@@ -1393,6 +1395,7 @@ async def live_signals(limit: int = 12, interval: str = "4h"):
             "tp": sig.get("tp"),
             "reason": sig.get("reason", ""),
             "indicator": sig.get("indicator", ""),
+            "strength": sig.get("strength", 0.0),
         })
     order = {"BUY": 0, "SELL": 1, "HOLD": 2}
     signals.sort(key=lambda s: order.get(s["signal"], 3))
