@@ -450,18 +450,39 @@ def _telegram_command(text: str):
                     count += 1
             return f"ATOS X: {count} pozisyonun SL'si giris fiyatina tasindi (breakeven)"
         if len(parts) == 3 and parts[1].upper() == "ALL":
-            try:
-                new_sl = float(parts[2])
-            except ValueError:
-                return "ATOS X: gecersiz SL fiyati"
+            arg = parts[2]
             syms = list(auto_trader.active_positions.keys())
             if not syms:
                 return "ATOS X: acik pozisyon yok"
+            if arg.startswith("%"):
+                try:
+                    pct = float(arg[1:]) / 100.0
+                except ValueError:
+                    return "ATOS X: gecersiz yuzde"
+                count = 0
+                for s in syms:
+                    pos = auto_trader.active_positions[s]
+                    entry = pos.get("entry_price")
+                    cur_sl = pos.get("sl")
+                    price = auto_trader.live_prices.get(s)
+                    if entry is None or price is None:
+                        continue
+                    if pos.get("side") == "BUY":
+                        new_sl = entry + (price - entry) * pct
+                    else:
+                        new_sl = entry - (entry - price) * pct
+                    auto_trader.active_positions[s]["sl"] = new_sl
+                    count += 1
+                return f"ATOS X: {count} pozisyonun SL guncellendi (%{pct*100:.0f} mesafe)"
+            try:
+                new_sl = float(arg)
+            except ValueError:
+                return "ATOS X: gecersiz SL fiyati"
             for s in syms:
                 auto_trader.active_positions[s]["sl"] = new_sl
             return f"ATOS X: tum pozisyonlarin SL guncellendi -> ${new_sl:g} ({len(syms)} pozisyon)"
         if len(parts) != 3:
-            return "ATOS X: kullanim /sl <SEMBOL> <FIYAT> veya /sl all <FIYAT> veya /sl breakeven"
+            return "ATOS X: kullanim /sl <SEMBOL> <FIYAT> veya /sl all <FIYAT|%> veya /sl breakeven"
         sym = parts[1].upper()
         try:
             new_sl = float(parts[2])
@@ -477,18 +498,39 @@ def _telegram_command(text: str):
         if not auto_trader:
             return "ATOS X: motor calismiyor"
         if len(parts) == 3 and parts[1].upper() == "ALL":
-            try:
-                new_tp = float(parts[2])
-            except ValueError:
-                return "ATOS X: gecersiz TP fiyati"
+            arg = parts[2]
             syms = list(auto_trader.active_positions.keys())
             if not syms:
                 return "ATOS X: acik pozisyon yok"
+            if arg.startswith("%"):
+                try:
+                    pct = float(arg[1:]) / 100.0
+                except ValueError:
+                    return "ATOS X: gecersiz yuzde"
+                count = 0
+                for s in syms:
+                    pos = auto_trader.active_positions[s]
+                    entry = pos.get("entry_price")
+                    cur_tp = pos.get("tp")
+                    price = auto_trader.live_prices.get(s)
+                    if entry is None or price is None:
+                        continue
+                    if pos.get("side") == "BUY":
+                        new_tp = entry + (price - entry) * pct
+                    else:
+                        new_tp = entry - (entry - price) * pct
+                    auto_trader.active_positions[s]["tp"] = new_tp
+                    count += 1
+                return f"ATOS X: {count} pozisyonun TP guncellendi (%{pct*100:.0f} mesafe)"
+            try:
+                new_tp = float(arg)
+            except ValueError:
+                return "ATOS X: gecersiz TP fiyati"
             for s in syms:
                 auto_trader.active_positions[s]["tp"] = new_tp
             return f"ATOS X: tum pozisyonlarin TP guncellendi -> ${new_tp:g} ({len(syms)} pozisyon)"
         if len(parts) != 3:
-            return "ATOS X: kullanim /tp <SEMBOL> <FIYAT> veya /tp all <FIYAT>"
+            return "ATOS X: kullanim /tp <SEMBOL> <FIYAT> veya /tp all <FIYAT|%>"
         sym = parts[1].upper()
         try:
             new_tp = float(parts[2])
