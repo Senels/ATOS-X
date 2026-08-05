@@ -1,0 +1,257 @@
+{
+  "strategy": "TTPTSL",
+  "optimized_at": "2026-08-05 11:03:59 UTC",
+  "config": {
+    "symbols": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SNDKUSDT",
+      "SPCXUSDT",
+      "SOXLUSDT"
+    ],
+    "trials_per_symbol": 500,
+    "data_days": 60
+  },
+  "per_symbol": {
+    "BTCUSDT": {
+      "best_params": {
+        "fast_ma_len": 38,
+        "slow_ma_len": 23,
+        "atr_len": 18,
+        "sl_method": "atr",
+        "sl_long_perc": 0.10250000000000001,
+        "sl_short_perc": 0.034999999999999996,
+        "sl_long_atr_mul": 1.5,
+        "sl_short_atr_mul": 1.0,
+        "sl_trail_mode": "OFF",
+        "be_enabled": false,
+        "tp_qty_pct": 0.45,
+        "tp_method": "rr",
+        "tp_long_perc": 0.055,
+        "tp_short_perc": 0.12,
+        "tp_long_atr_mul": 5.0,
+        "tp_short_atr_mul": 2.5,
+        "tp_long_rr": 1.0,
+        "tp_short_rr": 3.2,
+        "tp_trail_enabled": true,
+        "dist_method": "perc",
+        "dist_perc": 0.0325,
+        "dist_atr_mul": 1.9000000000000001
+      },
+      "best_score": 48.5564,
+      "results": {
+        "trades": 1984,
+        "wins": 966,
+        "win_rate_pct": 48.7,
+        "net_profit_pct": 68.0,
+        "profit_factor": 1.8
+      }
+    },
+    "ETHUSDT": {
+      "best_params": {
+        "fast_ma_len": 21,
+        "slow_ma_len": 20,
+        "atr_len": 16,
+        "sl_method": "atr",
+        "sl_long_perc": 0.115,
+        "sl_short_perc": 0.057499999999999996,
+        "sl_long_atr_mul": 0.5,
+        "sl_short_atr_mul": 0.5,
+        "sl_trail_mode": "ON",
+        "be_enabled": true,
+        "tp_qty_pct": 0.3,
+        "tp_method": "perc",
+        "tp_long_perc": 0.21000000000000002,
+        "tp_short_perc": 0.04,
+        "tp_long_atr_mul": 5.5,
+        "tp_short_atr_mul": 13.0,
+        "tp_long_rr": 1.0,
+        "tp_short_rr": 1.0,
+        "tp_trail_enabled": false,
+        "dist_method": "perc",
+        "dist_perc": 0.043000000000000003,
+        "dist_atr_mul": 4.7
+      },
+      "best_score": 46.5915,
+      "results": {
+        "trades": 8239,
+        "wins": 3609,
+        "win_rate_pct": 43.8,
+        "net_profit_pct": 72.82,
+        "profit_factor": 1.48
+      }
+    },
+    "SNDKUSDT": {
+      "best_params": {
+        "fast_ma_len": 12,
+        "slow_ma_len": 40,
+        "atr_len": 18,
+        "sl_method": "atr",
+        "sl_long_perc": 0.0475,
+        "sl_short_perc": 0.095,
+        "sl_long_atr_mul": 5.75,
+        "sl_short_atr_mul": 2.0,
+        "sl_trail_mode": "OFF",
+        "be_enabled": false,
+        "tp_qty_pct": 0.6000000000000001,
+        "tp_method": "rr",
+        "tp_long_perc": 0.225,
+        "tp_short_perc": 0.16,
+        "tp_long_atr_mul": 11.5,
+        "tp_short_atr_mul": 19.5,
+        "tp_long_rr": 0.6,
+        "tp_short_rr": 0.6,
+        "tp_trail_enabled": true,
+        "dist_method": "atr",
+        "dist_perc": 0.039,
+        "dist_atr_mul": 0.1
+      },
+      "best_score": 121.3176,
+      "results": {
+        "trades": 1819,
+        "wins": 920,
+        "win_rate_pct": 50.6,
+        "net_profit_pct": 178.56,
+        "profit_factor": 1.55
+      }
+    },
+    "SPCXUSDT": {
+      "best_params": {
+        "fast_ma_len": 24,
+        "slow_ma_len": 126,
+        "atr_len": 21,
+        "sl_method": "perc",
+        "sl_long_perc": 0.057499999999999996,
+        "sl_short_perc": 0.135,
+        "sl_long_atr_mul": 4.0,
+        "sl_short_atr_mul": 7.0,
+        "sl_trail_mode": "OFF",
+        "be_enabled": true,
+        "tp_qty_pct": 0.5,
+        "tp_method": "atr",
+        "tp_long_perc": 0.14500000000000002,
+        "tp_short_perc": 0.11499999999999999,
+        "tp_long_atr_mul": 2.5,
+        "tp_short_atr_mul": 6.5,
+        "tp_long_rr": 1.7000000000000002,
+        "tp_short_rr": 0.8,
+        "tp_trail_enabled": true,
+        "dist_method": "atr",
+        "dist_perc": 0.0335,
+        "dist_atr_mul": 0.2
+      },
+      "best_score": 81.0073,
+      "results": {
+        "trades": 619,
+        "wins": 304,
+        "win_rate_pct": 49.1,
+        "net_profit_pct": 111.34,
+        "profit_factor": 1.88
+      }
+    },
+    "SOXLUSDT": {
+      "best_params": {
+        "fast_ma_len": 17,
+        "slow_ma_len": 52,
+        "atr_len": 6,
+        "sl_method": "perc",
+        "sl_long_perc": 0.034999999999999996,
+        "sl_short_perc": 0.030000000000000002,
+        "sl_long_atr_mul": 7.0,
+        "sl_short_atr_mul": 7.5,
+        "sl_trail_mode": "OFF",
+        "be_enabled": true,
+        "tp_qty_pct": 0.7,
+        "tp_method": "atr",
+        "tp_long_perc": 0.015,
+        "tp_short_perc": 0.025,
+        "tp_long_atr_mul": 7.5,
+        "tp_short_atr_mul": 10.0,
+        "tp_long_rr": 2.3,
+        "tp_short_rr": 4.0,
+        "tp_trail_enabled": false,
+        "dist_method": "atr",
+        "dist_perc": 0.025,
+        "dist_atr_mul": 1.2000000000000002
+      },
+      "best_score": 169.9483,
+      "results": {
+        "trades": 1163,
+        "wins": 557,
+        "win_rate_pct": 47.9,
+        "net_profit_pct": 244.8,
+        "profit_factor": 1.7
+      }
+    }
+  },
+  "unified": {
+    "unified_best_params": {
+      "fast_ma_len": 22.4,
+      "slow_ma_len": 52.2,
+      "atr_len": 15.8,
+      "sl_method": "atr",
+      "sl_long_perc": 0.0715,
+      "sl_short_perc": 0.0705,
+      "sl_long_atr_mul": 3.75,
+      "sl_short_atr_mul": 3.6,
+      "sl_trail_mode": "OFF",
+      "be_enabled": 0.6,
+      "tp_qty_pct": 0.51,
+      "tp_method": "rr",
+      "tp_long_perc": 0.13,
+      "tp_short_perc": 0.092,
+      "tp_long_atr_mul": 6.4,
+      "tp_short_atr_mul": 10.3,
+      "tp_long_rr": 1.32,
+      "tp_short_rr": 1.92,
+      "tp_trail_enabled": 0.6,
+      "dist_method": "perc",
+      "dist_perc": 0.0346,
+      "dist_atr_mul": 1.62
+    },
+    "tested_on": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SNDKUSDT",
+      "SPCXUSDT",
+      "SOXLUSDT"
+    ],
+    "results": {
+      "BTCUSDT": {
+        "trades": 1277,
+        "wins": 478,
+        "win_rate_pct": 37.4,
+        "net_profit_pct": -6.59,
+        "profit_factor": 0.95
+      },
+      "ETHUSDT": {
+        "trades": 1334,
+        "wins": 509,
+        "win_rate_pct": 38.2,
+        "net_profit_pct": 20.02,
+        "profit_factor": 1.12
+      },
+      "SNDKUSDT": {
+        "trades": 1272,
+        "wins": 486,
+        "win_rate_pct": 38.2,
+        "net_profit_pct": 76.63,
+        "profit_factor": 1.23
+      },
+      "SPCXUSDT": {
+        "trades": 1263,
+        "wins": 497,
+        "win_rate_pct": 39.4,
+        "net_profit_pct": 95.05,
+        "profit_factor": 1.41
+      },
+      "SOXLUSDT": {
+        "trades": 1204,
+        "wins": 468,
+        "win_rate_pct": 38.9,
+        "net_profit_pct": 143.21,
+        "profit_factor": 1.3
+      }
+    }
+  }
+}
