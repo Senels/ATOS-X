@@ -1,7 +1,6 @@
-from fastapi.testclient import TestClient
-
 import numpy as np
 import pandas as pd
+from fastapi.testclient import TestClient
 
 from app import main as main_mod
 from app.main import app
@@ -47,6 +46,8 @@ class _FakeTrader:
         self.equity_halted = False
         self.min_equity = 0.0
         self.live_prices = {}
+        self.trading_mode = "paper"
+        self.halt_entries = False
         self.risk_events = [{"time": "2026-01-01T00:00:00", "type": "drawdown_halt",
                              "message": "test"}]
 
@@ -142,6 +143,7 @@ def test_backtest_compare_ui_present():
     assert "cmp-cb" in resp.text
     assert "compare?a=" in resp.text
     assert "backtest/compare" in resp.text
+    assert 'id="min_signal_strength"' in resp.text
     client.close()
 
 
@@ -824,7 +826,9 @@ def test_settings_has_intelligence_toggles():
     assert resp.status_code == 200
     assert 'id="r_council"' in resp.text
     assert 'id="r_council_conf"' in resp.text
+    assert 'id="r_min_strength"' in resp.text
     assert 'id="r_score_rank"' in resp.text
     assert "use_decision_council" in resp.text
     assert "use_score_ranking" in resp.text
     assert "council_min_confidence" in resp.text
+    assert "min_signal_strength" in resp.text

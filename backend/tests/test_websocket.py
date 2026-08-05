@@ -1,8 +1,6 @@
 import asyncio
 import json
 
-import pytest
-
 import app.websocket.client as ws_mod
 
 

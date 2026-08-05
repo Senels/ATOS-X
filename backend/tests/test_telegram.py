@@ -7,8 +7,18 @@ import pandas as pd
 import pytest
 
 from app import main as main_mod
-from app.notifications.telegram import TelegramNotifier, _process_updates, format_stop_summary
-from app.notifications.telegram import format_daily_summary
+from app.notifications.telegram import (
+    TelegramNotifier,
+    _process_updates,
+    format_daily_summary,
+    format_stop_summary,
+)
+
+
+def _dispose_run_later(coro):
+    """Monkeypatch'li `_run_later`: coroutine'i await etmeden kapatir (uyari yok)."""
+    coro.close()
+    return True
 
 
 def _signal_df(n=120):
@@ -66,6 +76,8 @@ class _FakeTrader:
         self.equity_halted = False
         self.min_equity = 0.0
         self.live_prices = {}
+        self.trading_mode = "paper"
+        self.halt_entries = False
         self.db = _FakeDB()
         self.top_symbols = ["BTCUSDT", "ETHUSDT"]
         self.priority = ["BTCUSDT", "ETHUSDT"]
@@ -105,6 +117,10 @@ class _FakeTrader:
 
     def _apply_risk_settings(self, s):
         self.applied_settings = s
+
+    def _log_risk_event(self, event_type, message, **extra):
+        self.risk_events.append({"time": "2026-08-03T10:00:00",
+                                 "type": event_type, "message": message, **extra})
 
 
 def test_process_updates_filters_and_offsets():
@@ -246,7 +262,7 @@ def test_command_close_schedules_close(monkeypatch):
     fake = _FakeTrader()
     fake.live_prices = {"BTCUSDT": 66000.0}
     main_mod.auto_trader = fake
-    monkeypatch.setattr(main_mod, "_run_later", lambda coro: True)
+    monkeypatch.setattr(main_mod, "_run_later", _dispose_run_later)
     try:
         reply = main_mod._telegram_command("/kapat BTCUSDT")
     finally:
@@ -302,7 +318,7 @@ def test_command_stop_requires_confirmation():
 def test_command_stop_confirmed(monkeypatch):
     fake = _FakeTrader()
     main_mod.auto_trader = fake
-    monkeypatch.setattr(main_mod, "_run_later", lambda coro: True)
+    monkeypatch.setattr(main_mod, "_run_later", _dispose_run_later)
     try:
         reply = main_mod._telegram_command("/durdur onay")
     finally:
@@ -326,7 +342,7 @@ def test_command_resume_schedules_start(monkeypatch):
     fake = _FakeTrader()
     fake.running = False
     main_mod.auto_trader = fake
-    monkeypatch.setattr(main_mod, "_run_later", lambda coro: True)
+    monkeypatch.setattr(main_mod, "_run_later", _dispose_run_later)
     try:
         reply = main_mod._telegram_command("/ac")
     finally:
@@ -759,6 +775,7 @@ def test_command_backfill_schedules(monkeypatch):
 
     def fake_run_later(coro):
         captured.append(coro)
+        coro.close()
         return True
 
     monkeypatch.setattr(main_mod, "_run_later", fake_run_later)
@@ -781,7 +798,7 @@ def test_command_backfill_stale_symbols(monkeypatch):
                         lambda symbol, interval="4h", data_dir=None, limit=None: (_ for _ in ()).throw(FileNotFoundError("missing")))
     captured = []
     monkeypatch.setattr(main_mod, "_run_later",
-                        lambda coro: (captured.append(coro), True)[1])
+                        lambda coro: (captured.append(coro) or coro.close(), True)[1])
     try:
         reply = main_mod._telegram_command("/backfill")
     finally:
@@ -1191,6 +1208,46 @@ def test_command_koruma_view_shows_backfill(monkeypatch):
         main_mod.auto_trader = None
     assert reply is not None
     assert "Otomatik backfill" in reply
+
+
+def test_command_koruma_set_min_signal_strength(monkeypatch):
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+    applied = {}
+    monkeypatch.setattr(main_mod.strat_settings, "update_settings",
+                        lambda patch: applied.update(patch) or main_mod.strat_settings.get_settings())
+    monkeypatch.setattr(main_mod.strat_settings, "persist", lambda: {})
+    try:
+        reply = main_mod._telegram_command("/koruma min_signal_strength 0.6")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert applied["min_signal_strength"] == 0.6
+
+
+def test_command_koruma_clamps_min_signal_strength(monkeypatch):
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+    applied = {}
+    monkeypatch.setattr(main_mod.strat_settings, "update_settings",
+                        lambda patch: applied.update(patch) or main_mod.strat_settings.get_settings())
+    monkeypatch.setattr(main_mod.strat_settings, "persist", lambda: {})
+    try:
+        main_mod._telegram_command("/koruma min_signal_strength 1.5")
+    finally:
+        main_mod.auto_trader = None
+    assert applied["min_signal_strength"] == 1.0
+
+
+def test_command_koruma_view_shows_min_signal_strength(monkeypatch):
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+    try:
+        reply = main_mod._telegram_command("/koruma")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "Min sinyal gucu" in reply
 
 
 def test_command_koruma_unknown_key():

@@ -1,4 +1,5 @@
 import os
+
 import pytest
 
 os.environ["ATOS_TEST_MODE"] = "1"

@@ -1,9 +1,8 @@
 from datetime import datetime
 from types import SimpleNamespace
 
-from fastapi.testclient import TestClient
-
 import pandas as pd
+from fastapi.testclient import TestClient
 
 from app import main as main_mod
 from app.main import app
@@ -44,6 +43,7 @@ def test_data_status_ok():
             return _stale_df()
         raise FileNotFoundError("missing")
 
+    original_load_csv = main_mod.loader.load_csv
     main_mod.loader.load_csv = fake_load
     try:
         c = _client()
@@ -51,6 +51,7 @@ def test_data_status_ok():
         c.close()
     finally:
         main_mod.auto_trader = None
+        main_mod.loader.load_csv = original_load_csv
     assert resp.status_code == 200
     body = resp.json()
     assert body["ok"] is True
