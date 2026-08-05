@@ -779,17 +779,39 @@ def _telegram_command(text: str):
         loss_line = "AKTIF" if auto_trader.loss_halted else "yok"
         daily_line = "AKTIF" if auto_trader.daily_loss_halted else "yok"
         eq_line = "AKTIF" if auto_trader.equity_halted else "yok"
-        return (
-            f"ATOS X risk\n"
-            f"Equity: ${auto_trader.equity:.2f}\n"
-            f"Maruziyet - LONG: %{conc['long_pct']} SHORT: %{conc['short_pct']}\n"
-            f"Engeller: {', '.join(blocks) if blocks else 'yok'}\n"
-            f"Drawdown: %{auto_trader.drawdown_pct} | Durma: {halt_line}\n"
-            f"Ardisik zarar: {auto_trader.consecutive_losses}/{auto_trader.max_consecutive_losses} | Zarar durma: {loss_line}\n"
-            f"Gunluk zarar: {auto_trader.day_pnl:.2f} USDT | Gunluk durma: {daily_line}\n"
-            f"Equity taban: ${auto_trader.min_equity:.0f} | Taban durma: {eq_line}\n"
-            f"Risk olayi: {len(auto_trader.risk_events)}"
-        )
+        lines = [
+            f"ATOS X risk",
+            f"Equity: ${auto_trader.equity:.2f}",
+            f"Maruziyet - LONG: %{conc['long_pct']} SHORT: %{conc['short_pct']}",
+            f"Engeller: {', '.join(blocks) if blocks else 'yok'}",
+            f"Drawdown: %{auto_trader.drawdown_pct} | Durma: {halt_line}",
+            f"Ardisik zarar: {auto_trader.consecutive_losses}/{auto_trader.max_consecutive_losses} | Zarar durma: {loss_line}",
+            f"Gunluk zarar: {auto_trader.day_pnl:.2f} USDT | Gunluk durma: {daily_line}",
+            f"Equity taban: ${auto_trader.min_equity:.0f} | Taban durma: {eq_line}",
+            f"Risk olayi: {len(auto_trader.risk_events)}",
+        ]
+        pos = auto_trader.active_positions
+        if pos:
+            lines.append("---")
+            lines.append("Pozisyon risk dagilimi:")
+            total_notional = 0.0
+            for sym, p in pos.items():
+                price = auto_trader.live_prices.get(sym, p.get("entry_price", 0))
+                notional = price * p.get("quantity", 0)
+                total_notional += notional
+                side = p.get("side", "?")
+                sl = p.get("sl")
+                sl_dist = (abs(price - sl) / price * 100) if sl and price else 0.0
+                risk = abs(price - sl) * p.get("quantity", 0) if sl and price else 0.0
+                lines.append(
+                    f"  {sym} {side} notional ${notional:.0f} "
+                    f"SL mesafe %{sl_dist:.1f} risk ${risk:.2f}"
+                )
+            if total_notional > 0:
+                eq = auto_trader.equity or 1
+                lines.append(f"Toplam notional: ${total_notional:.2f} "
+                             f"(%{total_notional / eq * 100:.0f} equity)")
+        return "\n".join(lines)
     if cmd.startswith("/gecmis") or cmd.startswith("/history"):
         if not auto_trader:
             return "ATOS X: motor calismiyor"
