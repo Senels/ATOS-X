@@ -87,6 +87,23 @@ tr:hover { background:rgba(59,130,246,0.05); }
 </div>
 </div>
 <script>
+const _atosFetch = window.fetch.bind(window);
+window.fetch = function(url, opts) {
+  opts = opts || {};
+  if (String(url).indexOf('/api/v1') === -1) return _atosFetch(url, opts);
+  const key = localStorage.getItem('atos_api_key');
+  if (key) opts.headers = Object.assign({}, opts.headers || {}, {'X-API-Key': key});
+  return _atosFetch(url, opts).then(resp => {
+    if (resp.status === 401 && !window.__atosPrompted) {
+      window.__atosPrompted = true;
+      localStorage.removeItem('atos_api_key');
+      const k = window.prompt('ATOS X API anahtari (X-API-Key):');
+      window.__atosPrompted = false;
+      if (k) { localStorage.setItem('atos_api_key', k); window.location.reload(); }
+    }
+    return resp;
+  });
+};
 const GRID_KEYS = ['rangefilt_length','range_filt_mult','signal_expiry','rr_ratio','sl_lookback'];
 async function loadMeta() {
 try {
