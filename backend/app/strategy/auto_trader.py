@@ -656,7 +656,12 @@ class AutoTrader:
                     await self.telegram.send_signal(symbol, side, price, reason, sl=sl, tp=tp, strength=strength)
                 if not self.paper:
                     position_side = "LONG" if side == "BUY" else "SHORT"
-                    algo = await self.binance.set_tp_sl(symbol, position_side, sl, tp)
+                    if strat_settings.get_settings().get("active_strategy") == "ttp":
+                        # TTPTSL: TP cikisini strateji yonetir (kismi TP icin tam
+                        # pozisyon TP emri yerine SL koruma emri konur).
+                        algo = await self.binance.set_tp_sl(symbol, position_side, sl, 0.0)
+                    else:
+                        algo = await self.binance.set_tp_sl(symbol, position_side, sl, tp)
                     self.active_positions[symbol]["sl_order_id"] = algo.get("sl")
                     self.active_positions[symbol]["tp_order_id"] = algo.get("tp")
                 logger.success(f"Pozisyon acildi: {symbol} {side} {qty:.4f} @ {price}")
@@ -879,10 +884,11 @@ class AutoTrader:
             for symbol, pos in list(self.active_positions.items()):
                 if symbol in exchange_symbols:
                     info = algo_map.get(symbol, {})
+                    ttp = strat_settings.get_settings().get("active_strategy") == "ttp"
                     missing = []
                     if pos.get("sl") and info.get("sl_id") is None:
                         missing.append("SL")
-                    if pos.get("tp") and info.get("tp_id") is None:
+                    if not ttp and pos.get("tp") and info.get("tp_id") is None:
                         missing.append("TP")
                     if missing:
                         await self._repair_protection(symbol, pos, missing)
@@ -899,9 +905,10 @@ class AutoTrader:
                 if symbol in self.active_positions:
                     continue
                 info = algo_map.get(symbol, {})
-                if info.get("sl_id") is None and info.get("tp_id") is None:
+                ttp = strat_settings.get_settings().get("active_strategy") == "ttp"
+                if info.get("sl_id") is None and (not ttp or info.get("tp_id") is None):
                     logger.warning(
-                        f"{symbol}: borsada pozisyon var ama SL/TP emri yok; "
+                        f"{symbol}: borsada pozisyon var ama {'SL' if ttp else 'SL/TP'} emri yok; "
                         f"takip disi birakildi (acik kaldigindan emin olun)"
                     )
                     if self.telegram:
@@ -1366,8 +1373,9 @@ class AutoTrader:
             else:
                 new_sl = res.get("sl")
                 new_tp = res.get("tp")
+                old_sl = float(pos.get("sl") or 0)
                 changed = False
-                if new_sl is not None and float(new_sl) > 0 and float(new_sl) != float(pos.get("sl") or 0):
+                if new_sl is not None and float(new_sl) > 0 and float(new_sl) != old_sl:
                     pos["sl"] = float(new_sl)
                     changed = True
                 if new_tp is not None and float(new_tp) > 0 and float(new_tp) != float(pos.get("tp") or 0):
@@ -1377,6 +1385,22 @@ class AutoTrader:
                     logger.info(
                         f"{symbol}: TTPTSL SL/TP guncellendi -> sl {pos['sl']:.6f}, tp {pos['tp']:.6f}"
                     )
+                    if (not self.paper and pos.get("sl_order_id")
+                            and float(new_sl or 0) > 0
+                            and float(new_sl or 0) != old_sl):
+                        try:
+                            await self.binance.cancel_algo_order(symbol, pos["sl_order_id"])
+                            algo = await self.binance.set_tp_sl(
+                                symbol, "LONG" if pos["side"] == "BUY" else "SHORT",
+                                float(pos["sl"]), 0.0,
+                            )
+                            if algo.get("sl"):
+                                pos["sl_order_id"] = algo["sl"]
+                                logger.info(
+                                    f"{symbol}: TTPTSL SL borsaya tasindi -> sl {pos['sl']:.6f}"
+                                )
+                        except Exception as e:
+                            logger.error(f"{symbol}: TTPTSL SL borsa guncelleme hatasi: {e}")
                 if current_price and pos.get("sl") and pos["side"] == "BUY" and current_price <= float(pos["sl"]):
                     await self.close_position(symbol, float(pos["sl"]), "stop_loss")
                 elif current_price and pos.get("sl") and pos["side"] == "SELL" and current_price >= float(pos["sl"]):
@@ -1396,6 +1420,15 @@ class AutoTrader:
         if exit_qty >= full_qty - 1e-12:
             await self.close_position(symbol, exit_price, reason)
             return
+        if not self.paper:
+            try:
+                close_side = "SELL" if pos["side"] == "BUY" else "BUY"
+                await self.binance.place_market_order(
+                    symbol, close_side, exit_qty, reduce_only=True
+                )
+            except Exception as e:
+                logger.error(f"{symbol}: kismi kapanis emri gonderilemedi: {e}")
+                return
         pnl = (exit_price - float(pos["entry_price"])) * exit_qty \
             if pos["side"] == "BUY" \
             else (float(pos["entry_price"]) - exit_price) * exit_qty

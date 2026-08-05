@@ -61,8 +61,8 @@ class FakeBinance:
     async def get_price(self, symbol="BTCUSDT"):
         return 65000.0
 
-    async def place_market_order(self, symbol, side, quantity):
-        self.open_calls.append((symbol, side, quantity))
+    async def place_market_order(self, symbol, side, quantity, reduce_only=False):
+        self.open_calls.append((symbol, side, quantity, reduce_only))
         return {"symbol": symbol, "side": side, "quantity": quantity}
 
     async def close_position(self, symbol):
@@ -75,7 +75,7 @@ class FakeBinance:
         self.tp_sl_calls.append((symbol, position_side, sl_price, tp_price))
         if self.fail_tp_sl:
             return {"sl": None, "tp": None}
-        return {"sl": "SL_1", "tp": "TP_1"}
+        return {"sl": "SL_1" if sl_price else None, "tp": "TP_1" if tp_price else None}
 
     async def cancel_algo_order(self, symbol, algo_id):
         self.cancel_calls.append((symbol, algo_id))
@@ -88,6 +88,19 @@ class FakeBinance:
 
     async def get_open_algo_orders(self):
         return self.algo_orders
+
+
+def _kframe(closes):
+    """Canli get_klines gibi tz-aware UTC indexli OHLCV frame."""
+    closes = [float(c) for c in closes]
+    highs = [c * 1.005 for c in closes]
+    lows = [c * 0.995 for c in closes]
+    opens = [closes[i - 1] if i else closes[i] for i in range(len(closes))]
+    idx = pd.date_range("2026-01-01", periods=len(closes), freq="4h", tz="UTC")
+    return pd.DataFrame({
+        "open": opens, "high": highs, "low": lows, "close": closes,
+        "volume": [1000.0] * len(closes),
+    }, index=idx)
 
 
 @pytest.fixture
@@ -449,6 +462,92 @@ async def test_reconcile_restores_ttp_state(trader):
     assert pos["restored"] is True
     assert pos["entry_ts"] == "2026-08-05 12:00:00"
     assert pos["ttp_tp_hit"] is True
+
+
+_TTP_P = {
+    "fast_ma_len": 3, "slow_ma_len": 5, "atr_len": 3,
+    "sl_method": "perc", "sl_long_perc": 0.06, "sl_short_perc": 0.05,
+    "tp_method": "perc", "tp_long_perc": 0.09, "tp_short_perc": 0.08,
+    "sl_trail_mode": "ON", "be_enabled": True, "tp_qty_pct": 0.5,
+    "tp_trail_enabled": False, "dist_method": "perc",
+    "dist_perc": 0.0284, "dist_atr_mul": 3.4,
+}
+
+
+async def test_ttp_open_places_sl_only_order(trader):
+    tr, fb, db = trader
+    prev = strat_settings.get_settings()
+    strat_settings.update_settings({"active_strategy": "ttp"})
+    try:
+        await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
+        assert ("BTCUSDT", "LONG", 63000.0, 0.0) in fb.tp_sl_calls
+        pos = tr.active_positions["BTCUSDT"]
+        assert pos["sl_order_id"] == "SL_1"
+        assert pos["tp_order_id"] is None
+    finally:
+        strat_settings.update_settings(prev)
+
+
+async def test_ttp_manage_moves_exchange_sl(trader):
+    tr, fb, db = trader
+    prev = strat_settings.get_settings()
+    strat_settings.update_settings({"active_strategy": "ttp", "ttp": _TTP_P})
+    try:
+        df = _kframe([100.0] * 30 + [130.0, 138.0, 138.0, 138.0])
+        fb.klines = df
+        await tr.open_position("BTCUSDT", "BUY", 130.0, 130.0 * 0.94, 130.0 * 1.09,
+                               entry_ts=str(df.index[30]))
+        await tr.check_positions({})
+        pos = tr.active_positions["BTCUSDT"]
+        assert pos["sl"] > 130.0 * 0.94
+        assert ("BTCUSDT", "LONG", pos["sl"], 0.0) in fb.tp_sl_calls
+        assert ("BTCUSDT", "SL_1") in fb.cancel_calls
+    finally:
+        strat_settings.update_settings(prev)
+
+
+async def test_ttp_partial_close_submits_reduce_order(trader):
+    tr, fb, db = trader
+    prev = strat_settings.get_settings()
+    p = dict(_TTP_P, sl_trail_mode="TP", tp_qty_pct=0.5, be_enabled=True)
+    strat_settings.update_settings({"active_strategy": "ttp", "ttp": p})
+    try:
+        df = _kframe([100.0] * 20 + [195.0, 215.0, 215.0, 215.0, 215.0] + [120.0] * 10)
+        fb.klines = df
+        await tr.open_position("BTCUSDT", "BUY", 195.0, 195.0 * 0.94, 195.0 * 1.09,
+                               entry_ts=str(df.index[20]))
+        qty0 = tr.active_positions["BTCUSDT"]["quantity"]
+        await tr.check_positions({})
+        pos = tr.active_positions.get("BTCUSDT")
+        assert pos is not None
+        assert pos["ttp_tp_hit"] is True
+        reduces = [c for c in fb.open_calls if c[3] is True]
+        assert reduces and reduces[0][1] == "SELL" and reduces[0][2] == pytest.approx(qty0 * 0.5)
+        assert pos["quantity"] == pytest.approx(qty0 * 0.5)
+    finally:
+        strat_settings.update_settings(prev)
+
+
+async def test_reconcile_does_not_require_tp_for_ttp(trader):
+    tr, fb, db = trader
+    prev = strat_settings.get_settings()
+    strat_settings.update_settings({"active_strategy": "ttp"})
+    try:
+        tg = FakeTelegram()
+        tr.telegram = tg
+        db.save_trade("BTCUSDT", "BUY", 65000.0, 0.5)
+        fb.open_positions = [
+            {"symbol": "BTCUSDT", "positionAmt": "0.5", "entryPrice": "65000.0"},
+        ]
+        fb.algo_orders = [
+            {"symbol": "BTCUSDT", "orderType": "STOP_MARKET", "algoId": 111, "triggerPrice": "63000"},
+        ]
+        await tr.reconcile_positions()
+        assert "BTCUSDT" in tr.active_positions
+        assert tg.sent == []
+        assert tr.active_positions["BTCUSDT"]["sl_order_id"] == 111
+    finally:
+        strat_settings.update_settings(prev)
 
 
 async def test_db_open_trade_entry_time_none_when_closed(trader):

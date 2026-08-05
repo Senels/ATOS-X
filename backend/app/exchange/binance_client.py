@@ -161,7 +161,8 @@ class BinanceClient:
         df = df.set_index("datetime")
         return df[["open", "high", "low", "close", "volume"]]
 
-    async def place_market_order(self, symbol: str, side: str, quantity: float):
+    async def place_market_order(self, symbol: str, side: str, quantity: float,
+                                 reduce_only: bool = False):
         if not self.client:
             await self.connect()
         try:
@@ -169,6 +170,7 @@ class BinanceClient:
                 self.client.futures_create_order,
                 symbol=symbol, side=side.upper(), type='MARKET',
                 quantity=self._qty_str(symbol, quantity),
+                reduceOnly=reduce_only,
             )
         except Exception as e:
             raise Exception(f"Emir gonderilemedi: {e}")
