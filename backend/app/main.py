@@ -322,6 +322,7 @@ def _telegram_command(text: str):
                 "/son - son kapanan islem detayi\n"
                 "/islem - bugunun kapanan islemleri\n"
                 "/bekleyen - bekleyen TP/SL emirleri\n"
+                "/bakiye - bakiye + pozisyon ozeti\n"
                 "/ayarla - tum ayarlari ozet goruntusu\n"
                 "/yardim - bu liste")
     if cmd.startswith("/blok"):
@@ -950,6 +951,27 @@ def _telegram_command(text: str):
             await telegram.send("\n".join(lines))
         _run_later(_fetch_orders())
         return "ATOS X: bekleyen emirler sorgulanıyor"
+    if cmd.startswith("/bakiye"):
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        pos = auto_trader.active_positions
+        upnl = _positions_payload()['total_upnl']
+        total_eq = auto_trader.equity + upnl
+        long_n = sum(1 for p in pos.values() if p.get("side") == "BUY")
+        short_n = len(pos) - long_n
+        lines = [
+            f"ATOS X bakiye:",
+            f"Equity: ${auto_trader.equity:.2f}",
+            f"Gerceklesmemis: {upnl:+.2f}",
+            f"Toplam: ${total_eq:.2f}",
+            f"Pozisyon: {len(pos)} (L:{long_n} S:{short_n})",
+        ]
+        if auto_trader.day_pnl != 0:
+            sign = "+" if auto_trader.day_pnl >= 0 else ""
+            lines.append(f"Gunluk PnL: {sign}{auto_trader.day_pnl:.2f}")
+        if auto_trader.drawdown_pct > 0:
+            lines.append(f"Drawdown: %{auto_trader.drawdown_pct:.1f}")
+        return "\n".join(lines)
     if cmd.startswith("/ayarla"):
         s = strat_settings.get_settings()
         lines = [
