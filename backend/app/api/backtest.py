@@ -128,7 +128,8 @@ async def run_backtest(
         min_signal_strength=min_signal_strength if min_signal_strength is not None else engine_cfg.get("min_signal_strength", 0.0),
     )
     bot = get_strategy(settings)
-    result = bot.analyze(df)
+    analyze = getattr(bot, "analyze_full", None)
+    result = analyze(df) if analyze else bot.analyze(df)
     metrics = engine.run(df, result["orders"], interval)
 
     # Sonucu DB'ye kaydet (equity_curve/trades buyuk oldugu icin saklanmaz)

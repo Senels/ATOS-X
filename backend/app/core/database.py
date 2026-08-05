@@ -171,6 +171,17 @@ class Database:
         conn.close()
         return row[0] if row and row[0] else None
 
+    def reduce_trade_quantity(self, symbol: str, new_qty: float):
+        """Acik pozisyonun miktarini gunceller (kismi kapanis sonrasi)."""
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            "UPDATE trades SET quantity = ? WHERE id = ("
+            "SELECT id FROM trades WHERE symbol = ? AND status = 'OPEN' "
+            "ORDER BY id DESC LIMIT 1)", (float(new_qty), symbol)
+        )
+        conn.commit()
+        conn.close()
+
     def update_trade_protection(self, symbol: str, trailing: bool | None = None,
                                 breakeven: bool | None = None):
         """Acik pozisyonun trailing/breakeven bayraklarini DB'de gunceller."""

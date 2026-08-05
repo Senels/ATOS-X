@@ -436,6 +436,7 @@ class AutoTrader:
                             "sl": signal["sl"],
                             "tp": signal["tp"],
                             "reason": signal.get("reason", ""),
+                            "entry_ts": str(klines.index[-1]),
                         }
                         if decision:
                             entry["council_confidence"] = decision["confidence"]
@@ -540,6 +541,7 @@ class AutoTrader:
                     symbol, signal["signal"], signal["price"],
                     signal["sl"], signal["tp"], signal.get("reason"),
                     float(signal.get("strength", 0.0) or 0.0),
+                    entry_ts=signal.get("entry_ts"),
                 )
 
     def _apply_risk_settings(self, s: dict):
@@ -613,7 +615,7 @@ class AutoTrader:
             return {"symbol": symbol, "paper": True}
         return await self.binance.close_position(symbol)
 
-    async def open_position(self, symbol: str, side: str, price: float, sl: float, tp: float, reason: str = "", strength: float = 0.0):
+    async def open_position(self, symbol: str, side: str, price: float, sl: float, tp: float, reason: str = "", strength: float = 0.0, entry_ts=None):
         try:
             side = "BUY" if side == "BUY" else "SELL"
             sizing = self.engine.position_size(price, sl, self.equity)
@@ -644,6 +646,8 @@ class AutoTrader:
                     "tp": tp,
                     "entry_fee": float(sizing["entry_fee"]),
                     "open_time": datetime.utcnow().isoformat(),
+                    "entry_ts": str(entry_ts) if entry_ts else None,
+                    "ttp_tp_hit": False,
                 }
                 self.db.save_trade(symbol, side, price, qty)
                 self.db.save_signal(symbol, side, price, 0.0, reason or "auto")
@@ -1269,6 +1273,9 @@ class AutoTrader:
         return last or pos.get("tp") or pos.get("sl") or pos["entry_price"], "exchange_closed"
 
     async def check_positions(self, prices):
+        if strat_settings.get_settings().get("active_strategy") == "ttp":
+            await self._ttp_manage_positions(prices)
+            return
         now = datetime.utcnow()
         for symbol, pos in list(self.active_positions.items()):
             if self.max_position_age_hours > 0:
@@ -1304,6 +1311,119 @@ class AutoTrader:
                 await self.close_position(symbol, tp, "take_profit")
             elif tp and side == "SELL" and current_price <= tp:
                 await self.close_position(symbol, tp, "take_profit")
+
+    async def _ttp_manage_positions(self, prices):
+        """TTPTSL pozisyon yonetimi: stratejinin durum makinesine gore SL/TP.
+
+        Her taramada pozisyon sembolunun guncel 4h kline'lari cekilir ve
+        `TtpTsl.manage` giristen itibaren durum makinesini calistirir; cikis
+        direktifine (sl / tp_partial / trail_tp / reversal) gore pozisyon
+        kapatilir veya kismi TP uygulanir. Pozisyon aktifken SL/TP stratejinin
+        tasidigi degerlerle tazelenir (genel v23 trailing/breakeven uygulanmaz).
+        """
+        from app.strategy.ttp import TtpTsl
+        bot = get_strategy(strat_settings.get_settings())
+        if not isinstance(bot, TtpTsl):
+            return
+        for symbol, pos in list(self.active_positions.items()):
+            try:
+                current_price = self.live_prices.get(symbol) or prices.get(symbol)
+                klines = await self.binance.get_klines(symbol, "4h", 400)
+                if klines is None or len(klines) < 30:
+                    continue
+                res = bot.manage(
+                    klines,
+                    pos.get("entry_ts") or pos.get("open_time"),
+                    float(pos["entry_price"]), pos["side"],
+                    float(pos["quantity"]),
+                    tp_already_hit=bool(pos.get("ttp_tp_hit")),
+                )
+            except Exception as e:
+                logger.error(f"{symbol}: TTPTSL pozisyon yonetimi hatasi: {e}")
+                continue
+
+            ex = res.get("exit") or ""
+            ep = res.get("exit_price")
+            qfrac = float(res.get("exit_qty_pct") or 0.0)
+            if not res.get("active") and not ex:
+                ex, qfrac = "reversal", 1.0
+
+            if ex == "sl":
+                await self.close_position(symbol, float(ep if ep is not None else current_price), "stop_loss")
+            elif ex == "tp_partial":
+                if qfrac >= 1.0 - 1e-9:
+                    await self.close_position(symbol, float(ep if ep is not None else pos["tp"]), "take_profit")
+                elif ep is not None:
+                    await self._close_portion(symbol, float(ep), float(pos["quantity"]) * qfrac, "take_profit")
+            elif ex == "trail_tp":
+                await self.close_position(symbol, float(ep if ep is not None else current_price), "trail_tp")
+            elif ex == "reversal":
+                await self.close_position(symbol, float(ep if ep is not None else current_price), "reversal")
+            else:
+                new_sl = res.get("sl")
+                new_tp = res.get("tp")
+                changed = False
+                if new_sl is not None and float(new_sl) > 0 and float(new_sl) != float(pos.get("sl") or 0):
+                    pos["sl"] = float(new_sl)
+                    changed = True
+                if new_tp is not None and float(new_tp) > 0 and float(new_tp) != float(pos.get("tp") or 0):
+                    pos["tp"] = float(new_tp)
+                    changed = True
+                if changed:
+                    logger.info(
+                        f"{symbol}: TTPTSL SL/TP guncellendi -> sl {pos['sl']:.6f}, tp {pos['tp']:.6f}"
+                    )
+                if current_price and pos.get("sl") and pos["side"] == "BUY" and current_price <= float(pos["sl"]):
+                    await self.close_position(symbol, float(pos["sl"]), "stop_loss")
+                elif current_price and pos.get("sl") and pos["side"] == "SELL" and current_price >= float(pos["sl"]):
+                    await self.close_position(symbol, float(pos["sl"]), "stop_loss")
+                elif current_price and pos.get("tp") and pos["side"] == "BUY" and current_price >= float(pos["tp"]):
+                    await self.close_position(symbol, float(pos["tp"]), "take_profit")
+                elif current_price and pos.get("tp") and pos["side"] == "SELL" and current_price <= float(pos["tp"]):
+                    await self.close_position(symbol, float(pos["tp"]), "take_profit")
+
+    async def _close_portion(self, symbol: str, exit_price: float, exit_qty: float, reason: str):
+        """Pozisyonun `exit_qty` kadarlik kismini kapatir; kalan miktar durur."""
+        pos = self.active_positions.get(symbol)
+        if not pos or exit_qty <= 0:
+            return
+        full_qty = float(pos["quantity"])
+        exit_qty = min(exit_qty, full_qty)
+        if exit_qty >= full_qty - 1e-12:
+            await self.close_position(symbol, exit_price, reason)
+            return
+        pnl = (exit_price - float(pos["entry_price"])) * exit_qty \
+            if pos["side"] == "BUY" \
+            else (float(pos["entry_price"]) - exit_price) * exit_qty
+        exit_fee = exit_price * exit_qty * self.engine.fee_rate
+        entry_fee_part = float(pos.get("entry_fee", 0.0)) * (exit_qty / full_qty)
+        net = pnl - exit_fee - entry_fee_part
+        self.equity += pnl - exit_fee
+        pos["quantity"] = full_qty - exit_qty
+        pos["entry_fee"] = float(pos.get("entry_fee", 0.0)) - entry_fee_part
+        pos["ttp_tp_hit"] = True
+        self.trade_history.append({
+            "symbol": symbol,
+            "side": pos["side"],
+            "entry": pos["entry_price"],
+            "exit": exit_price,
+            "qty": exit_qty,
+            "pnl": net,
+            "reason": reason,
+            "trailing": bool(pos.get("trailing")),
+            "breakeven": bool(pos.get("breakeven")),
+            "time": datetime.utcnow().isoformat(),
+        })
+        try:
+            self.db.reduce_trade_quantity(symbol, pos["quantity"])
+        except Exception as e:
+            logger.warning(f"{symbol}: kismi kapanis DB guncellenemedi: {e}")
+        await self._update_consecutive_losses()
+        await self._update_daily_pnl(net)
+        self._persist_risk_state()
+        logger.success(
+            f"{symbol}: kismi {reason} {exit_qty:.4f} @ {exit_price} (kalan {pos['quantity']:.4f})"
+        )
 
     async def _check_breakeven(self, symbol: str, pos: dict, side: str, price: float):
         """Kar esigini asan pozisyonun SL'sini giris fiyatina tasir (zararsiz).

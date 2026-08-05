@@ -110,6 +110,15 @@ class BacktestEngine:
         tp_arr = orders["tp"].to_numpy(float)
         strength_arr = orders["strength"].to_numpy(float) \
             if "strength" in orders.columns else np.full(len(df), np.inf)
+        # Strateji-yonetimli mod: orders "exit" kolonu iceriyorsa SL/TP ve
+        # cikis direktiflerini her bar icin strateji belirler (v23 yolu
+        # degismez).
+        managed = "exit" in orders.columns
+        exit_arr = orders["exit"].to_numpy() if managed else None
+        exit_qty_arr = orders["exit_qty_pct"].to_numpy(float) \
+            if managed and "exit_qty_pct" in orders.columns else None
+        exit_price_arr = orders["exit_price"].to_numpy(float) \
+            if managed and "exit_price" in orders.columns else None
 
         n = len(df)
         self.equity = self.initial_equity
@@ -158,29 +167,60 @@ class BacktestEngine:
             if pos is not None:
                 bars_in_pos += 1
                 side = pos["side"]
-                if side == 1:
-                    if l[i] <= pos["sl"]:
-                        self._close(pos, pos["sl"], "stop_loss", i, trades)
-                        pos = None
-                    elif h[i] >= pos["tp"]:
-                        self._close(pos, pos["tp"], "take_profit", i, trades)
-                        pos = None
+                if managed and exit_arr is not None:
+                    # Strateji-yonetimli: per-bar SL/TP + cikis direktifleri
+                    sl_i = sl_arr[i]
+                    tp_i = tp_arr[i]
+                    if np.isfinite(sl_i):
+                        pos["sl"] = float(sl_i)
+                    if np.isfinite(tp_i):
+                        pos["tp"] = float(tp_i)
+                    ex = exit_arr[i]
+                    if ex and str(ex):
+                        ep = float(exit_price_arr[i]) if (exit_price_arr is not None
+                                                          and np.isfinite(exit_price_arr[i])) else None
+                        qfrac = float(exit_qty_arr[i]) if exit_qty_arr is not None else 1.0
+                        if ex == "sl":
+                            self._close(pos, ep if ep is not None else pos["sl"], "stop_loss", i, trades)
+                            pos = None
+                        elif ex == "reversal":
+                            self._close(pos, ep if ep is not None else c[i], "reversal", i, trades)
+                            pos = None
+                        elif ex == "trail_tp":
+                            self._close(pos, ep if ep is not None else c[i], "trail_tp", i, trades)
+                            pos = None
+                        elif ex == "tp_partial":
+                            if qfrac >= 1.0 - 1e-9:
+                                self._close(pos, ep if ep is not None else pos["tp"], "take_profit", i, trades)
+                                pos = None
+                            else:
+                                self._partial_close(pos, ep if ep is not None else pos["tp"],
+                                                    qfrac, "take_profit", i, trades)
                 else:
-                    if h[i] >= pos["sl"]:
-                        self._close(pos, pos["sl"], "stop_loss", i, trades)
-                        pos = None
-                    elif l[i] <= pos["tp"]:
-                        self._close(pos, pos["tp"], "take_profit", i, trades)
-                        pos = None
+                    # Miras statik SL/TP yolu
+                    if side == 1:
+                        if l[i] <= pos["sl"]:
+                            self._close(pos, pos["sl"], "stop_loss", i, trades)
+                            pos = None
+                        elif h[i] >= pos["tp"]:
+                            self._close(pos, pos["tp"], "take_profit", i, trades)
+                            pos = None
+                    else:
+                        if h[i] >= pos["sl"]:
+                            self._close(pos, pos["sl"], "stop_loss", i, trades)
+                            pos = None
+                        elif l[i] <= pos["tp"]:
+                            self._close(pos, pos["tp"], "take_profit", i, trades)
+                            pos = None
 
             # 2b) Time-stop: max acik kalma suresi asilinca kapat
-            if pos is not None and self.max_position_age_hours > 0:
+            if pos is not None and not managed and self.max_position_age_hours > 0:
                 if (i - pos["entry_bar"]) * hours_per_bar >= self.max_position_age_hours:
                     self._close(pos, c[i], "time_stop", i, trades)
                     pos = None
 
-            # 2c) Breakeven + trailing SL (koruma bir sonraki bardan gecerli)
-            if pos is not None:
+            # 2c) Breakeven + trailing SL (strateji-yonetimli modda strateji yapar)
+            if pos is not None and not managed:
                 self._apply_intra_risk(pos, c[i], h[i], l[i])
 
             # 3) Equity egrisi (acik pozisyonun gerceklesmemis PnL'i ile)
@@ -248,6 +288,22 @@ class BacktestEngine:
         self.equity += pnl - exit_fee
         self.consec = self.consec + 1 if net < 0 else 0
         trades.append(self._trade_record(pos, exit_px, net, reason, bar))
+
+    def _partial_close(self, pos: Dict[str, Any], exit_px: float, frac: float, reason: str,
+                       bar: int, trades: List[Dict[str, Any]]) -> None:
+        """Pozisyonun `frac` oranindaki kismini kapatir; kalan pozisyonda kalir."""
+        exit_qty = pos["qty"] * frac
+        side = pos["side"]
+        pnl = (exit_px - pos["entry"]) * exit_qty * side
+        exit_fee = exit_px * exit_qty * self.fee_rate
+        entry_fee_part = pos["entry_fee"] * frac
+        net = pnl - exit_fee - entry_fee_part
+        self.equity += pnl - exit_fee
+        self.consec = self.consec + 1 if net < 0 else 0
+        rec = dict(pos, qty=exit_qty)
+        trades.append(self._trade_record(rec, exit_px, net, reason, bar))
+        pos["qty"] -= exit_qty
+        pos["entry_fee"] -= entry_fee_part
 
     def _gap_trade(self, side: int, px: float, sl: float, tp: float, reason: str,
                    bar: int, trades: List[Dict[str, Any]]) -> None:

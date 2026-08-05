@@ -20,3 +20,4 @@ backend/.env
 
 *.db
 opencode-memory.md
+backend/app/strategy/settings.json

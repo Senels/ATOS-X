@@ -14,6 +14,16 @@
 | 8 | Decision Council | çoklu sinyal oylaması, açıklanabilir karar | ✅ |
 | 9 | Governor | risk limitleri, konsantrasyon engelleri, koruma tamiri | ✅ |
 | 10 | Trading | emir yönetimi, TP/SL/trailing, portföy senkronu | ✅ |
+| 11 | TTPTSL Motor | optimize_ttp.py durum makinesi → TtpTsl (analyze_full/manage) + engine managed yol + canlı pozisyon yönetimi | ✅ |
+
+> Not: Sprint 11, `optimize_ttp.py run_backtest`'in tam state machine'ini
+> (sl_trail_mode, tp_qty_pct kısmi TP, breakeven, reversal, trailing TP)
+> `TtpTsl`'e taşıdı: `analyze_full` (backtest/optimizasyon sözleşmesi) ve
+> `manage` (canlı pozisyon yönetimi, `tp_already_hit` ile kısmi TP tekrarını
+> önler). `BacktestEngine.run` managed modda per-bar SL/TP + çıkış direktiflerini
+> uygular (`_partial_close` dahil); v23 yolu değişmez. `AutoTrader` ttp modunda
+> pozisyonları `manage` ile yönetir (kısmi kapanış, trailing/breakeven SL, SL/TP
+> tazeleme). Detaylar `.opencode/plans/ttp_live_management_plan.md`'de.
 
 > Not: Tüm sprintler tamamlandı. Operasyon katmanı eklendi: Telegram
 > komutları (`/sl /tp /koruma /kapat /kapatall /sinyal /rapor /risk /gecmis
