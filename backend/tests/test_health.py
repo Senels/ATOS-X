@@ -514,6 +514,7 @@ def test_live_signals_endpoint():
     assert body["count"] == 2
     assert {s["symbol"] for s in body["signals"]} == {"BTCUSDT", "ETHUSDT"}
     assert all(s["signal"] in ("BUY", "SELL", "HOLD") for s in body["signals"])
+    assert all(0.0 <= s.get("strength", 0.0) <= 1.0 for s in body["signals"])
     assert body["scanned"] == ["BTCUSDT", "ETHUSDT"]
     assert fake_klines.calls == [("BTCUSDT", "4h", 400), ("ETHUSDT", "4h", 400)]
 
@@ -547,6 +548,16 @@ def test_dashboard_has_live_signals_card():
     resp = client.get("/dashboard/html")
     assert resp.status_code == 200
     assert "Live Signals" in resp.text
+    client.close()
+
+
+def test_dashboard_signals_show_strength_column():
+    client = TestClient(app)
+    resp = client.get("/dashboard/html")
+    assert resp.status_code == 200
+    assert "Guc" in resp.text
+    assert "s.strength" in resp.text
+    assert "badge-buy" in resp.text
     client.close()
 
 
