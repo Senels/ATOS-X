@@ -165,6 +165,34 @@ def test_ttp_analyze_full_parity_real_multi_symbol(symbol):
     assert replay["gross_loss_pct"] == pytest.approx(ref["gross_loss_pct"], rel=1e-9)
 
 
+def test_ttp_analyze_full_parity_full_archive():
+    """Tum arsivde (>=120 bar) optimizer ile birebir (arsiv yoksa skip)."""
+    from app.data import loader
+
+    data_dir = loader.DEFAULT_DATA_DIR / "futures_4h_data"
+    files = sorted(data_dir.glob("*_4h.csv")) if data_dir.exists() else []
+    if not files:
+        pytest.skip("futures_4h_data arsivi yok")
+    bot = TtpTsl()
+    params = bot._params()
+    ot = _load_ot()
+    checked = 0
+    for f in files:
+        symbol = f.stem.replace("_4h", "")
+        df = loader.load_csv(symbol, "4h")
+        if len(df) < 120:
+            continue
+        replay = _replay(bot.analyze_full(df)["orders"], df)
+        ref = ot.run_backtest(df, params)
+        assert replay["trades"] == ref["trades"], symbol
+        assert replay["wins"] == ref["wins"], symbol
+        assert replay["net_profit_pct"] == pytest.approx(ref["net_profit_pct"], rel=1e-9), symbol
+        assert replay["gross_profit_pct"] == pytest.approx(ref["gross_profit_pct"], rel=1e-9), symbol
+        assert replay["gross_loss_pct"] == pytest.approx(ref["gross_loss_pct"], rel=1e-9), symbol
+        checked += 1
+    assert checked > 0, "arsivde >=120 bar sembol yok"
+
+
 @pytest.mark.parametrize("series", [
     [100.0] * 10 + [195.0, 215.0, 215.0, 215.0, 215.0] + [120.0] * 10,
     [100.0] * 12 + [90.0] * 6 + [130.0] * 6 + [80.0] * 8,
