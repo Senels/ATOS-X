@@ -390,7 +390,7 @@ def test_format_daily_summary_has_pf_and_best_symbol():
     assert "Profit Factor: 3.33" in msg
     assert "En iyi sembol: BTCUSDT +200.00" in msg
     assert "Win Rate: 50.0%" in msg
-    assert "Gunluk PnL: <b>+140.00</b>" in msg
+    assert "Toplam PnL: <b>+140.00</b>" in msg
     assert "Semboller: BTCUSDT +200.00, ETHUSDT -60.00" in msg
 
 

@@ -73,11 +73,11 @@ class TelegramNotifier:
                                  marks=None, risk_events=None, loss_halted=False,
                                  daily_loss_halted=False, equity_halted=False,
                                  day_pnl=None, drawdown_pct=None, worst_sym=None,
-                                 data_status=None, protection_stats=None):
+                                 data_status=None, protection_stats=None, days=1):
         await self.send(format_daily_summary(
             trades, equity, open_positions, top_symbols, marks, risk_events,
             loss_halted, daily_loss_halted, equity_halted, day_pnl,
-            drawdown_pct, worst_sym, data_status, protection_stats,
+            drawdown_pct, worst_sym, data_status, protection_stats, days,
         ))
 
     async def send_stop_summary(self, closed):
@@ -149,7 +149,7 @@ def format_daily_summary(trades, equity, open_positions, top_symbols=None,
                          marks=None, risk_events=None, loss_halted=False,
                          daily_loss_halted=False, equity_halted=False,
                          day_pnl=None, drawdown_pct=None, worst_sym=None,
-                         data_status=None, protection_stats=None) -> str:
+                         data_status=None, protection_stats=None, days=1) -> str:
     """Gunluk ozet rapor metnini kurar. trades satirlari DB trades kolonlaridir."""
     closed = [t for t in trades if t[6] is not None]
     wins = sum(1 for t in closed if t[6] > 0)
@@ -176,13 +176,14 @@ def format_daily_summary(trades, equity, open_positions, top_symbols=None,
             else:
                 upnl += (pos["entry_price"] - mark) * pos["quantity"]
 
-    msg = "📊 <b>ATOS X Gunluk Ozet</b>\n"
+    period = f"Son {days} Gun" if days > 1 else "Gunluk"
+    msg = f"📊 <b>ATOS X {period} Ozet</b>\n"
     msg += f"Equity: <b>${equity:.2f}</b>\n"
     msg += f"Kapanan islem: {len(closed)} ({wins}W/{losses}L)\n"
     msg += f"Win Rate: {win_rate:.1f}%\n"
     pf_str = "inf" if pf == float("inf") else f"{pf:.2f}"
     msg += f"Profit Factor: {pf_str}\n"
-    msg += f"Gunluk PnL: <b>{'+' if pnl >= 0 else ''}{pnl:.2f}</b>\n"
+    msg += f"Toplam PnL: <b>{'+' if pnl >= 0 else ''}{pnl:.2f}</b>\n"
     if day_pnl is not None:
         msg += f"Gunluk net (kapanan): {'+' if day_pnl >= 0 else ''}{day_pnl:.2f}\n"
     if open_positions and marks:

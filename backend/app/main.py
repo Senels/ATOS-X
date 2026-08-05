@@ -298,7 +298,7 @@ def _telegram_command(text: str):
                 "/sinyalall [N] - ilk N sembolun toplu tarama ozeti\n"
                 "/koruma [ANAHTAR] [DEGER] - risk ayarlarini gor/degistir\n"
                 "/ac - motoru yeniden baslatir\n"
-                "/rapor - gunluk rapor gonder\n"
+                "/rapor [GUN] - gunluk rapor (varsayilan: 1 gun)\n"
                 "/risk - risk durumu\n"
                 "/gecmis [N] [SEMBOL] - son N islem (sembol ile filtrelenir)\n"
                 "/istatistik - islem performansi ozeti\n"
@@ -590,7 +590,14 @@ def _telegram_command(text: str):
     if cmd.startswith("/rapor") or cmd.startswith("/report"):
         if not auto_trader:
             return "ATOS X: motor calismiyor"
-        trades = auto_trader.db.get_closed_trades_since(days=1)
+        parts = text.strip().split()
+        days = 1
+        if len(parts) > 1:
+            try:
+                days = max(1, min(int(parts[1]), 90))
+            except ValueError:
+                pass
+        trades = auto_trader.db.get_closed_trades_since(days=days)
         hist = auto_trader.trade_history
         protection_stats = {
             "trailing": sum(1 for t in hist if t.get("trailing")),
@@ -616,9 +623,10 @@ def _telegram_command(text: str):
                 drawdown_pct=auto_trader.drawdown_pct,
                 worst_sym=worst_sym,
                 data_status=_data_freshness(300),
-                protection_stats=protection_stats)):
+                protection_stats=protection_stats,
+                days=days)):
             return "ATOS X: komut arka planda calistirilamadi"
-        return "ATOS X: gunluk rapor gonderiliyor"
+        return f"ATOS X: {days} gunluk rapor gonderiliyor"
     if cmd.startswith("/risk"):
         if not auto_trader:
             return "ATOS X: motor calismiyor"
