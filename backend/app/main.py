@@ -271,19 +271,32 @@ def _alarm_list() -> str:
             lines.append(f"  {sym} {side_word} ${a['price']:g}")
     return "\n".join(lines)
 
+async def _notify_backup_failure(res: dict):
+    """Yedekleme hatasini Telegram'dan bildirir (bildirim hatasi sessiz gecilir)."""
+    try:
+        err = res.get("error", "bilinmeyen")
+        await telegram.send(f"ATOS X UYARI: DB yedekleme basarisiz ({err})")
+    except Exception as e:
+        logger.error(f"Yedekleme hata bildirimi gonderilemedi: {e}")
+
 async def _backup_loop():
-    """Periyodik DB yedeklemesi (her 6 saatte bir)."""
+    """Periyodik DB yedeklemesi (her 6 saatte bir); bloklamadan calisir."""
     while True:
         await asyncio.sleep(6 * 3600)
+        db = getattr(app.state, "db", None)
+        if not db:
+            continue
         try:
-            db = getattr(app.state, "db", None)
-            if not db:
-                continue
-            res = db.backup()
-            if res.get("ok"):
-                logger.info(f"DB yedeklendi: {res['path']} (tutulan: {res['kept']})")
+            res = await asyncio.to_thread(db.backup)
         except Exception as e:
             logger.error(f"DB yedekleme hatasi: {e}")
+            await _notify_backup_failure({"error": str(e)})
+            continue
+        if res.get("ok"):
+            logger.info(f"DB yedeklendi: {res['path']} (tutulan: {res['kept']})")
+        else:
+            logger.error(f"DB yedekleme hatasi: {res}")
+            await _notify_backup_failure(res)
 
 def _protected_count() -> int:
     """Exchange-side SL/TP ile korunan acik pozisyon sayisi."""
@@ -423,6 +436,8 @@ def _telegram_command(text: str):
                 "/alarm temizle - tum alarmlari sil\n"
                 "/ayarla - tum ayarlari ozet goruntusu\n"
                 "/yedek - DB yedegini aninda al\n"
+                "/yedekler - mevcut yedek listesi\n"
+                "/geriyukle <YEDEK> - yedekten geri yukler (motor duruken)\n"
                 "/yardim - bu liste")
     if cmd.startswith("/blok"):
         blocks = sorted(auto_trader._conc_blocks) if auto_trader else []
@@ -1269,14 +1284,47 @@ def _telegram_command(text: str):
             f"Min equity: ${s['min_equity']:.0f} | Max zarar: {s['max_consecutive_losses']}",
         ]
         return "\n".join(lines)
+    if cmd.startswith("/yedekler"):
+        db = getattr(app.state, "db", None)
+        if not db:
+            return "ATOS X: motor calismiyor"
+        base = Path(db.db_path).parent / "backups"
+        if not base.is_dir():
+            return "ATOS X: yedek yok"
+        files = sorted(base.glob(f"{Path(db.db_path).stem}_backup_*.db"),
+                       reverse=True)[:20]
+        if not files:
+            return "ATOS X: yedek yok"
+        lines = [f"{i + 1}. {f.name} ({f.stat().st_size // 1024} KB)"
+                 for i, f in enumerate(files)]
+        return "ATOS X: son yedekler\n" + "\n".join(lines)
     if cmd.startswith("/yedek"):
         db = getattr(app.state, "db", None)
         if not db:
             return "ATOS X: motor calismiyor"
         res = db.backup()
         if not res.get("ok"):
-            return "ATOS X: yedekleme basarisiz (veritabani yok)"
+            return f"ATOS X: yedekleme basarisiz ({res.get('error', 'bilinmeyen')})"
         return f"ATOS X: DB yedeklendi\n{res['path']}\nTutulan: {res['kept']}"
+    if cmd.startswith("/geriyukle"):
+        db = getattr(app.state, "db", None)
+        if not db:
+            return "ATOS X: motor calismiyor"
+        if auto_trader and auto_trader.running:
+            return "ATOS X: geri yukleme icin once motoru durdurun (/durdur)"
+        parts = text.strip().split()
+        if len(parts) < 2:
+            return "ATOS X: kullanim /geriyukle <yedek_dosya>"
+        src = Path(parts[1])
+        if not src.is_absolute():
+            src = Path(db.db_path).parent / "backups" / parts[1]
+        res = db.restore(str(src))
+        if not res.get("ok"):
+            return f"ATOS X: geri yukleme basarisiz ({res.get('error', 'bilinmeyen')})"
+        msg = f"ATOS X: DB geri yuklendi\n{res['path']}"
+        if res.get("previous"):
+            msg += f"\nOnceki: {res['previous']}"
+        return msg
     return None
 
 async def _run_backfill(symbols: list, days: int):
@@ -1785,6 +1833,41 @@ async def halt_entries(payload: dict = None):
         f"Yeni girisler {'durduruldu' if halt else 'yeniden acildi'}",
     )
     return {"ok": True, "halt_entries": auto_trader.halt_entries}
+
+@app.get("/api/v1/backups")
+async def list_backups():
+    db = getattr(app.state, "db", None)
+    if not db:
+        return {"ok": False, "error": "not_running", "items": []}
+    base = Path(db.db_path).parent / "backups"
+    items = []
+    if base.is_dir():
+        for f in sorted(base.glob(f"{Path(db.db_path).stem}_backup_*.db"),
+                        reverse=True)[:50]:
+            st = f.stat()
+            items.append({"name": f.name, "path": str(f), "size": st.st_size,
+                          "modified": datetime.fromtimestamp(st.st_mtime).isoformat()})
+    return {"ok": True, "items": items}
+
+@app.post("/api/v1/backup")
+async def trigger_backup():
+    db = getattr(app.state, "db", None)
+    if not db:
+        return {"ok": False, "error": "not_running"}
+    return await asyncio.to_thread(db.backup)
+
+@app.post("/api/v1/backup/restore")
+async def restore_backup(payload: dict = None):
+    """Bir yedek dosyasini geri yukler; motor calisirken reddedilir."""
+    db = getattr(app.state, "db", None)
+    if not db:
+        return {"ok": False, "error": "not_running"}
+    if auto_trader and auto_trader.running:
+        return {"ok": False, "error": "motor_calisiyor"}
+    path = (payload or {}).get("path")
+    if not path:
+        return {"ok": False, "error": "path_gerekli"}
+    return await asyncio.to_thread(db.restore, path)
 
 @app.get("/api/v1/risk/events")
 async def risk_events(limit: int = 50, type: str = ""):

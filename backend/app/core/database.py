@@ -1,7 +1,9 @@
 ﻿import json
+import shutil
 import sqlite3
 from datetime import datetime
 from pathlib import Path
+
 
 class Database:
     def __init__(self, db_path: str = "atos.db"):
@@ -411,11 +413,13 @@ class Database:
         return out
 
     # -- yedekleme ---------------------------------------------------------
-    def backup(self, backup_dir: str = None, keep: int = 14) -> dict:
+    def backup(self, backup_dir: str = None, keep: int = 14, verify: bool = True) -> dict:
         """SQLite online backup API ile tutarli bir kopya alir.
 
-        `keep` adet en genc yedek saklanir; eskileri silinir. Sonuc:
-        `{"ok": True, "path": ..., "kept": N, "deleted": [...]}`.
+        `keep` adet en genc yedek saklanir; eskileri silinir. `verify=True`
+        iken kopya `PRAGMA integrity_check` ile dogrulanir; bozuk kopya
+        silinir ve hata dondurulur. Sonuc:
+        `{"ok": True, "path": ..., "kept": N, "deleted": [...], "integrity": "ok", "size": N}`.
         """
         src = Path(self.db_path)
         if not src.exists():
@@ -430,10 +434,22 @@ class Database:
             target = sqlite3.connect(str(dst))
             try:
                 source.backup(target)
+                integrity = "ok"
+                if verify:
+                    row = target.execute("PRAGMA integrity_check").fetchone()
+                    integrity = row[0] if row else "unknown"
             finally:
                 target.close()
         finally:
             source.close()
+
+        if verify and integrity != "ok":
+            try:
+                dst.unlink()
+            except OSError:
+                pass
+            return {"ok": False, "error": "integrity_check_failed",
+                    "integrity": integrity}
 
         backups = sorted(base.glob(f"{src.stem}_backup_*.db"))
         deleted = []
@@ -444,7 +460,56 @@ class Database:
             except OSError:
                 pass
         return {"ok": True, "path": str(dst), "kept": min(len(backups), keep),
-                "deleted": deleted}
+                "deleted": deleted, "integrity": integrity, "size": dst.stat().st_size}
+
+    def restore(self, backup_path: str, keep_current: bool = True) -> dict:
+        """Bir yedek dosyasini calisan veritabani uzerine geri yukler.
+
+        Yedek once `PRAGMA integrity_check` ile dogrulanir; mevcut DB
+        `pre_restore_<zaman>.db` olarak kopyalanir (`keep_current=True`) ve
+        yedek asil dosyanin yerine kopyalanir. Sonuc:
+        `{"ok": True, "path": ..., "previous": ..., "tables": N}`.
+        """
+        src = Path(backup_path)
+        if not src.exists() or src.suffix != ".db":
+            return {"ok": False, "error": "backup_not_found"}
+        try:
+            conn = sqlite3.connect(str(src))
+            try:
+                row = conn.execute("PRAGMA integrity_check").fetchone()
+                integrity = row[0] if row else "unknown"
+            finally:
+                conn.close()
+        except sqlite3.DatabaseError:
+            return {"ok": False, "error": "integrity_check_failed",
+                    "integrity": "invalid_database"}
+        if integrity != "ok":
+            return {"ok": False, "error": "integrity_check_failed",
+                    "integrity": integrity}
+
+        dst = Path(self.db_path)
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        previous = None
+        if keep_current and dst.exists():
+            stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            previous = str(dst.with_name(f"{dst.stem}.pre_restore_{stamp}.db"))
+            shutil.copy2(str(dst), previous)
+        shutil.copy2(str(src), str(dst))
+
+        conn = sqlite3.connect(str(dst))
+        try:
+            row = conn.execute("PRAGMA integrity_check").fetchone()
+            restored_integrity = row[0] if row else "unknown"
+            tables = [r[0] for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name NOT LIKE 'sqlite_%'")]
+        finally:
+            conn.close()
+        if restored_integrity != "ok":
+            return {"ok": False, "error": "restore_integrity_failed",
+                    "integrity": restored_integrity, "previous": previous}
+        return {"ok": True, "path": str(dst), "previous": previous,
+                "integrity": restored_integrity, "tables": len(tables)}
 
     # -- fiyat alarmlari ---------------------------------------------------
     def save_price_alert(self, symbol: str, price: float, side: str,

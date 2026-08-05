@@ -401,7 +401,8 @@ uyumlu aktif konfirmasyon / toplam açık konfirmasyon oranıdır (HOLD → 0).
   `risk_per_trade`, `max_position_pct`, `max_side_pct`,
   `trailing_activate_pct`, `trailing_sl_pct`, `trailing_min_move_pct`,
   `breakeven_activate_pct`, `max_position_age_hours`, `max_leverage`,
-  `use_decision_council`, `council_min_confidence`, `use_score_ranking`,
+  `use_decision_council`, `council_min_confidence`, `min_signal_strength`,
+  `use_score_ranking`,
   `data_backfill_hours`, `data_freshness_hours`.
 - `/koruma` (parametresiz) mevcut değerleri ve anahtar listesini gösterir.
 
@@ -467,6 +468,23 @@ uyumlu aktif konfirmasyon / toplam açık konfirmasyon oranıdır (HOLD → 0).
 - Varsayılan kapalıdır (operatör `/koruma use_decision_council 1` ile açar).
 - `/koruma` editörüne `use_decision_council` (bool 1/0) ve
   `council_min_confidence` (0-1) eklendi.
+
+## Min Sinyal Gücü (`min_signal_strength`)
+
+- `generate_signal` sinyal gücünü (strength) aktif konfirmasyon oranı olarak
+  üretir: `n_active / n_total` (0-1). BUY için long, SELL için short
+  konfirmasyon sayısı, toplam etkin konfirmasyon sayısına bölünür.
+- `AutoTrader._strength_gate`: eşik `> 0` iken strength eşiğin altında olan
+  BUY/SELL sinyalleri girişe alınmaz; `low_signal_strength` tipinde risk
+  olayı kaydedilir (`/api/v1/risk/events` + DB, Telegram `/risk` ile görünür).
+- Backtest motoru `BacktestEngine(min_signal_strength=...)` aynı eşiği uygular
+  (`analyze()` çıktısındaki `strength` sütunu; sütun yoksa eşik geçmez —
+  eski veriyle uyumlu). `/backtest?min_signal_strength=0.6` ve backtest
+  sayfasındaki "Min Signal Strength (0-1)" alanıyla test edilebilir.
+- Optimizasyon, `engine_kwargs` üzerinden canlı eşiği kullanır.
+- Varsayılan `0.0` (kapalı); `/koruma min_signal_strength 0.6` veya Dashboard
+  Settings → Risk → "Min Signal Strength (%)" ile açılır.
+- Telegram sinyal bildirimi açılan pozisyonun gücünü "Guc: %N" satırıyla gösterir.
 
 ## Market Collector (Veri Toplama / Backfill)
 
@@ -547,7 +565,36 @@ uyumlu aktif konfirmasyon / toplam açık konfirmasyon oranıdır (HOLD → 0).
 | `/dashboard/metrics` | Aynı + pozisyon başına `protected` |
 | `/dashboard` | Pozisyon tablosunda `KORUMALI`/`KORUMASIZ` rozetleri + kart özeti; `🧮 Position Risk` kartında notional, size %, SL mesafesi, risk tutarı, uPnL ve pozisyon yaşı; `🚀 Performans` kartında Bugun/Haftalik/Aylik/Tum zaman metrikleri; `📡 Live Signals` kartında tarama listesinin canlı sinyalleri (60 sn'de bir yenilenir; üstten interval seçilir — varsayılan `4h`, seçim `localStorage`'da saklanır) ve sinyal tipi filtresi (Tumu/BUY/SELL/HOLD); `🌡️ Market Regime` kartında trend/volatilite rejimi + ATR%; `🏆 Coin Scores` kartında skor sıralaması; `⚖️ Decision Council` kartında kararlar + güven + kaynaklar; `🗃️ Data Freshness` kartında CSV tazeliği (guncel/eski/eksik özeti + sembol tablosu) ve `↻ Backfill` butonu (eski/eksik veriyi anında tazeler); Trade History kartında `TRAIL`/`BE` rozetleri; her satırda SL/TP düzenleme + `Uygula`/`Kapat` butonları |
 
-## Veritabanı Yedekleme
+## Güvenlik
+
+`API_KEY` (`.env`) set edilmişse **tüm `/api/v1*` REST uçları** `X-API-Key`
+header'ıyla korunur — eksik/yanlış anahtara `401 Unauthorized` döner
+(`APIKeyMiddleware`, `app/core/security.py`). Boş bırakılırsa uçlar korumasızdır
+(dev/test; canlıya geçerken mutlaka doldurun).
+
+- `/health`, `/dashboard/html`, `/dashboard/metrics` gibi sayfa/izleme uçları
+  `/api/v1` dışında kaldığı için API anahtarından etkilenmez.
+- Dashboard/Settings/Backtest/Optimize sayfaları anahtarı `localStorage`
+  (`atos_api_key`) üzerinden saklar ve her `/api/v1` isteğine `X-API-Key`
+  header'ı ekler; `401` dönünce anahtar yeniden sorulur.
+- **CORS**: `ALLOWED_ORIGINS` (virgülle ayrılmış) dış kaynaklara açılan
+  originleri belirler; boşsa yalnızca `localhost`/`127.0.0.1` varsayılanıdır.
+- **Telegram yetkilendirme**: `TELEGRAM_ALLOWED_CHAT_IDS` (virgülle ayrılmış)
+  komut çalıştırabilecek sohbetlerin whitelist'idir. Boşsa filtre yoktur; doluysa
+  whitelist dışındaki sohbetlerin mesajları sessizce atlanır (log'a yazılır) —
+  botu bulan yabancılar `/durdur onay`, `/kapatall onay` gibi tehlikeli
+  komutları çalıştıramaz. Grup için negatif ID (örn. `-1001234567890`) desteklenir.
+- Anahtarlar yalnızca `backend/.env` içinde tutulur; git'e asla işlenmez.
+
+Örnek `.env`:
+
+```
+API_KEY=sifreli-anahtar
+TELEGRAM_ALLOWED_CHAT_IDS=123456789,-1001234567890
+ALLOWED_ORIGINS=http://localhost:8000
+```
+
+
 
 `Database.backup()` SQLite **online backup API**'siyle (`sqlite3` `backup`)
 çalışan süreç sırasında tutarlı bir kopya alır — dosyayı kopyalamaz, bu
@@ -555,14 +602,61 @@ yüzden yazma sırasında bozuk kopya riski yoktur.
 
 - Yedekler DB dosyasının yanındaki `backups/` klasörüne
   `<adi>_backup_YYYYMMDD_HHMMSS_ffffff.db` adıyla yazılır.
+- **Bütünlük doğrulaması**: her yedek alınırken kopya `PRAGMA integrity_check`
+  ile doğrulanır; bozuk kopya silinir ve hata döner (`integrity_check_failed`).
 - **Retention**: en genç 14 yedek saklanır, eskileri otomatik silinir
   (`keep` parametresiyle değiştirilebilir).
 - **Periyodik**: `_backup_loop` her 6 saatte bir `app.state.db.backup()` çağırır
-  (lifespan'da başlar, shutdown'da iptal edilir).
+  (lifespan'da başlar, shutdown'da iptal edilir); `asyncio.to_thread` ile
+  **bloklamadan** çalışır.
+- **Hata bildirimi**: periyodik yedekleme başarısız olursa durum log'a yazılır
+  ve Telegram'a `ATOS X UYARI: DB yedekleme basarisiz (...)`, ayrıca başlangıç
+  ve kapanış başarısız bildirimleri gönderilir.
 - **Manuel**: `/yedek` Telegram komutu anında yedek alır ve dosya yolunu
-  döndürür; `/yardim` listesinde yer alır.
-- Restore: yedek dosyası durdurulmuş süreçte `atos.db`'nin yerine
-  kopyalanarak (veya path override ile) geri yüklenir.
+  döndürür; `/yedekler` mevcut yedekleri listeler. REST: `POST /api/v1/backup`
+  anında yedek alır, `GET /api/v1/backups` yedek listesini (ad, boyut, tarih) döner.
+- **Restore**: `Database.restore(yedek)` yedek dosyasını önce doğrular, mevcut
+  DB'yi `pre_restore_<zaman>.db` olarak kopyalar ve yedeği yerine geçirir.
+  Telegram: `/geriyukle <dosya>` (mutlak yol ya da `backups/` içindeki ad);
+  REST: `POST /api/v1/backup/restore` gövdesi `{"path": "..."}`. Restore ancak
+  **motor duruyorken** (`/durdur`) çalışır; aksi halde komut reddedilir.
+
+## Canlı Trading ve Kill-Switch
+
+Robot varsayılan olarak **canlı emir göndermez**. Çalışma modu `_resolve_mode()`
+ile belirlenir ve Telegram `/durum`, `/api/v1/status`, `/api/v1/portfolio` ile
+dashboard'da görünür:
+
+| Mod | Koşul |
+|-----|-------|
+| `paper` | `PAPER_TRADING=True` (varsayılan) — emirler simüle edilir |
+| `kill-switch` | `PAPER_TRADING=False` + `LIVE_TRADING_ENABLED=False` (varsayılan) |
+| `testnet` | `PAPER_TRADING=False` + `LIVE_TRADING_ENABLED=True` + `BINANCE_TESTNET=True` |
+| `live` | `PAPER_TRADING=False` + `BINANCE_TESTNET=False` + `LIVE_TRADING_ENABLED=True` |
+
+- **Kill-switch**: `LIVE_TRADING_ENABLED=False` iken (paper dışında) hiçbir
+  pozisyon açılış emri borsaya gitmez — `_submit_open` reddeder, `live_order_blocked`
+  risk olayı loglanır. Canlıya geçiş için üç değişkenin **birlikte** ayarlanması
+  gerekir.
+- **Yeni giriş durdurma (`halt_entries`)**: açık pozisyonları korur, yalnızca
+  yeni girişleri keser. `/giris kapali` (veya `dur`/`off`/`0`) ile durdurulur,
+  `/giris acik` (veya `ac`/`on`/`1`) ile yeniden açılır; tek başına `/giris`
+  mevcut durumu söyler. REST: `POST /api/v1/halt_entries` gövdesi `{"halt": true|false}`.
+  Dashboard'da kırmızı **GİRİŞ KAPALI** rozeti gösterilir.
+- **Minimum notional**: `MIN_NOTIONAL` (USDT, `0` = kapalı) altında kalan
+  pozisyonlar açılmaz — `min_notional_blocked` risk olayı loglanır.
+- Kill-switch modunda `start()` uyarı loglar ve Telegram'a `ATOS X UYARI: canli
+  emirler kill-switch modunda` bildirimi gönderir; durum mesajında mod ve
+  `Yeni giris: KAPALI/acik` satırı yer alır.
+
+Örnek `.env` (canlıya geçiş — üçü birden):
+
+```
+PAPER_TRADING=False
+BINANCE_TESTNET=False
+LIVE_TRADING_ENABLED=True
+MIN_NOTIONAL=5.0
+```
 
 ## Doğrulama
 
