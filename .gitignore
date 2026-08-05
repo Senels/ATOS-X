@@ -19,3 +19,4 @@ data/history/*.csv
 backend/.env
 
 *.db
+opencode-memory.md

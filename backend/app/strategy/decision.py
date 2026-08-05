@@ -13,9 +13,9 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 
 from app.strategy import settings as strat_settings
-from app.strategy.tradebot_v23 import TradeBotV23
-from app.strategy.market_intel import trend_regime, volatility_regime
 from app.strategy.coin_intel import coin_score
+from app.strategy.market_intel import trend_regime, volatility_regime
+from app.strategy.tradebot_v23 import TradeBotV23
 
 _TREND_MAP = {"UP": "BUY", "DOWN": "SELL", "RANGE": None}
 _WEIGHTS: Dict[str, float] = {"v23": 1.0, "trend": 0.4, "momentum": 0.3}

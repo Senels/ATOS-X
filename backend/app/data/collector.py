@@ -4,7 +4,6 @@
 CSV dosyalari yazar (sutunlar: timestamp[ms], open, high, low, close, volume).
 """
 import time
-from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 import pandas as pd

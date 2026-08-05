@@ -17,6 +17,8 @@ jobs:
           cache: pip
       - name: Install
         run: pip install -e "backend[dev]"
+      - name: Lint (ruff)
+        run: cd backend && ruff check app tests --select E9,F63,F7,F82,F,I
       - name: Syntax check
         run: python -m compileall -q backend/app backend/tests
       - name: Pytest

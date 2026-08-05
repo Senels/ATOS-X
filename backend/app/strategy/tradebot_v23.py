@@ -9,10 +9,11 @@ Cikti (analyze) `orders` DataFrame'i doner:
     sl:      sinyal barindaki stop fiyati
     tp:      sinyal barindaki take-profit fiyati
 """
-import numpy as np
-import pandas as pd
 from copy import deepcopy
 from typing import Any, Dict, Optional, Tuple
+
+import numpy as np
+import pandas as pd
 
 from app.strategy import settings as strat_settings
 

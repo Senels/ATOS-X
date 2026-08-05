@@ -1,8 +1,10 @@
 ﻿import asyncio
 import json
+
 import websockets
-from websockets.exceptions import ConnectionClosed
 from loguru import logger
+from websockets.exceptions import ConnectionClosed
+
 
 class BinanceWebSocket:
     def __init__(self):

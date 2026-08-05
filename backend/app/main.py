@@ -524,7 +524,6 @@ def _telegram_command(text: str):
                         symbols_arg.append(s)
         if symbols_arg:
             target = [s for s in symbols_arg if s in auto_trader.active_positions]
-            missing = [s for s in symbols_arg if s not in auto_trader.active_positions]
             if not target:
                 return "ATOS X: belirtilen sembollerde acik pozisyon yok"
             if not confirmed:
@@ -601,7 +600,6 @@ def _telegram_command(text: str):
                 for s in syms:
                     pos = auto_trader.active_positions[s]
                     entry = pos.get("entry_price")
-                    cur_sl = pos.get("sl")
                     price = auto_trader.live_prices.get(s)
                     if entry is None or price is None:
                         continue
@@ -649,7 +647,6 @@ def _telegram_command(text: str):
                 for s in syms:
                     pos = auto_trader.active_positions[s]
                     entry = pos.get("entry_price")
-                    cur_tp = pos.get("tp")
                     price = auto_trader.live_prices.get(s)
                     if entry is None or price is None:
                         continue
@@ -865,7 +862,7 @@ def _telegram_command(text: str):
         daily_line = "AKTIF" if auto_trader.daily_loss_halted else "yok"
         eq_line = "AKTIF" if auto_trader.equity_halted else "yok"
         lines = [
-            f"ATOS X risk",
+            "ATOS X risk",
             f"Equity: ${auto_trader.equity:.2f}",
             f"Maruziyet - LONG: %{conc['long_pct']} SHORT: %{conc['short_pct']}",
             f"Engeller: {', '.join(blocks) if blocks else 'yok'}",
@@ -983,7 +980,7 @@ def _telegram_command(text: str):
     if cmd.startswith("/veri") or cmd.startswith("/data"):
         st = _data_freshness(200)
         if not st.get("ok"):
-            return f"ATOS X: motor calismiyor"
+            return "ATOS X: motor calismiyor"
         lines = [
             f"ATOS X veri durumu ({st['interval']}, esik {st['freshness_hours']:g} saat):",
             f"Guncel: {st['fresh']} | Eski: {st['stale']} | Eksik: {st['missing']}",
@@ -1119,7 +1116,7 @@ def _telegram_command(text: str):
         pnl = t.get("pnl", 0) or 0
         sign = "+" if pnl >= 0 else ""
         lines = [
-            f"ATOS X son islem:",
+            "ATOS X son islem:",
             f"Sembol: {t['symbol']} {t['side']}",
         ]
         entry, exit_p = t.get("entry"), t.get("exit")
@@ -1233,7 +1230,7 @@ def _telegram_command(text: str):
         long_n = sum(1 for p in pos.values() if p.get("side") == "BUY")
         short_n = len(pos) - long_n
         lines = [
-            f"ATOS X bakiye:",
+            "ATOS X bakiye:",
             f"Equity: ${auto_trader.equity:.2f}",
             f"Gerceklesmemis: {upnl:+.2f}",
             f"Toplam: ${total_eq:.2f}",
