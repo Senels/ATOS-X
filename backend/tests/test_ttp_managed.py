@@ -142,6 +142,29 @@ def test_ttp_analyze_full_parity_real_btc(btc_df):
     assert replay["gross_loss_pct"] == pytest.approx(ref["gross_loss_pct"], rel=1e-9)
 
 
+@pytest.mark.parametrize("symbol", [
+    "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT",
+    "DOGEUSDT", "KSMUSDT", "PORTALUSDT", "DODOXUSDT",
+])
+def test_ttp_analyze_full_parity_real_multi_symbol(symbol):
+    """Gercek veride coklu sembolde optimizer ile birebir (CSV yoksa skip)."""
+    from app.data import loader
+
+    data_dir = loader.DEFAULT_DATA_DIR / "futures_4h_data"
+    if not (data_dir / f"{symbol}_4h.csv").exists():
+        pytest.skip(f"{symbol}_4h.csv yok")
+    df = loader.load_csv(symbol, "4h")
+    bot = TtpTsl()
+    orders = bot.analyze_full(df)["orders"]
+    replay = _replay(orders, df)
+    ref = _load_ot().run_backtest(df, bot._params())
+    assert replay["trades"] == ref["trades"]
+    assert replay["wins"] == ref["wins"]
+    assert replay["net_profit_pct"] == pytest.approx(ref["net_profit_pct"], rel=1e-9)
+    assert replay["gross_profit_pct"] == pytest.approx(ref["gross_profit_pct"], rel=1e-9)
+    assert replay["gross_loss_pct"] == pytest.approx(ref["gross_loss_pct"], rel=1e-9)
+
+
 @pytest.mark.parametrize("series", [
     [100.0] * 10 + [195.0, 215.0, 215.0, 215.0, 215.0] + [120.0] * 10,
     [100.0] * 12 + [90.0] * 6 + [130.0] * 6 + [80.0] * 8,
