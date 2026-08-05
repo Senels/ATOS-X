@@ -211,12 +211,12 @@ def test_ttp_manage_returns_partial_then_final_exit():
     df = _frame([100.0] * 10 + [195.0, 215.0, 215.0, 215.0, 215.0] + [120.0] * 10)
     bot = _bot()
     entry_ts, entry_price, side = df.index[10], 195.0, "BUY"
-    first = bot.manage(df, entry_ts, entry_price, side, 1.0)
+    first = bot.manage(df, entry_ts, entry_price, side, 100.0)
     assert first["exit"] == "tp_partial"
     assert first["exit_qty_pct"] == pytest.approx(0.5)
     assert first["active"] is True
     assert first["exit_price"] == pytest.approx(195.0 * 1.09)
-    second = bot.manage(df, entry_ts, entry_price, side, 0.5, tp_already_hit=True)
+    second = bot.manage(df, entry_ts, entry_price, side, 50.0, tp_already_hit=True)
     assert second["exit"] == "sl"
     assert second["exit_qty_pct"] == pytest.approx(1.0)
     assert second["active"] is False
@@ -228,8 +228,17 @@ def test_ttp_manage_returns_partial_then_final_exit():
 def test_ttp_manage_tp_already_hit_prevents_second_partial():
     df = _frame([100.0] * 10 + [195.0, 215.0, 215.0, 215.0, 215.0] + [120.0] * 10)
     bot = _bot()
-    res = bot.manage(df, df.index[10], 195.0, "BUY", 0.5, tp_already_hit=True)
+    res = bot.manage(df, df.index[10], 195.0, "BUY", 50.0, tp_already_hit=True)
     assert res["exit"] != "tp_partial"
+
+
+def test_ttp_manage_partial_qty_pct_is_fraction_not_quantity():
+    # exit_qty_pct her zaman kesir olmali (mutlak miktar degil)
+    df = _frame([100.0] * 10 + [195.0, 215.0, 215.0, 215.0, 215.0] + [120.0] * 10)
+    res = _bot().manage(df, df.index[10], 195.0, "BUY", 250.0)
+    assert res["exit"] == "tp_partial"
+    assert 0.0 < res["exit_qty_pct"] < 1.0
+    assert res["exit_qty_pct"] == pytest.approx(0.5)
 
 
 def test_ttp_manage_active_trails_sl():

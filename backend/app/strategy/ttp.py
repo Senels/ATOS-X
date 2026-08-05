@@ -390,7 +390,8 @@ class TtpTsl:
                     exit_q = qty_rem * p["tp_qty_pct"]
                     qty_rem -= exit_q
                     res = {"active": True, "sl": cur_sl, "tp": cur_tp, "exit": "tp_partial",
-                           "exit_price": cur_tp, "exit_qty_pct": exit_q, "exit_bar_idx": i}
+                           "exit_price": cur_tp, "exit_qty_pct": p["tp_qty_pct"],
+                           "exit_bar_idx": i}
                     if qty_rem < 1e-12:
                         res["active"] = False
                         res["exit_qty_pct"] = 1.0
