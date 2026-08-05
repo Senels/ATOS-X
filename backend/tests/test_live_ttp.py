@@ -7,18 +7,9 @@ calistigini uctan uca dogrular.
 import pytest
 
 import app.strategy.auto_trader as at_mod
-from app.data import loader
 from app.strategy import get_strategy
 from app.strategy import settings as ss
 from app.strategy.ttp import TtpTsl
-
-
-@pytest.fixture(scope="module")
-def btc_df():
-    df = loader.load_csv("BTCUSDT", "4h", limit=1500)
-    if df is None or len(df) < 500:
-        pytest.skip("BTCUSDT 4h CSV yok; TTPTSL canli testleri atlandi")
-    return df
 
 
 class FakeBinancePaper:
