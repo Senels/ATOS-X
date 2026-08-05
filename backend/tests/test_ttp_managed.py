@@ -129,6 +129,19 @@ def test_ttp_analyze_full_reversal():
 # ---------------------------------------------------------------------------
 # optimize_ttp.py run_backtest ile birebir parite
 # ---------------------------------------------------------------------------
+def test_ttp_analyze_full_parity_real_btc(btc_df):
+    """Gercek BTC verisinde (varsayilan OOS parametreleri) optimizer ile birebir."""
+    bot = TtpTsl()
+    orders = bot.analyze_full(btc_df)["orders"]
+    replay = _replay(orders, btc_df)
+    ref = _load_ot().run_backtest(btc_df, bot._params())
+    assert replay["trades"] == ref["trades"]
+    assert replay["wins"] == ref["wins"]
+    assert replay["net_profit_pct"] == pytest.approx(ref["net_profit_pct"], rel=1e-9)
+    assert replay["gross_profit_pct"] == pytest.approx(ref["gross_profit_pct"], rel=1e-9)
+    assert replay["gross_loss_pct"] == pytest.approx(ref["gross_loss_pct"], rel=1e-9)
+
+
 @pytest.mark.parametrize("series", [
     [100.0] * 10 + [195.0, 215.0, 215.0, 215.0, 215.0] + [120.0] * 10,
     [100.0] * 12 + [90.0] * 6 + [130.0] * 6 + [80.0] * 8,

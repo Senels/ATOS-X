@@ -84,6 +84,24 @@ def test_history(api_db):
     assert len(hist_eth["runs"]) == 0
 
 
+def test_backtest_ttp_managed_path(api_db, monkeypatch):
+    """active_strategy=ttp iken API analyze_full/managed yolu kullanmali (time_stop yok)."""
+    import copy
+
+    from app.strategy import settings as ss
+
+    st = copy.deepcopy(ss._state)
+    st["active_strategy"] = "ttp"
+    monkeypatch.setattr(ss, "_state", st)
+
+    res = asyncio.run(bt.run_backtest(
+        symbol="BTCUSDT", interval="4h", limit=200, source="csv",
+    ))
+    reasons = {t["reason"] for t in res["trades"]}
+    assert reasons <= {"stop_loss", "take_profit", "tp_partial", "trail_tp", "reversal"}
+    assert "time_stop" not in reasons
+
+
 def test_compare(api_db):
     asyncio.run(bt.run_backtest(symbol="BTCUSDT", interval="4h", limit=100, source="csv"))
     runs = api_db.get_backtest_runs(limit=10)
