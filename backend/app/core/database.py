@@ -120,17 +120,6 @@ class Database:
         conn.close()
         return trade_id
 
-    def close_trade(self, trade_id: int, exit_price: float, pnl: float):
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        cursor.execute('''
-            UPDATE trades 
-            SET exit_price = ?, pnl = ?, status = 'CLOSED', exit_time = CURRENT_TIMESTAMP
-            WHERE id = ?
-        ''', (exit_price, pnl, trade_id))
-        conn.commit()
-        conn.close()
-
     def close_trade_by_symbol(self, symbol: str, exit_price: float, pnl: float, reason: str = ""):
         """Sembolun en guncel OPEN kaydini kapatir (canli trader icin)."""
         conn = sqlite3.connect(self.db_path)

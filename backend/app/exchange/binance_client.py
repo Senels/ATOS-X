@@ -30,7 +30,7 @@ class BinanceClient:
         self.api_secret = os.getenv("BINANCE_SECRET_KEY", "")
         self.testnet = os.getenv("BINANCE_TESTNET", "True").lower() == "true"
         self.client = None
-        self.last_price = 62789.2
+        self.last_price = None
         self.all_symbols = []
         self.symbol_filters = {}
 
@@ -123,7 +123,7 @@ class BinanceClient:
             print(f"[BINANCE] ticker hatasi: {e}")
             return {}
 
-    async def get_price(self, symbol: str = "BTCUSDT") -> float:
+    async def get_price(self, symbol: str = "BTCUSDT") -> Optional[float]:
         if not self.client:
             await self.connect()
         try:

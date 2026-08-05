@@ -69,14 +69,6 @@ class TelegramNotifier:
         msg += f"Status: {status}"
         await self.send(msg)
 
-    async def send_performance(self, metrics: dict):
-        msg = "📊 <b>Performans Raporu</b>\n"
-        msg += f"Equity: ${metrics.get('equity', 0):.2f}\n"
-        msg += f"Trades: {metrics.get('total_trades', 0)}\n"
-        msg += f"Win Rate: {metrics.get('win_rate', 0)*100:.1f}%\n"
-        msg += f"Status: {metrics.get('status', 'unknown')}"
-        await self.send(msg)
-
     async def send_daily_summary(self, trades, equity, open_positions, top_symbols=None,
                                  marks=None, risk_events=None, loss_halted=False,
                                  daily_loss_halted=False, equity_halted=False,

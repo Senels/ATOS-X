@@ -13,10 +13,10 @@
 
 | Bileşen | Durum |
 |---|---|
-| Sürüm | 0.1.0 |
-| Faz | Core Foundation |
+| Sürüm | 1.0.0 |
+| Faz | Tüm sprintler tamamlandı (11/11) |
 | Trading | Motor tamamlandı (varsayılan: paper + kill-switch; canlı için açık onay gerekir) |
-| Backtest | Aktif (gerçek 4h OHLCV + toplu tarama + optimizasyon) |
+| Backtest | Aktif (gerçek 4h OHLCV + toplu tarama + optimizasyon + TTPTSL motoru) |
 | AI | Disabled |
 
 ## Teknoloji
@@ -37,11 +37,11 @@ backend/        ATOS X
 │   ├── exchange/   Binance REST + websocket
 │   ├── notifications/  Telegram
 │   ├── optimization/   grid search
-│   ├── strategy/   sinyal motoru (tradebot_v23) + canlı otomasyon
+│   ├── strategy/   sinyal motoru (tradebot_v23 + TTPTSL) + canlı otomasyon
 │   ├── websocket/  canlı fiyat akışı
 │   └── main.py     FastAPI entry
 ├── scripts/      tarama (scan_backtest) + optimizasyon (optimize)
-└── tests/        pytest (523 test)
+└── tests/        pytest (597 test)
 legacy/data/    backtest için yerel OHLCV CSV arşivi (futures_4h/30m/15m/2h)
 docs/           mimari dokümanlar (ROADMAP, OPS — operasyon/risk rehberi)
 ```

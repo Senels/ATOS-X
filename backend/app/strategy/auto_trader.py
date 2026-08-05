@@ -1358,18 +1358,21 @@ class AutoTrader:
             qfrac = float(res.get("exit_qty_pct") or 0.0)
             if not res.get("active") and not ex:
                 ex, qfrac = "reversal", 1.0
+            exit_px = ep if ep is not None else (
+                current_price if current_price is not None else float(pos.get("entry_price") or 0)
+            )
 
             if ex == "sl":
-                await self.close_position(symbol, float(ep if ep is not None else current_price), "stop_loss")
+                await self.close_position(symbol, float(exit_px), "stop_loss")
             elif ex == "tp_partial":
                 if qfrac >= 1.0 - 1e-9:
-                    await self.close_position(symbol, float(ep if ep is not None else pos["tp"]), "take_profit")
+                    await self.close_position(symbol, float(exit_px), "take_profit")
                 elif ep is not None:
                     await self._close_portion(symbol, float(ep), float(pos["quantity"]) * qfrac, "take_profit")
             elif ex == "trail_tp":
-                await self.close_position(symbol, float(ep if ep is not None else current_price), "trail_tp")
+                await self.close_position(symbol, float(exit_px), "trail_tp")
             elif ex == "reversal":
-                await self.close_position(symbol, float(ep if ep is not None else current_price), "reversal")
+                await self.close_position(symbol, float(exit_px), "reversal")
             else:
                 new_sl = res.get("sl")
                 new_tp = res.get("tp")
@@ -1572,6 +1575,9 @@ class AutoTrader:
             price = self.live_prices.get(symbol)
             if not price:
                 price = await self.binance.get_price(symbol)
+            if not price:
+                logger.warning(f"{symbol}: fiyat alinamadi, kapatma atlandi")
+                continue
             await self.close_position(symbol, price, "system_stop")
         closed = self.trade_history[before:]
         if self.telegram:

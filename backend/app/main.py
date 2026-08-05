@@ -1693,6 +1693,7 @@ async def data_backfill_stale(days: int = 30):
 async def get_status():
     return {
         "status": system_status["status"],
+        "trading": auto_trader.running if auto_trader else False,
         "connected": _is_connected(),
         "symbols": len(auto_trader.trading_symbols) if auto_trader else 0,
         "positions": len(auto_trader.active_positions) if auto_trader else 0,

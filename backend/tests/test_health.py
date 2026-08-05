@@ -120,6 +120,15 @@ def test_status_has_loss_fields():
     client.close()
 
 
+def test_status_has_trading_field():
+    client = TestClient(app)
+    resp = client.get("/api/v1/status")
+    assert resp.status_code == 200
+    assert "trading" in resp.json()
+    assert isinstance(resp.json()["trading"], bool)
+    client.close()
+
+
 def test_dashboard_pages():
     client = TestClient(app)
     cases = [

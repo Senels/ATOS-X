@@ -10,6 +10,7 @@ import pytest
 import app.strategy.auto_trader as at_mod
 from app.core.database import Database
 from app.strategy import settings as ss
+from app.strategy.ttp import TtpTsl
 
 _P = {
     "fast_ma_len": 3, "slow_ma_len": 5, "atr_len": 3,
@@ -166,5 +167,28 @@ async def test_ttp_live_no_exit_refreshes_trailing_sl(tmp_path, monkeypatch):
         # Mode ON: SL yukselen high'i izler (138 * 1.005 * 0.94)
         assert pos["sl"] == pytest.approx(138.0 * 1.005 * 0.94)
         assert pos["sl"] > 130.0 * 0.94
+    finally:
+        ss.update_settings(prev)
+
+
+async def test_ttp_live_exit_without_price_or_exit_px(tmp_path, monkeypatch):
+    """Hem exit_price hem canli fiyat None iken entry fiyatiyla kapanir (TypeError yok)."""
+    df = _klines_frame([100.0] * 30 + [130.0, 120.0])
+    tr, prev = _make_trader(tmp_path, monkeypatch, df, _P)
+
+    def _manage(self, klines, *a, **k):
+        return {"active": True, "exit": "sl", "exit_price": None,
+                "exit_qty_pct": 1.0, "sl": None, "tp": None}
+
+    monkeypatch.setattr(TtpTsl, "manage", _manage)
+    try:
+        await _open_signal(tr, df, 30, 130.0, 130.0 * 0.94, 130.0 * 1.09)
+        assert "BTCUSDT" in tr.active_positions
+        entry = tr.active_positions["BTCUSDT"]["entry_price"]
+        await tr.check_positions({})
+        assert "BTCUSDT" not in tr.active_positions
+        assert len(tr.trade_history) == 1
+        assert tr.trade_history[0]["reason"] == "stop_loss"
+        assert tr.trade_history[0]["exit"] == pytest.approx(entry)
     finally:
         ss.update_settings(prev)

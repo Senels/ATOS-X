@@ -158,6 +158,17 @@ async def test_get_price_fallback_on_error():
     assert await bc.get_price("BTCUSDT") == 42.0
 
 
+async def test_get_price_none_when_never_fetched():
+    bc = BinanceClient()
+    assert bc.last_price is None
+
+    def _boom(*a, **k):
+        raise RuntimeError("x")
+
+    make_client(bc, futures_ticker=_boom)
+    assert await bc.get_price("BTCUSDT") is None
+
+
 # ---- klines ----
 
 async def test_get_klines_dataframe():
