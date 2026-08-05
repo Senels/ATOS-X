@@ -1,7 +1,9 @@
-﻿from pydantic_settings import BaseSettings
+﻿from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
     APP_NAME: str = "ATOS X"
     APP_VERSION: str = "1.0.0"
     APP_ENV: str = "dev"
@@ -39,9 +41,6 @@ class Settings(BaseSettings):
     # Virgulle ayrilmis izinli CORS originleri; bos ise localhost varsayilani
     ALLOWED_ORIGINS: str = ""
 
-    class Config:
-        env_file = ".env"
-        extra = "ignore"
 
 def get_settings():
     return Settings()
