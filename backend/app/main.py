@@ -76,6 +76,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         system_status["status"] = "online"
     daily_report_task = asyncio.create_task(_daily_report_loop())
     ws_sync_task = asyncio.create_task(_ws_sync_loop())
+    n_alarms = _load_alarms()
+    if n_alarms:
+        logger.info(f"{n_alarms} kalici alarm yuklendi")
     _alarm_task = asyncio.create_task(_alarm_loop())
     _backup_task = asyncio.create_task(_backup_loop())
     telegram.start_listener(_telegram_command)
@@ -217,6 +220,7 @@ async def _alarm_loop():
         try:
             if not _PRICE_ALERTS or not auto_trader:
                 continue
+            db = getattr(app.state, "db", None)
             for sym, alerts in list(_PRICE_ALERTS.items()):
                 if not alerts:
                     continue
@@ -232,6 +236,8 @@ async def _alarm_loop():
                             f"⏰ ATOS X ALARM: {sym} ${price:g} "
                             f"{a['price']:g} {dir_word} (esik {a['side']})"
                         )
+                        if db is not None:
+                            db.delete_price_alert(sym, a["price"], a["side"])
                     else:
                         still.append(a)
                 _PRICE_ALERTS[sym] = still
@@ -239,6 +245,19 @@ async def _alarm_loop():
                 del _PRICE_ALERTS[sym]
         except Exception as e:
             logger.error(f"Alarm kontrol hatasi: {e}")
+
+def _load_alarms():
+    """Kalici fiyat alarmlarini DB'den bellege yukler."""
+    db = getattr(app.state, "db", None)
+    if db is None:
+        return 0
+    rows = db.get_price_alerts()
+    _PRICE_ALERTS.clear()
+    for r in rows:
+        _PRICE_ALERTS.setdefault(r["symbol"], []).append({
+            "price": r["price"], "side": r["side"], "created": r["created"],
+        })
+    return len(rows)
 
 def _alarm_list() -> str:
     if not _PRICE_ALERTS:
@@ -1129,6 +1148,9 @@ def _telegram_command(text: str):
         if sub in ("temizle", "sil", "clear"):
             n = sum(len(a) for a in _PRICE_ALERTS.values())
             _PRICE_ALERTS.clear()
+            db = getattr(app.state, "db", None)
+            if db is not None:
+                db.clear_price_alerts()
             return f"ATOS X: {n} alarm silindi"
         if len(parts) >= 3:
             sym = parts[1].upper()
@@ -1146,9 +1168,14 @@ def _telegram_command(text: str):
                 return f"ATOS X: {sym} zaten ${current:g} - esik ${target:g} altinda"
             if sym not in _PRICE_ALERTS:
                 _PRICE_ALERTS[sym] = []
+            if any(a["price"] == target and a["side"] == side for a in _PRICE_ALERTS[sym]):
+                return f"ATOS X: {sym} icin ${target:g} ({side}) alarmi zaten mevcut"
             _PRICE_ALERTS[sym].append({
                 "price": target, "side": side, "created": datetime.utcnow().isoformat()
             })
+            db = getattr(app.state, "db", None)
+            if db is not None:
+                db.save_price_alert(sym, target, side)
             side_word = "ustune cikinca" if side == "above" else "altina inince"
             return f"ATOS X: {sym} alarm eklendi - ${target:g} {side_word} bildir"
         return "ATOS X: kullanim /alarm <SEMBOL> <FIYAT> [ust/alt] | /alarm | /alarm temizle"

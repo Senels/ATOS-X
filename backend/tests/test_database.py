@@ -191,3 +191,36 @@ def test_backup_missing_db(tmp_path):
     res = db.backup(backup_dir=str(tmp_path / "bk"))
     assert res["ok"] is False
     assert res["error"] == "db_not_found"
+
+
+# -- fiyat alarmlari ------------------------------------------------------
+def test_price_alert_save_and_get(tmp_path):
+    db = Database(str(tmp_path / "t.db"))
+    assert db.save_price_alert("BTCUSDT", 65000.0, "above") is True
+    rows = db.get_price_alerts()
+    assert len(rows) == 1
+    assert rows[0]["symbol"] == "BTCUSDT"
+    assert rows[0]["price"] == 65000.0
+    assert rows[0]["side"] == "above"
+    assert rows[0]["created"]
+
+
+def test_price_alert_duplicate_idempotent(tmp_path):
+    db = Database(str(tmp_path / "t.db"))
+    db.save_price_alert("BTCUSDT", 65000.0, "above")
+    db.save_price_alert("BTCUSDT", 65000.0, "above")
+    db.save_price_alert("BTCUSDT", 65000.0, "below")
+    rows = db.get_price_alerts()
+    assert len(rows) == 2
+
+
+def test_price_alert_delete_and_clear(tmp_path):
+    db = Database(str(tmp_path / "t.db"))
+    db.save_price_alert("BTCUSDT", 65000.0, "above")
+    db.save_price_alert("ETHUSDT", 2900.0, "below")
+    assert db.delete_price_alert("BTCUSDT", 65000.0, "above") is True
+    rows = db.get_price_alerts()
+    assert len(rows) == 1
+    assert rows[0]["symbol"] == "ETHUSDT"
+    assert db.clear_price_alerts() == 1
+    assert db.get_price_alerts() == []

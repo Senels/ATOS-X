@@ -345,8 +345,12 @@ yoksa dinleyici devre dışıdır.
 - `/alarm` — aktif alarmları listeler; `/alarm temizle` hepsini siler.
 - Zaten eşiğin üstünde/altında olan fiyata alarm eklenmez (anında tetikleme
   yok); tetiklenen alarm otomatik olarak listeden çıkar.
-- Alarmlar yalnızca bellekte tutulur (restart'ta sıfırlanır); motor durmuşsa
-  kontrol yapılmaz.
+- Alarmlar **kalıcıdır**: `/alarm` eklenince `price_alerts` tablosuna yazılır,
+  tetiklenince veya `/alarm temizle` ile silinir. Motor restart'ında
+  `_load_alarms` DB'den geri yükler (restart'ta kaybolmaz).
+- Aynı `(symbol, price, side)` kombinasyonundan ikinci kez eklenemez
+  (`zaten mevcut`); DB tarafında `PRIMARY KEY` ile idempotent.
+- Motor durmuşsa kontrol yapılmaz.
 
 ## Sinyal Gücü (Strength)
 

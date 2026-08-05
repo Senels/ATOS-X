@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from app import main as main_mod
 from app.notifications.telegram import TelegramNotifier, _process_updates, format_stop_summary
@@ -1549,6 +1550,130 @@ def test_command_alarm_already_above():
         main_mod._PRICE_ALERTS.clear()
     assert reply is not None
     assert "zaten" in reply
+
+
+# -- alarm kaliciligi ------------------------------------------------------
+class _AlarmDB:
+    def __init__(self):
+        self.alerts = []
+
+    def save_price_alert(self, symbol, price, side, created=None):
+        self.alerts.append((symbol, price, side))
+        return True
+
+    def get_price_alerts(self):
+        return [{"symbol": s, "price": p, "side": d, "created": "x"}
+                for s, p, d in self.alerts]
+
+    def delete_price_alert(self, symbol, price, side):
+        self.alerts = [a for a in self.alerts if a != (symbol, price, side)]
+        return True
+
+    def clear_price_alerts(self):
+        self.alerts = []
+        return 0
+
+
+def test_command_alarm_persists_to_db():
+    adb = _AlarmDB()
+    fake = _FakeTrader()
+    fake.live_prices = {"BTCUSDT": 60000.0}
+    main_mod.app.state.db = adb
+    main_mod.auto_trader = fake
+    main_mod._PRICE_ALERTS.clear()
+    try:
+        main_mod._telegram_command("/alarm BTCUSDT 65000")
+    finally:
+        main_mod.auto_trader = None
+        main_mod.app.state.db = None
+        main_mod._PRICE_ALERTS.clear()
+    assert ("BTCUSDT", 65000.0, "above") in adb.alerts
+
+
+def test_command_alarm_clear_clears_db():
+    adb = _AlarmDB()
+    adb.alerts = [("BTCUSDT", 65000.0, "above")]
+    main_mod.app.state.db = adb
+    main_mod.auto_trader = _FakeTrader()
+    main_mod._PRICE_ALERTS["BTCUSDT"] = [{"price": 65000.0, "side": "above",
+                                          "created": "x"}]
+    try:
+        reply = main_mod._telegram_command("/alarm temizle")
+    finally:
+        main_mod.auto_trader = None
+        main_mod.app.state.db = None
+        main_mod._PRICE_ALERTS.clear()
+    assert "1 alarm silindi" in reply
+    assert adb.alerts == []
+
+
+def test_command_alarm_duplicate_rejected():
+    adb = _AlarmDB()
+    fake = _FakeTrader()
+    fake.live_prices = {"BTCUSDT": 60000.0}
+    main_mod.app.state.db = adb
+    main_mod.auto_trader = fake
+    main_mod._PRICE_ALERTS.clear()
+    try:
+        main_mod._telegram_command("/alarm BTCUSDT 65000")
+        reply2 = main_mod._telegram_command("/alarm BTCUSDT 65000")
+    finally:
+        main_mod.auto_trader = None
+        main_mod.app.state.db = None
+        main_mod._PRICE_ALERTS.clear()
+    assert "zaten mevcut" in reply2
+    assert len(adb.alerts) == 1
+
+
+def test_load_alarms_restores_from_db():
+    adb = _AlarmDB()
+    adb.alerts = [("BTCUSDT", 65000.0, "above"), ("ETHUSDT", 2900.0, "below")]
+    main_mod.app.state.db = adb
+    main_mod._PRICE_ALERTS.clear()
+    try:
+        n = main_mod._load_alarms()
+        assert n == 2
+        assert main_mod._PRICE_ALERTS["BTCUSDT"][0]["side"] == "above"
+        assert main_mod._PRICE_ALERTS["ETHUSDT"][0]["price"] == 2900.0
+    finally:
+        main_mod.app.state.db = None
+        main_mod._PRICE_ALERTS.clear()
+
+
+def test_alarm_loop_deletes_fired_alert_from_db(monkeypatch):
+    adb = _AlarmDB()
+    adb.alerts = [("BTCUSDT", 65000.0, "above")]
+    fake = _FakeTrader()
+    fake.live_prices = {"BTCUSDT": 66000.0}
+    main_mod.app.state.db = adb
+    main_mod.auto_trader = fake
+    main_mod._PRICE_ALERTS.clear()
+    main_mod._PRICE_ALERTS["BTCUSDT"] = [{"price": 65000.0, "side": "above",
+                                          "created": "x"}]
+    sent = []
+
+    async def fake_send(message):
+        sent.append(message)
+
+    monkeypatch.setattr(main_mod.telegram, "send", fake_send)
+    calls = {"n": 0}
+
+    async def fake_sleep(_):
+        calls["n"] += 1
+        if calls["n"] >= 2:
+            raise SystemExit("stop")
+
+    monkeypatch.setattr(main_mod.asyncio, "sleep", fake_sleep)
+    try:
+        with pytest.raises(SystemExit):
+            asyncio.run(main_mod._alarm_loop())
+    finally:
+        main_mod.auto_trader = None
+        main_mod.app.state.db = None
+        main_mod._PRICE_ALERTS.clear()
+    assert sent and "ALARM" in sent[0]
+    assert adb.alerts == []
+    assert main_mod._PRICE_ALERTS == {}
 
 
 # -- /kapatall sembol listesi ---------------------------------------------

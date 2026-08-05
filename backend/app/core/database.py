@@ -84,6 +84,15 @@ class Database:
                 value TEXT NOT NULL
             )
         ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS price_alerts (
+                symbol TEXT NOT NULL,
+                price REAL NOT NULL,
+                side TEXT NOT NULL,
+                created TEXT NOT NULL,
+                PRIMARY KEY (symbol, price, side)
+            )
+        ''')
         conn.commit()
         conn.close()
         print("Veritabani hazir")
@@ -436,3 +445,58 @@ class Database:
                 pass
         return {"ok": True, "path": str(dst), "kept": min(len(backups), keep),
                 "deleted": deleted}
+
+    # -- fiyat alarmlari ---------------------------------------------------
+    def save_price_alert(self, symbol: str, price: float, side: str,
+                         created: str = None) -> bool:
+        """Alarmi kalici kaydeder; ayni (symbol, price, side) idempotent."""
+        if created is None:
+            created = datetime.now().isoformat()
+        conn = sqlite3.connect(self.db_path)
+        try:
+            conn.execute(
+                "INSERT OR REPLACE INTO price_alerts (symbol, price, side, created)"
+                " VALUES (?, ?, ?, ?)",
+                (symbol, price, side, created))
+            conn.commit()
+            return True
+        except sqlite3.Error:
+            return False
+        finally:
+            conn.close()
+
+    def get_price_alerts(self) -> list:
+        """Tum alarmlari {symbol, price, side, created} sozlukleri olarak."""
+        conn = sqlite3.connect(self.db_path)
+        try:
+            rows = conn.execute(
+                "SELECT symbol, price, side, created FROM price_alerts"
+            ).fetchall()
+        finally:
+            conn.close()
+        return [{"symbol": r[0], "price": r[1], "side": r[2], "created": r[3]}
+                for r in rows]
+
+    def delete_price_alert(self, symbol: str, price: float, side: str) -> bool:
+        conn = sqlite3.connect(self.db_path)
+        try:
+            conn.execute(
+                "DELETE FROM price_alerts WHERE symbol=? AND price=? AND side=?",
+                (symbol, price, side))
+            conn.commit()
+            return True
+        except sqlite3.Error:
+            return False
+        finally:
+            conn.close()
+
+    def clear_price_alerts(self) -> int:
+        conn = sqlite3.connect(self.db_path)
+        try:
+            cur = conn.execute("DELETE FROM price_alerts")
+            conn.commit()
+            return cur.rowcount
+        except sqlite3.Error:
+            return 0
+        finally:
+            conn.close()
