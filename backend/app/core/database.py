@@ -39,6 +39,14 @@ class Database:
             cursor.execute("ALTER TABLE trades ADD COLUMN breakeven INTEGER DEFAULT 0")
         except sqlite3.OperationalError:
             pass
+        try:
+            cursor.execute("ALTER TABLE trades ADD COLUMN ttp_tp_hit INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE trades ADD COLUMN entry_ts TEXT")
+        except sqlite3.OperationalError:
+            pass
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS signals (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -99,13 +107,14 @@ class Database:
         conn.close()
         print("Veritabani hazir")
 
-    def save_trade(self, symbol: str, side: str, entry_price: float, quantity: float):
+    def save_trade(self, symbol: str, side: str, entry_price: float, quantity: float,
+                   entry_ts: str = None, ttp_tp_hit: int = 0):
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO trades (symbol, side, entry_price, quantity, status)
-            VALUES (?, ?, ?, ?, 'OPEN')
-        ''', (symbol, side, entry_price, quantity))
+            INSERT INTO trades (symbol, side, entry_price, quantity, entry_ts, ttp_tp_hit, status)
+            VALUES (?, ?, ?, ?, ?, ?, 'OPEN')
+        ''', (symbol, side, entry_price, quantity, entry_ts, 1 if ttp_tp_hit else 0))
         conn.commit()
         trade_id = cursor.lastrowid
         conn.close()
@@ -183,8 +192,8 @@ class Database:
         conn.close()
 
     def update_trade_protection(self, symbol: str, trailing: bool | None = None,
-                                breakeven: bool | None = None):
-        """Acik pozisyonun trailing/breakeven bayraklarini DB'de gunceller."""
+                                breakeven: bool | None = None, ttp_tp_hit: bool | None = None):
+        """Acik pozisyonun trailing/breakeven/ttp_tp_hit bayraklarini DB'de gunceller."""
         updates, params = [], []
         if trailing is not None:
             updates.append("trailing = ?")
@@ -192,6 +201,9 @@ class Database:
         if breakeven is not None:
             updates.append("breakeven = ?")
             params.append(1 if breakeven else 0)
+        if ttp_tp_hit is not None:
+            updates.append("ttp_tp_hit = ?")
+            params.append(1 if ttp_tp_hit else 0)
         if not updates:
             return
         params.append(symbol)
@@ -215,6 +227,18 @@ class Database:
         if not row:
             return False, False
         return bool(row[0]), bool(row[1])
+
+    def get_open_trade_ttp_state(self, symbol: str):
+        """Acik pozisyonun DB'deki entry_ts ve ttp_tp_hit durumunu doner."""
+        conn = sqlite3.connect(self.db_path)
+        row = conn.execute(
+            "SELECT entry_ts, ttp_tp_hit FROM trades WHERE symbol = ? AND status = 'OPEN' "
+            "ORDER BY id DESC LIMIT 1", (symbol,)
+        ).fetchone()
+        conn.close()
+        if not row:
+            return None, False
+        return (row[0] if row[0] else None), bool(row[1])
 
     def save_risk_event(self, event_type: str, message: str, ts: str):
         """Risk/blok olayini kalici olarak DB'ye yazar."""

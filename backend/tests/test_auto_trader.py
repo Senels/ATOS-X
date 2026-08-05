@@ -434,6 +434,23 @@ async def test_reconcile_restores_protection_flags(trader):
     assert pos["breakeven"] is True
 
 
+async def test_reconcile_restores_ttp_state(trader):
+    tr, fb, db = trader
+    db.save_trade("BTCUSDT", "BUY", 65000.0, 0.5,
+                  entry_ts="2026-08-05 12:00:00", ttp_tp_hit=1)
+    fb.open_positions = [
+        {"symbol": "BTCUSDT", "positionAmt": "0.5", "entryPrice": "65000.0"},
+    ]
+    fb.algo_orders = [
+        {"symbol": "BTCUSDT", "orderType": "STOP_MARKET", "algoId": 111, "triggerPrice": "63000"},
+    ]
+    await tr.reconcile_positions()
+    pos = tr.active_positions["BTCUSDT"]
+    assert pos["restored"] is True
+    assert pos["entry_ts"] == "2026-08-05 12:00:00"
+    assert pos["ttp_tp_hit"] is True
+
+
 async def test_db_open_trade_entry_time_none_when_closed(trader):
     tr, fb, db = trader
     assert db.get_open_trade_entry_time("BTCUSDT") is None

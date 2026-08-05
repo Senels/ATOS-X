@@ -45,6 +45,32 @@ def test_save_signal(tmp_path):
     assert _signals_count(db) == 1
 
 
+def test_ttp_state_roundtrip(tmp_path):
+    db = Database(str(tmp_path / "t.db"))
+    assert db.get_open_trade_ttp_state("BTCUSDT") == (None, False)
+
+    db.save_trade("BTCUSDT", "BUY", 65000.0, 0.5, entry_ts="2026-08-05 12:00:00")
+    assert db.get_open_trade_ttp_state("BTCUSDT") == ("2026-08-05 12:00:00", False)
+
+    db.update_trade_protection("BTCUSDT", ttp_tp_hit=True)
+    assert db.get_open_trade_ttp_state("BTCUSDT") == ("2026-08-05 12:00:00", True)
+
+    db.update_trade_protection("BTCUSDT", ttp_tp_hit=False)
+    assert db.get_open_trade_ttp_state("BTCUSDT") == ("2026-08-05 12:00:00", False)
+
+    db.close_trade_by_symbol("BTCUSDT", 66000.0, 100.0)
+    assert db.get_open_trade_ttp_state("BTCUSDT") == (None, False)
+
+
+def test_ttp_state_legacy_columns_migrated(tmp_path):
+    db = Database(str(tmp_path / "t.db"))
+    conn = sqlite3.connect(db.db_path)
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(trades)").fetchall()]
+    conn.close()
+    assert "ttp_tp_hit" in cols
+    assert "entry_ts" in cols
+
+
 def test_backtest_runs_roundtrip(tmp_path):
     db = Database(str(tmp_path / "t.db"))
     rid = db.save_backtest_run("BTCUSDT", "4h", "csv", {"risk_per_trade": 0.02},

@@ -87,6 +87,8 @@ async def test_ttp_live_partial_then_full_close(tmp_path, monkeypatch):
         await _open_signal(tr, df, 20, 195.0, 195.0 * 0.94, 195.0 * 1.09)
         qty0 = tr.active_positions["BTCUSDT"]["quantity"]
         assert qty0 > 0
+        entry_ts = str(df.index[20])
+        assert tr.db.get_open_trade_ttp_state("BTCUSDT") == (entry_ts, False)
 
         await tr.check_positions({})
         pos = tr.active_positions.get("BTCUSDT")
@@ -95,6 +97,8 @@ async def test_ttp_live_partial_then_full_close(tmp_path, monkeypatch):
         assert pos["quantity"] == pytest.approx(qty0 * 0.5)
         assert len(tr.trade_history) == 1
         assert tr.trade_history[0]["reason"] == "take_profit"
+        # Kismi TP kalicilikta da kayitli: restart sonrasi yeniden tetiklenmez.
+        assert tr.db.get_open_trade_ttp_state("BTCUSDT") == (entry_ts, True)
 
         await tr.check_positions({})
         assert "BTCUSDT" not in tr.active_positions

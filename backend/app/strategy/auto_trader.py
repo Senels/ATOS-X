@@ -649,7 +649,8 @@ class AutoTrader:
                     "entry_ts": str(entry_ts) if entry_ts else None,
                     "ttp_tp_hit": False,
                 }
-                self.db.save_trade(symbol, side, price, qty)
+                self.db.save_trade(symbol, side, price, qty,
+                                   entry_ts=str(entry_ts) if entry_ts else None)
                 self.db.save_signal(symbol, side, price, 0.0, reason or "auto")
                 if self.telegram:
                     await self.telegram.send_signal(symbol, side, price, reason, sl=sl, tp=tp, strength=strength)
@@ -912,6 +913,7 @@ class AutoTrader:
                 amt = float(p["positionAmt"])
                 db_opened = self.db.get_open_trade_entry_time(symbol)
                 db_trailing, db_breakeven = self.db.get_open_trade_protection(symbol)
+                db_entry_ts, db_ttp_tp_hit = self.db.get_open_trade_ttp_state(symbol)
                 restored_open = datetime.utcnow().isoformat()
                 if db_opened:
                     try:
@@ -928,6 +930,8 @@ class AutoTrader:
                     "tp_order_id": info.get("tp_id"),
                     "entry_fee": 0.0,
                     "open_time": restored_open,
+                    "entry_ts": db_entry_ts,
+                    "ttp_tp_hit": bool(db_ttp_tp_hit),
                     "restored": True,
                     "trailing": bool(db_trailing),
                     "breakeven": bool(db_breakeven),
@@ -1416,6 +1420,7 @@ class AutoTrader:
         })
         try:
             self.db.reduce_trade_quantity(symbol, pos["quantity"])
+            self.db.update_trade_protection(symbol, ttp_tp_hit=True)
         except Exception as e:
             logger.warning(f"{symbol}: kismi kapanis DB guncellenemedi: {e}")
         await self._update_consecutive_losses()
