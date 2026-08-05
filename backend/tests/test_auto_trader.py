@@ -536,6 +536,33 @@ async def test_ttp_manage_moves_exchange_sl(trader):
         strat_settings.update_settings(prev)
 
 
+async def test_ttp_sl_move_failure_keeps_old_sl_and_retries(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    prev = strat_settings.get_settings()
+    strat_settings.update_settings({"active_strategy": "ttp", "ttp": _TTP_P})
+    try:
+        df = _kframe([100.0] * 30 + [130.0, 138.0, 138.0, 138.0])
+        fb.klines = df
+        await tr.open_position("BTCUSDT", "BUY", 130.0, 130.0 * 0.94, 130.0 * 1.09,
+                               entry_ts=str(df.index[30]))
+        old_sl = tr.active_positions["BTCUSDT"]["sl"]
+        fb.fail_tp_sl = True
+        await tr.check_positions({})
+        pos = tr.active_positions["BTCUSDT"]
+        # Exchange onaylamadan SL guncellenmez; uyari gider.
+        assert pos["sl"] == old_sl
+        assert any("BTCUSDT" in m and "SL" in m for m in tg.sent)
+        # Sonraki tarama retry eder; exchange donunce SL tasinir.
+        fb.fail_tp_sl = False
+        await tr.check_positions({})
+        assert tr.active_positions["BTCUSDT"]["sl"] > old_sl
+        assert ("BTCUSDT", "LONG", tr.active_positions["BTCUSDT"]["sl"], 0.0) in fb.tp_sl_calls
+    finally:
+        strat_settings.update_settings(prev)
+
+
 async def test_ttp_partial_close_submits_reduce_order(trader):
     tr, fb, db = trader
     prev = strat_settings.get_settings()

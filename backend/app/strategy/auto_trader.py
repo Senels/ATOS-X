@@ -1393,9 +1393,12 @@ class AutoTrader:
                 new_tp = res.get("tp")
                 old_sl = float(pos.get("sl") or 0)
                 changed = False
+                move_sl = False
                 if new_sl is not None and float(new_sl) > 0 and float(new_sl) != old_sl:
-                    pos["sl"] = float(new_sl)
                     changed = True
+                    move_sl = bool(not self.paper and pos.get("sl_order_id"))
+                    if not move_sl:
+                        pos["sl"] = float(new_sl)
                 if new_tp is not None and float(new_tp) > 0 and float(new_tp) != float(pos.get("tp") or 0):
                     pos["tp"] = float(new_tp)
                     changed = True
@@ -1403,22 +1406,30 @@ class AutoTrader:
                     logger.info(
                         f"{symbol}: TTPTSL SL/TP guncellendi -> sl {pos['sl']:.6f}, tp {pos['tp']:.6f}"
                     )
-                    if (not self.paper and pos.get("sl_order_id")
-                            and float(new_sl or 0) > 0
-                            and float(new_sl or 0) != old_sl):
-                        try:
-                            await self.binance.cancel_algo_order(symbol, pos["sl_order_id"])
-                            algo = await self.binance.set_tp_sl(
-                                symbol, "LONG" if pos["side"] == "BUY" else "SHORT",
-                                float(pos["sl"]), 0.0,
+                if move_sl:
+                    try:
+                        await self.binance.cancel_algo_order(symbol, pos["sl_order_id"])
+                        algo = await self.binance.set_tp_sl(
+                            symbol, "LONG" if pos["side"] == "BUY" else "SHORT",
+                            float(new_sl), 0.0,
+                        )
+                        if not algo.get("sl"):
+                            raise RuntimeError("set_tp_sl SL id dondurmedi")
+                        pos["sl"] = float(new_sl)
+                        pos["sl_order_id"] = algo["sl"]
+                        logger.info(
+                            f"{symbol}: TTPTSL SL borsaya tasindi -> sl {pos['sl']:.6f}"
+                        )
+                    except Exception as e:
+                        logger.error(f"{symbol}: TTPTSL SL borsa guncelleme hatasi: {e}")
+                        last_alert = float(pos.get("sl_alert_ts") or 0)
+                        if self.telegram and time.time() - last_alert > 600:
+                            pos["sl_alert_ts"] = time.time()
+                            await self.telegram.send(
+                                f"ATOS X UYARI: {symbol} TTPTSL trailing SL borsaya "
+                                f"tasinamadi (mevcut {old_sl:.6f}, hedef {float(new_sl):.6f}). "
+                                f"Koruma eski seviyede; sonraki taramada yeniden denenir."
                             )
-                            if algo.get("sl"):
-                                pos["sl_order_id"] = algo["sl"]
-                                logger.info(
-                                    f"{symbol}: TTPTSL SL borsaya tasindi -> sl {pos['sl']:.6f}"
-                                )
-                        except Exception as e:
-                            logger.error(f"{symbol}: TTPTSL SL borsa guncelleme hatasi: {e}")
                 if current_price and pos.get("sl") and pos["side"] == "BUY" and current_price <= float(pos["sl"]):
                     await self.close_position(symbol, float(pos["sl"]), "stop_loss")
                 elif current_price and pos.get("sl") and pos["side"] == "SELL" and current_price >= float(pos["sl"]):
