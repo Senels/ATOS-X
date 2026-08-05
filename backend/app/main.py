@@ -21,12 +21,12 @@ from app.data.collector import backfill as backfill_klines
 from app.data.collector import collect as collect_klines
 from app.exchange.binance_client import BinanceClient
 from app.notifications.telegram import TelegramNotifier
+from app.strategy import get_strategy
 from app.strategy import settings as strat_settings
 from app.strategy.auto_trader import AutoTrader
 from app.strategy.coin_intel import coin_score
 from app.strategy.decision import decide as decide_symbol
 from app.strategy.market_intel import analyze as analyze_market
-from app.strategy.tradebot_v23 import TradeBotV23
 from app.websocket.client import BinanceWebSocket
 
 load_dotenv()
@@ -111,7 +111,7 @@ async def _signal_for_symbol(symbol: str, interval: str = "4h") -> dict:
         return {}
     try:
         df = await client.get_klines(symbol, interval, 400)
-        return TradeBotV23(strat_settings.get_settings()).generate_signal(df)
+        return get_strategy(strat_settings.get_settings()).generate_signal(df)
     except Exception as e:
         logger.error(f"Sinyal hesap hatasi {symbol}: {e}")
         return {}
@@ -1511,7 +1511,7 @@ async def live_signals(limit: int = 12, interval: str = "4h"):
     candidates = (auto_trader.priority or auto_trader.trading_symbols)[:limit]
     if not candidates:
         return {"signals": [], "count": 0, "scanned": []}
-    bot = TradeBotV23(strat_settings.get_settings())
+    bot = get_strategy(strat_settings.get_settings())
 
     async def fetch(symbol):
         try:
@@ -1798,7 +1798,7 @@ async def get_default_settings():
 async def get_signal(symbol: str, interval: str = "4h", limit: int = 400):
     try:
         df = await app.state.binance.get_klines(symbol, interval, limit)
-        bot = TradeBotV23(strat_settings.get_settings())
+        bot = get_strategy(strat_settings.get_settings())
         return {"symbol": symbol, "interval": interval, **bot.generate_signal(df)}
     except Exception as e:
         return {"symbol": symbol, "error": str(e)}

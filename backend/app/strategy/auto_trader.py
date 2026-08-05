@@ -10,10 +10,10 @@ from app.core.config import get_settings
 from app.core.database import Database
 from app.data import loader
 from app.data.collector import backfill as backfill_klines
+from app.strategy import get_strategy
 from app.strategy import settings as strat_settings
 from app.strategy.coin_intel import coin_score as score_symbol
 from app.strategy.decision import decide as decide_council
-from app.strategy.tradebot_v23 import TradeBotV23
 
 _SCORE_POOL = 200  # skor bazli siralama icin canli degerlendirilen sembol sayisi
 
@@ -192,7 +192,7 @@ class AutoTrader:
         secilecegini belirler. Verisi olmayan ya da yeterli islem
         uretmeyen semboller elenir.
         """
-        bot = TradeBotV23(strat_settings.get_settings())
+        bot = get_strategy(strat_settings.get_settings())
         rows = []
         for symbol in self.trading_symbols:
             try:
@@ -375,7 +375,7 @@ class AutoTrader:
         while self.running:
             try:
                 s = strat_settings.get_settings()
-                bot = TradeBotV23(s)
+                bot = get_strategy(s)
                 # Risk ayarlari UI'dan degistirilirse sonraki dongude gecerli olur
                 self._apply_risk_settings(s)
                 all_prices = await self.binance.get_all_tickers()

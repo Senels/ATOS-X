@@ -70,6 +70,7 @@ th { color:#94a3b8; font-weight:500; font-size:10px; text-transform:uppercase; }
 
 <div class="tabs">
 <button class="tab active" onclick="showTab('strategy')">📊 Strategy</button>
+<button class="tab" onclick="showTab('ttp')">🧮 TTPTSL</button>
 <button class="tab" onclick="showTab('tpsl')">🎯 TP/SL</button>
 <button class="tab" onclick="showTab('confirmations')">✅ Confirmations</button>
 <button class="tab" onclick="showTab('risk')">🛡️ Risk</button>
@@ -79,6 +80,11 @@ th { color:#94a3b8; font-weight:500; font-size:10px; text-transform:uppercase; }
 <div id="tab-strategy" class="panel active">
 <div class="settings-card">
 <h3>📊 Strategy Settings</h3>
+<div class="setting-item"><span class="label">Active Strategy</span>
+<select id="s_active">
+<option value="v23">TradeBot v23</option>
+<option value="ttp">TTPTSL (MA Crossover)</option>
+</select></div>
 <div class="setting-item"><span class="label">Leading Indicator</span>
 <select id="s_leading">
 <option value="Range Filter">Range Filter</option>
@@ -105,6 +111,64 @@ th { color:#94a3b8; font-weight:500; font-size:10px; text-transform:uppercase; }
 <select id="s_dashpos"><option value="top-left">top-left</option><option value="top-right">top-right</option><option value="bottom-left">bottom-left</option><option value="bottom-right" selected>bottom-right</option></select></div>
 <div class="setting-item"><span class="label">Dashboard Size</span>
 <select id="s_dashsize"><option value="Tiny">Tiny</option><option value="Small">Small</option><option value="Normal" selected>Normal</option><option value="Large">Large</option><option value="Huge">Huge</option></select></div>
+</div>
+</div>
+
+<div id="tab-ttp" class="panel">
+<div class="settings-grid">
+<div class="settings-card">
+<h3>🧮 MA Crossover</h3>
+<div class="setting-item"><span class="label">Fast MA Length</span>
+<input type="number" id="t_fast_ma_len" value="31" min="5" max="50"></div>
+<div class="setting-item"><span class="label">Slow MA Length</span>
+<input type="number" id="t_slow_ma_len" value="92" min="20" max="200"></div>
+<div class="setting-item"><span class="label">ATR Length</span>
+<input type="number" id="t_atr_len" value="24" min="3" max="30"></div>
+<div class="setting-item"><span class="label">SL Method</span>
+<select id="t_sl_method"><option value="perc">Percent</option><option value="atr" selected>ATR</option></select></div>
+<div class="setting-item"><span class="label">SL Trail Mode</span>
+<select id="t_sl_trail_mode"><option value="TP" selected>After TP</option><option value="ON">Always ON</option><option value="OFF">OFF</option></select></div>
+<div class="setting-item"><span class="label">Breakeven Enabled</span>
+<button class="toggle-btn on" id="t_be_enabled" onclick="toggleButton(this)">ON</button></div>
+</div>
+<div class="settings-card">
+<h3>🎯 Take Profit</h3>
+<div class="setting-item"><span class="label">TP Method</span>
+<select id="t_tp_method"><option value="perc">Percent</option><option value="atr">ATR</option><option value="rr" selected>R:R</option></select></div>
+<div class="setting-item"><span class="label">TP Partial Qty (%)</span>
+<input type="number" id="t_tp_qty_pct" value="61.25" min="25" max="100" step="5"></div>
+<div class="setting-item"><span class="label">TP Long %</span>
+<input type="number" id="t_tp_long_perc" value="9.25" min="1" max="30" step="0.5"></div>
+<div class="setting-item"><span class="label">TP Short %</span>
+<input type="number" id="t_tp_short_perc" value="8.5" min="1" max="30" step="0.5"></div>
+<div class="setting-item"><span class="label">TP Long ATR Mul</span>
+<input type="number" id="t_tp_long_atr_mul" value="11.375" min="1" max="20" step="0.5"></div>
+<div class="setting-item"><span class="label">TP Short ATR Mul</span>
+<input type="number" id="t_tp_short_atr_mul" value="7.25" min="1" max="20" step="0.5"></div>
+<div class="setting-item"><span class="label">TP Long R:R</span>
+<input type="number" id="t_tp_long_rr" value="3.1" min="0.5" max="5" step="0.1"></div>
+<div class="setting-item"><span class="label">TP Short R:R</span>
+<input type="number" id="t_tp_short_rr" value="1.95" min="0.5" max="5" step="0.1"></div>
+<div class="setting-item"><span class="label">TP Trailing Enabled</span>
+<button class="toggle-btn on" id="t_tp_trail_enabled" onclick="toggleButton(this)">ON</button></div>
+<div class="setting-item"><span class="label">Trail Distance Method</span>
+<select id="t_dist_method"><option value="perc" selected>Percent</option><option value="atr">ATR</option></select></div>
+<div class="setting-item"><span class="label">Trail Dist %</span>
+<input type="number" id="t_dist_perc" value="2.84" min="0.1" max="5" step="0.05"></div>
+<div class="setting-item" style="border-bottom:none;"><span class="label">Trail Dist ATR Mul</span>
+<input type="number" id="t_dist_atr_mul" value="3.4" min="0.1" max="5" step="0.1"></div>
+</div>
+<div class="settings-card">
+<h3>🛑 Stop Loss</h3>
+<div class="setting-item"><span class="label">SL Long %</span>
+<input type="number" id="t_sl_long_perc" value="6.06" min="0.5" max="15" step="0.25"></div>
+<div class="setting-item"><span class="label">SL Short %</span>
+<input type="number" id="t_sl_short_perc" value="7.13" min="0.5" max="15" step="0.25"></div>
+<div class="setting-item"><span class="label">SL Long ATR Mul</span>
+<input type="number" id="t_sl_long_atr_mul" value="3.25" min="0.5" max="8" step="0.25"></div>
+<div class="setting-item" style="border-bottom:none;"><span class="label">SL Short ATR Mul</span>
+<input type="number" id="t_sl_short_atr_mul" value="4.8125" min="0.5" max="8" step="0.25"></div>
+</div>
 </div>
 </div>
 
@@ -266,6 +330,31 @@ return null;
 
 async function saveAll() {
 const settings = {
+active_strategy: getValue('s_active'),
+ttp: {
+fast_ma_len: parseInt(getValue('t_fast_ma_len')) || 31,
+slow_ma_len: parseInt(getValue('t_slow_ma_len')) || 92,
+atr_len: parseInt(getValue('t_atr_len')) || 24,
+sl_method: getValue('t_sl_method'),
+sl_long_perc: (parseFloat(getValue('t_sl_long_perc')) || 0) / 100,
+sl_short_perc: (parseFloat(getValue('t_sl_short_perc')) || 0) / 100,
+sl_long_atr_mul: parseFloat(getValue('t_sl_long_atr_mul')) || 0,
+sl_short_atr_mul: parseFloat(getValue('t_sl_short_atr_mul')) || 0,
+sl_trail_mode: getValue('t_sl_trail_mode'),
+be_enabled: getValue('t_be_enabled'),
+tp_qty_pct: (parseFloat(getValue('t_tp_qty_pct')) || 0) / 100,
+tp_method: getValue('t_tp_method'),
+tp_long_perc: (parseFloat(getValue('t_tp_long_perc')) || 0) / 100,
+tp_short_perc: (parseFloat(getValue('t_tp_short_perc')) || 0) / 100,
+tp_long_atr_mul: parseFloat(getValue('t_tp_long_atr_mul')) || 0,
+tp_short_atr_mul: parseFloat(getValue('t_tp_short_atr_mul')) || 0,
+tp_long_rr: parseFloat(getValue('t_tp_long_rr')) || 0,
+tp_short_rr: parseFloat(getValue('t_tp_short_rr')) || 0,
+tp_trail_enabled: getValue('t_tp_trail_enabled'),
+dist_method: getValue('t_dist_method'),
+dist_perc: (parseFloat(getValue('t_dist_perc')) || 0) / 100,
+dist_atr_mul: parseFloat(getValue('t_dist_atr_mul')) || 0
+},
 leading_indicator: getValue('s_leading'),
 signal_expiry: parseInt(getValue('s_expiry')) || 3,
 alternate_signal: getValue('s_alternate'),
@@ -370,6 +459,7 @@ for (const [key,val] of Object.entries(map)) {
 setToggle(val, s.confirmations[key]);
 }
 }
+setTtp(s);
 alert('✅ Defaults loaded!');
 refresh();
 }
@@ -390,6 +480,35 @@ el.classList.remove('on');
 el.classList.add('off');
 el.textContent = 'OFF';
 }
+}
+
+function setTtp(s) {
+if (!s || !s.ttp) return;
+const t = s.ttp;
+const num = function(el, v) { const e = document.getElementById(el); if (e) e.value = v; };
+document.getElementById('s_active').value = s.active_strategy || 'v23';
+num('t_fast_ma_len', t.fast_ma_len != null ? t.fast_ma_len : 31);
+num('t_slow_ma_len', t.slow_ma_len != null ? t.slow_ma_len : 92);
+num('t_atr_len', t.atr_len != null ? t.atr_len : 24);
+num('t_sl_method', t.sl_method || 'atr');
+num('t_sl_trail_mode', t.sl_trail_mode || 'TP');
+setToggle('t_be_enabled', t.be_enabled);
+num('t_tp_method', t.tp_method || 'rr');
+num('t_tp_qty_pct', (t.tp_qty_pct != null ? t.tp_qty_pct : 0.6125) * 100);
+num('t_tp_long_perc', (t.tp_long_perc != null ? t.tp_long_perc : 0.0925) * 100);
+num('t_tp_short_perc', (t.tp_short_perc != null ? t.tp_short_perc : 0.085) * 100);
+num('t_tp_long_atr_mul', t.tp_long_atr_mul != null ? t.tp_long_atr_mul : 11.375);
+num('t_tp_short_atr_mul', t.tp_short_atr_mul != null ? t.tp_short_atr_mul : 7.25);
+num('t_tp_long_rr', t.tp_long_rr != null ? t.tp_long_rr : 3.1);
+num('t_tp_short_rr', t.tp_short_rr != null ? t.tp_short_rr : 1.95);
+setToggle('t_tp_trail_enabled', t.tp_trail_enabled);
+num('t_dist_method', t.dist_method || 'perc');
+num('t_dist_perc', (t.dist_perc != null ? t.dist_perc : 0.0284) * 100);
+num('t_dist_atr_mul', t.dist_atr_mul != null ? t.dist_atr_mul : 3.4);
+num('t_sl_long_perc', (t.sl_long_perc != null ? t.sl_long_perc : 0.0606) * 100);
+num('t_sl_short_perc', (t.sl_short_perc != null ? t.sl_short_perc : 0.0713) * 100);
+num('t_sl_long_atr_mul', t.sl_long_atr_mul != null ? t.sl_long_atr_mul : 3.25);
+num('t_sl_short_atr_mul', t.sl_short_atr_mul != null ? t.sl_short_atr_mul : 4.8125);
 }
 
 async function refresh() {
@@ -433,6 +552,7 @@ for (const [key,val] of Object.entries(map)) {
 setToggle(val, s.confirmations[key]);
 }
 }
+setTtp(s);
 document.getElementById('statusBadge').innerHTML = '<span class="status-dot status-online"></span>ONLINE';
 const tr = await fetch('/api/v1/trades');
 const td = await tr.json();

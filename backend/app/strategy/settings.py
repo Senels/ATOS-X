@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Any, Dict
 
 DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
+    # Aktif strateji secimi: v23 (TradeBotV23) | ttp (TTPTSL)
+    "active_strategy": "v23",
     # Leading indicator secimi
     "leading_indicator": "Range Filter",
     # Sinyal expiry: leading kosul kac bar boyunca gecerli kalsin
@@ -57,6 +59,31 @@ DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
     # Range Filter parametreleri
     "rangefilt_length": 3,
     "range_filt_mult": 2.5,
+    # TTPTSL strateji parametreleri (optimize_ttp.py unified/OOS sonuclari)
+    "ttp": {
+        "fast_ma_len": 31,
+        "slow_ma_len": 92,
+        "atr_len": 24,
+        "sl_method": "atr",
+        "sl_long_perc": 0.0606,
+        "sl_short_perc": 0.0713,
+        "sl_long_atr_mul": 3.25,
+        "sl_short_atr_mul": 4.8125,
+        "sl_trail_mode": "TP",
+        "be_enabled": True,
+        "tp_qty_pct": 0.6125,
+        "tp_method": "rr",
+        "tp_long_perc": 0.0925,
+        "tp_short_perc": 0.085,
+        "tp_long_atr_mul": 11.375,
+        "tp_short_atr_mul": 7.25,
+        "tp_long_rr": 3.1,
+        "tp_short_rr": 1.95,
+        "tp_trail_enabled": True,
+        "dist_method": "perc",
+        "dist_perc": 0.0284,
+        "dist_atr_mul": 3.4,
+    },
     # Konfirmasyonlar (True = aktif, yonde bazli kosul aranir)
     "confirmations": {
         "ema": False,

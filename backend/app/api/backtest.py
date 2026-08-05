@@ -11,8 +11,8 @@ from fastapi import APIRouter, HTTPException
 from app.backtest.engine import BacktestEngine
 from app.core.database import Database
 from app.data import loader
+from app.strategy import get_strategy
 from app.strategy import settings as strat_settings
-from app.strategy.tradebot_v23 import TradeBotV23
 
 router = APIRouter(prefix="/api/v1", tags=["strategy"])
 _db = Database()
@@ -127,7 +127,7 @@ async def run_backtest(
         max_position_age_hours=max_position_age_hours if max_position_age_hours is not None else engine_cfg.get("max_position_age_hours", 0.0),
         min_signal_strength=min_signal_strength if min_signal_strength is not None else engine_cfg.get("min_signal_strength", 0.0),
     )
-    bot = TradeBotV23(settings)
+    bot = get_strategy(settings)
     result = bot.analyze(df)
     metrics = engine.run(df, result["orders"], interval)
 
@@ -175,6 +175,6 @@ async def strategy_signal(
         df = await _load_data(symbol, interval, limit, source)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Veri yuklenemedi: {e}")
-    bot = TradeBotV23(strat_settings.get_settings())
+    bot = get_strategy(strat_settings.get_settings())
     signal = bot.generate_signal(df)
     return {"symbol": symbol, "interval": interval, **signal}
