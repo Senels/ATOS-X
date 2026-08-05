@@ -1,13 +1,19 @@
 ﻿import asyncio
+
 import aiohttp
 from loguru import logger
+
 from app.core.config import get_settings
+from app.core.security import is_authorized_chat, parse_chat_ids
+
 
 class TelegramNotifier:
     def __init__(self):
         settings = get_settings()
         self.token = settings.TELEGRAM_TOKEN if hasattr(settings, "TELEGRAM_TOKEN") else None
         self.chat_id = settings.TELEGRAM_CHAT_ID if hasattr(settings, "TELEGRAM_CHAT_ID") else None
+        self.allowed_chat_ids = parse_chat_ids(
+            settings.TELEGRAM_ALLOWED_CHAT_IDS if hasattr(settings, "TELEGRAM_ALLOWED_CHAT_IDS") else "")
         self.enabled = bool(self.token and self.chat_id)
         self._listener_task = None
 
@@ -24,7 +30,7 @@ class TelegramNotifier:
                     "parse_mode": "HTML"
                 }) as resp:
                     if resp.status == 200:
-                        logger.info(f"📨 Telegram mesajı gönderildi")
+                        logger.info("📨 Telegram mesajı gönderildi")
                     else:
                         logger.error(f"❌ Telegram hatası: {await resp.text()}")
         except Exception as e:
@@ -64,7 +70,7 @@ class TelegramNotifier:
         await self.send(msg)
 
     async def send_performance(self, metrics: dict):
-        msg = f"📊 <b>Performans Raporu</b>\n"
+        msg = "📊 <b>Performans Raporu</b>\n"
         msg += f"Equity: ${metrics.get('equity', 0):.2f}\n"
         msg += f"Trades: {metrics.get('total_trades', 0)}\n"
         msg += f"Win Rate: {metrics.get('win_rate', 0)*100:.1f}%\n"
@@ -124,7 +130,7 @@ class TelegramNotifier:
                 logger.error(f"Telegram dinleyici hatasi: {e}")
                 await asyncio.sleep(15)
                 continue
-            new_offset, replies = _process_updates(updates, handler)
+            new_offset, replies = _process_updates(updates, handler, self.allowed_chat_ids)
             if new_offset:
                 offset = new_offset
             for reply in replies:
@@ -132,15 +138,25 @@ class TelegramNotifier:
             await asyncio.sleep(1)
 
 
-def _process_updates(updates: list, handler) -> tuple:
-    """Gelen Telegram update'lerini isler; (son offset, yanitlar) dondurur."""
+def _process_updates(updates: list, handler, allowed_chat_ids=None) -> tuple:
+    """Gelen Telegram update'lerini isler; (son offset, yanitlar) dondurur.
+
+    `allowed_chat_ids` bos/None ise filtre uygulanmaz; dolu ise yalnizca
+    whitelist'teki sohbetlerin mesajlari handler'a iletilir.
+    """
     offset = 0
     replies = []
     for u in updates:
         offset = u["update_id"] + 1
-        text = (u.get("message") or {}).get("text", "")
+        msg = u.get("message") or {}
+        text = msg.get("text", "")
         if not text:
             continue
+        if allowed_chat_ids:
+            chat_id = (msg.get("chat") or {}).get("id")
+            if not is_authorized_chat(chat_id, allowed_chat_ids):
+                logger.warning(f"Yetkisiz Telegram sohbeti engellendi: chat_id={chat_id}")
+                continue
         reply = handler(text)
         if reply:
             replies.append(reply)

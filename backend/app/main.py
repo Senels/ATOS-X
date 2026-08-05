@@ -2,30 +2,32 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
-from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
 from pathlib import Path
+
+from dotenv import load_dotenv
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from loguru import logger
 
-from app.core.config import get_settings
-from app.core.database import Database
-from app.exchange.binance_client import BinanceClient
-from app.strategy.auto_trader import AutoTrader
-from app.strategy import settings as strat_settings
-from app.strategy.tradebot_v23 import TradeBotV23
-from app.strategy.market_intel import analyze as analyze_market
-from app.strategy.coin_intel import coin_score
-from app.strategy.decision import decide as decide_symbol
-from app.data.collector import backfill as backfill_klines
-from app.data.collector import collect as collect_klines
-from app.data.collector import _INTERVAL_MS
-from app.data import loader
 from app.api.backtest import router as backtest_router
 from app.api.optimization import router as optimize_router
-from app.websocket.client import BinanceWebSocket
+from app.core.config import get_settings
+from app.core.database import Database
+from app.core.security import APIKeyMiddleware
+from app.data import loader
+from app.data.collector import _INTERVAL_MS
+from app.data.collector import backfill as backfill_klines
+from app.data.collector import collect as collect_klines
+from app.exchange.binance_client import BinanceClient
 from app.notifications.telegram import TelegramNotifier
+from app.strategy import settings as strat_settings
+from app.strategy.auto_trader import AutoTrader
+from app.strategy.coin_intel import coin_score
+from app.strategy.decision import decide as decide_symbol
+from app.strategy.market_intel import analyze as analyze_market
+from app.strategy.tradebot_v23 import TradeBotV23
+from app.websocket.client import BinanceWebSocket
 
 load_dotenv()
 settings = get_settings()
@@ -1389,7 +1391,14 @@ async def _daily_report_loop():
             logger.error(f"Gunluk rapor hatasi: {e}")
 
 app = FastAPI(title="ATOS X API", version="1.0.0", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+if settings.ALLOWED_ORIGINS.strip():
+    origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
+else:
+    origins = ["http://localhost", "http://127.0.0.1",
+               "http://localhost:8000", "http://127.0.0.1:8000"]
+app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True,
+                   allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(APIKeyMiddleware, api_key=settings.API_KEY)
 app.include_router(backtest_router)
 app.include_router(optimize_router)
 
