@@ -112,17 +112,23 @@ async def _send_symbol_signal(symbol: str, interval: str = "4h"):
     await telegram.send_signal(symbol, signal, sig.get("price") or 0.0,
                                sig.get("reason", ""), sig.get("sl"), sig.get("tp"))
 
-async def _send_batch_signals(symbols: list, interval: str = "4h"):
+async def _send_batch_signals(symbols: list, interval: str = "4h", sig_filter: str = None):
     """Tarama listesi icin toplu sinyal ozetini Telegram'a gonderir."""
     from app.strategy.coin_intel import trend_regime
     arrows = {"BUY": "🟢", "SELL": "🔴", "HOLD": "⚪"}
     trend_icons = {"UPTREND": "📈", "DOWNTREND": "📉", "RANGE": "➡️"}
-    lines = [f"ATOS X tarama ({interval}):"]
+    header = f"ATOS X tarama ({interval}"
+    if sig_filter:
+        header += f", {sig_filter}"
+    header += "):"
+    lines = [header]
     client = getattr(app.state, "binance", None)
     for sym in symbols:
         sig = await _signal_for_symbol(sym, interval)
         signal = sig.get("signal")
         if not signal:
+            continue
+        if sig_filter and signal != sig_filter:
             continue
         arrow = arrows.get(signal, "")
         price = sig.get("price") or 0.0
@@ -497,19 +503,22 @@ def _telegram_command(text: str):
         if not auto_trader:
             return "ATOS X: motor calismiyor"
         parts = text.strip().split()
-        n, interval = 5, "4h"
+        n, interval, sig_filter = 5, "4h", None
         for p in parts[1:]:
             if p.lower() in _INTERVAL_MS:
                 interval = p.lower()
+            elif p.upper() in ("BUY", "SELL", "HOLD"):
+                sig_filter = p.upper()
             elif p.isdigit():
                 n = int(p)
         n = max(1, min(n, 10))
         symbols = (auto_trader.priority or auto_trader.trading_symbols)[:n]
         if not symbols:
             return "ATOS X: tarama listesi bos"
-        if not _run_later(_send_batch_signals(symbols, interval)):
+        if not _run_later(_send_batch_signals(symbols, interval, sig_filter)):
             return "ATOS X: komut arka planda calistirilamadi"
-        return f"ATOS X: {len(symbols)} sembol taranacak ({interval})"
+        flt = f" ({sig_filter})" if sig_filter else ""
+        return f"ATOS X: {len(symbols)} sembol taranacak ({interval}{flt})"
     if cmd.startswith("/sinyal") or cmd.startswith("/signal"):
         parts = text.strip().split()
         if not auto_trader:
