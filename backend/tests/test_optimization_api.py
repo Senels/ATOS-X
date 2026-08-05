@@ -67,7 +67,7 @@ def test_optimize_invalid_int_list_raises():
 
 
 def test_optimize_save_to_file(tmp_path, monkeypatch):
-    def fake_save(best, path=None):
+    def fake_save(best, path=None, strategy="v23"):
         p = tmp_path / "optimized_settings.json"
         p.write_text("{}", encoding="utf-8")
         return p
@@ -88,6 +88,64 @@ def test_defaults():
     res = asyncio.run(opt.optimize_defaults())
     assert "rangefilt_length" in res["grid"]
     assert "combined" in res["objectives"]
+
+
+def test_defaults_includes_ttp_grid():
+    res = asyncio.run(opt.optimize_defaults())
+    assert "fast_ma_len" in res["ttp_grid"]
+    assert "slow_ma_len" in res["ttp_grid"]
+
+
+def test_optimize_ttp_runs_small_grid():
+    res = asyncio.run(opt.run_optimize(
+        strategy="ttp",
+        symbols="BTCUSDT",
+        interval="4h",
+        limit=100,
+        objective="combined",
+        fast_ma_len="15,25",
+        slow_ma_len="60",
+        atr_len="14",
+    ))
+    assert res["strategy"] == "ttp"
+    assert len(res["results"]) == 2
+    for r in res["results"]:
+        assert r["combo"]["fast_ma_len"] in (15, 25)
+        assert r["combo"]["slow_ma_len"] == 60
+    assert res["grid"]["fast_ma_len"] == [15, 25]
+
+
+def test_optimize_invalid_strategy_raises():
+    with pytest.raises(Exception):
+        asyncio.run(opt.run_optimize(
+            strategy="xxx",
+            symbols="BTCUSDT",
+            interval="4h",
+            limit=50,
+        ))
+
+
+def test_best_settings_to_file_ttp_nested(tmp_path):
+    from app.optimization.search import best_settings_to_file
+
+    p = best_settings_to_file(
+        {"combo": {"fast_ma_len": 25, "slow_ma_len": 92}, "score": 33.5, "count": 2},
+        path=tmp_path / "optimized_settings.json",
+        strategy="ttp",
+    )
+    import json
+    data = json.loads(p.read_text(encoding="utf-8"))
+    assert data["active_strategy"] == "ttp"
+    assert data["ttp"]["fast_ma_len"] == 25
+    assert data["_strategy"] == "ttp"
+
+
+def test_grid_search_default_grid_by_strategy():
+    from app.optimization.search import DEFAULT_GRID, DEFAULT_TTP_GRID, GridSearch
+
+    assert GridSearch(strategy="ttp").grid == DEFAULT_TTP_GRID
+    assert GridSearch(strategy="v23").grid == DEFAULT_GRID
+    assert GridSearch().grid == DEFAULT_GRID
 
 
 def test_apply_optimized_applies_and_persists(monkeypatch):
@@ -124,6 +182,31 @@ def test_apply_optimized_empty_no_persist(monkeypatch):
         result = ss.apply_optimized()
         assert result["applied"] == []
         assert persisted == []
+    finally:
+        ss.update_settings(prev)
+
+
+def test_apply_optimized_ttp_block(monkeypatch):
+    import app.strategy.settings as ss
+
+    monkeypatch.setattr(ss, "load_optimized", lambda: {
+        "active_strategy": "ttp",
+        "ttp": {"fast_ma_len": 25, "slow_ma_len": 92},
+        "_strategy": "ttp",
+        "_objective_score": 1.5,
+    })
+    persisted = []
+    monkeypatch.setattr(ss, "persist",
+                        lambda: persisted.append(True) or ss.get_settings())
+    prev = ss.get_settings()
+    try:
+        result = ss.apply_optimized()
+        assert "ttp" in result["applied"]
+        assert "active_strategy" in result["applied"]
+        assert ss.get_settings()["active_strategy"] == "ttp"
+        assert ss.get_settings()["ttp"]["fast_ma_len"] == 25
+        assert ss.get_settings()["ttp"]["slow_ma_len"] == 92
+        assert persisted == [True]
     finally:
         ss.update_settings(prev)
 

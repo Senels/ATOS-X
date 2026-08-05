@@ -1,8 +1,12 @@
-"""Parametre optimizasyonu - TradeBotV23 + BacktestEngine uzerinde grid search.
+"""Parametre optimizasyonu - TradeBotV23 + TTPTSL + BacktestEngine grid search.
 
 Grid search, ProcessPoolExecutor ile paralel calisir. Calisan process'lerde
 veri yukleme `_init_worker` ile bir kez yapilir (her sembol icin CSV okunur);
 her kombinasyon tum semboller uzerinde degerlendirilip ortalama skorla siralanir.
+
+Strateji secimi (`strategy`): "v23" parametreleri duz (top-level) settings
+anahtarlarina, "ttp" parametreleri `settings["ttp"]` bloguna yazilir ve
+`get_strategy` fabrikasi uzerinden dogru motorla degerlendirilir.
 """
 import itertools
 import sys
@@ -18,8 +22,8 @@ if str(REPO_BACKEND) not in sys.path:
 
 from app.backtest.engine import BacktestEngine  # noqa: E402
 from app.data import loader  # noqa: E402
+from app.strategy import get_strategy  # noqa: E402
 from app.strategy import settings as strat_settings  # noqa: E402
-from app.strategy.tradebot_v23 import TradeBotV23  # noqa: E402
 
 DEFAULT_GRID: Dict[str, List[Any]] = {
     "rangefilt_length": [2, 3, 4, 5],
@@ -27,6 +31,16 @@ DEFAULT_GRID: Dict[str, List[Any]] = {
     "signal_expiry": [1, 2, 3, 4],
     "rr_ratio": [1.0, 1.5, 2.0, 3.0],
     "sl_lookback": [3, 5, 7],
+}
+
+# TTPTSL icin kucuk, kuerat edilmis grid (23 Optuna parametresinin tam
+# kartezyen carpimi cok buyuk; optimize_ttp.py agir optuna yolu olarak kalir).
+DEFAULT_TTP_GRID: Dict[str, List[Any]] = {
+    "fast_ma_len": [15, 25, 31],
+    "slow_ma_len": [60, 92, 120],
+    "atr_len": [14, 24],
+    "tp_long_rr": [2.0, 2.5, 3.1],
+    "tp_short_rr": [1.5, 1.95],
 }
 
 _CTX: Dict[str, Any] = {}
@@ -63,10 +77,12 @@ def _evaluate_combo(combo: Dict[str, Any]) -> Dict[str, Any]:
     """Bir parametre kombinasyonunu _CTX sembollerinde degerlendirir."""
     ctx = _CTX
     settings = deepcopy(ctx["base_settings"])
+    namespace = ctx.get("param_namespace")
+    target = settings if namespace is None else settings.setdefault(namespace, {})
     for key, value in combo.items():
-        settings[key] = value
+        target[key] = value
 
-    bot = TradeBotV23(settings)
+    bot = get_strategy(settings)
     engine_kwargs = ctx["engine_kwargs"]
     interval = ctx["interval"]
     limit = ctx["limit"]
@@ -110,9 +126,11 @@ class GridSearch:
         grid: Optional[Dict[str, List[Any]]] = None,
         objective: str = "combined",
         max_workers: Optional[int] = None,
+        strategy: str = "v23",
     ):
+        self.strategy = strategy
         if grid is None:
-            grid = deepcopy(DEFAULT_GRID)
+            grid = deepcopy(DEFAULT_TTP_GRID if strategy == "ttp" else DEFAULT_GRID)
         self.grid = grid
         self.objective = objective
         self.max_workers = max_workers or 1
@@ -127,6 +145,7 @@ class GridSearch:
     ) -> Dict[str, Any]:
         if base_settings is None:
             base_settings = strat_settings.default_settings()
+        base_settings["active_strategy"] = self.strategy
         if engine_kwargs is None:
             s = strat_settings.default_settings()
             engine_kwargs = {
@@ -157,6 +176,7 @@ class GridSearch:
             "interval": interval,
             "limit": int(limit),
             "objective": self.objective,
+            "param_namespace": None if self.strategy == "v23" else "ttp",
         }
 
         if self.max_workers > 1:
@@ -176,14 +196,34 @@ class GridSearch:
         return {"results": results, "best": results[0] if results else None}
 
 
-def best_settings_to_file(best: Dict[str, Any], path: Optional[Path] = None) -> Path:
-    """En iyi kombinasyonu optimized_settings.json dosyasina yazar."""
+def best_settings_to_file(
+    best: Dict[str, Any],
+    path: Optional[Path] = None,
+    strategy: str = "v23",
+) -> Path:
+    """En iyi kombinasyonu optimized_settings.json dosyasina yazar.
+
+    "ttp" stratejisinde parametreler `ttp` blogu olarak + `active_strategy`
+    switch'i ile yazilir (apply_optimized + `_defaults` merge uyumlu); "v23"
+    duz (top-level) formati korunur.
+    """
     if path is None:
         path = Path(strat_settings._OPTIMIZED_FILE)
     import json
 
-    payload = dict(best["combo"])
-    payload["_objective_score"] = round(float(best["score"]), 4)
-    payload["_symbols_count"] = best.get("count", 0)
+    score = round(float(best["score"]), 4)
+    count = best.get("count", 0)
+    if strategy == "ttp":
+        payload: Dict[str, Any] = {
+            "active_strategy": "ttp",
+            "ttp": dict(best["combo"]),
+            "_strategy": "ttp",
+            "_objective_score": score,
+            "_symbols_count": count,
+        }
+    else:
+        payload = dict(best["combo"])
+        payload["_objective_score"] = score
+        payload["_symbols_count"] = count
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     return path

@@ -197,6 +197,8 @@ def apply_optimized() -> Dict[str, Any]:
     """Kayitli optimize edilmis parametreleri canli duruma uygular ve kalici yazar.
 
     Dosyada olmayan anahtarlar degismez; `_` on ekli meta alanlari yok sayilir.
+    "ttp" stratejisi icin `ttp` blogu birlestirilir ve `active_strategy` "ttp" olarak
+    ayarlanir; "v23" icin yalnizca `_OPTIMIZED_KEYS` top-level anahtarlari uygulanir.
     """
     payload = load_optimized()
     applied = []
@@ -204,6 +206,12 @@ def apply_optimized() -> Dict[str, Any]:
         if key in payload:
             update_settings({key: payload[key]})
             applied.append(key)
+    if isinstance(payload.get("ttp"), dict):
+        update_settings({"ttp": payload["ttp"]})
+        applied.append("ttp")
+    if payload.get("active_strategy") in ("v23", "ttp"):
+        update_settings({"active_strategy": payload["active_strategy"]})
+        applied.append("active_strategy")
     if applied:
         persist()
     return {"applied": applied, "settings": get_settings()}

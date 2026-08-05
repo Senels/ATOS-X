@@ -9,7 +9,12 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 
 from app.data import loader
-from app.optimization.search import DEFAULT_GRID, GridSearch, best_settings_to_file
+from app.optimization.search import (
+    DEFAULT_GRID,
+    DEFAULT_TTP_GRID,
+    GridSearch,
+    best_settings_to_file,
+)
 
 router = APIRouter(prefix="/api/v1", tags=["strategy"])
 
@@ -48,11 +53,16 @@ def _split_floats(raw: Optional[str]) -> Optional[List[float]]:
 
 @router.get("/optimize/defaults")
 async def optimize_defaults():
-    return {"grid": DEFAULT_GRID, "objectives": ["combined", "return", "sharpe", "pf"]}
+    return {
+        "grid": DEFAULT_GRID,
+        "ttp_grid": DEFAULT_TTP_GRID,
+        "objectives": ["combined", "return", "sharpe", "pf"],
+    }
 
 
 @router.get("/optimize")
 async def run_optimize(
+    strategy: str = "v23",
     symbols: str = "BTCUSDT,ETHUSDT",
     interval: str = "4h",
     limit: int = 300,
@@ -63,8 +73,15 @@ async def run_optimize(
     signal_expiry: Optional[str] = None,
     rr_ratio: Optional[str] = None,
     sl_lookback: Optional[str] = None,
+    fast_ma_len: Optional[str] = None,
+    slow_ma_len: Optional[str] = None,
+    atr_len: Optional[str] = None,
+    tp_long_rr: Optional[str] = None,
+    tp_short_rr: Optional[str] = None,
     save_to_file: bool = False,
 ):
+    if strategy not in ("v23", "ttp"):
+        raise HTTPException(status_code=400, detail="Strateji v23 veya ttp olabilir")
     symbol_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
     if not symbol_list:
         raise HTTPException(status_code=400, detail="En az bir sembol gerekli")
@@ -73,29 +90,49 @@ async def run_optimize(
     if missing:
         raise HTTPException(status_code=400, detail=f"Sembol verisi yok: {', '.join(missing)}")
 
+    if strategy == "ttp":
+        int_fields = {
+            "fast_ma_len": _split_ints(fast_ma_len),
+            "slow_ma_len": _split_ints(slow_ma_len),
+            "atr_len": _split_ints(atr_len),
+        }
+        float_fields = {
+            "tp_long_rr": _split_floats(tp_long_rr),
+            "tp_short_rr": _split_floats(tp_short_rr),
+        }
+        default_grid = DEFAULT_TTP_GRID
+    else:
+        int_fields = {
+            "rangefilt_length": _split_ints(rangefilt_length),
+            "signal_expiry": _split_ints(signal_expiry),
+            "sl_lookback": _split_ints(sl_lookback),
+        }
+        float_fields = {
+            "range_filt_mult": _split_floats(range_filt_mult),
+            "rr_ratio": _split_floats(rr_ratio),
+        }
+        default_grid = DEFAULT_GRID
+
     grid: Dict[str, List[Any]] = {}
-    int_fields = {
-        "rangefilt_length": _split_ints(rangefilt_length),
-        "signal_expiry": _split_ints(signal_expiry),
-        "sl_lookback": _split_ints(sl_lookback),
-    }
-    float_fields = {
-        "range_filt_mult": _split_floats(range_filt_mult),
-        "rr_ratio": _split_floats(rr_ratio),
-    }
     for key, value in {**int_fields, **float_fields}.items():
         if value:
             grid[key] = value
 
-    search = GridSearch(grid=grid or None, objective=objective, max_workers=max_workers)
+    search = GridSearch(
+        grid=grid or None,
+        objective=objective,
+        max_workers=max_workers,
+        strategy=strategy,
+    )
     try:
         result = search.run(symbols=symbol_list, interval=interval, limit=int(limit))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Optimizasyon hatasi: {e}")
 
     payload = _jsonable(result)
+    payload["strategy"] = strategy
     payload["objective"] = objective
-    payload["grid"] = {k: list(v) for k, v in (grid or DEFAULT_GRID).items()}
+    payload["grid"] = {k: list(v) for k, v in (grid or default_grid).items()}
     payload["symbols"] = symbol_list
     payload["interval"] = interval
     payload["limit"] = int(limit)
@@ -103,7 +140,7 @@ async def run_optimize(
     best = payload.get("best")
     if save_to_file and best is not None:
         try:
-            path = best_settings_to_file(best)
+            path = best_settings_to_file(best, strategy=strategy)
             payload["saved_to"] = str(path)
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Dosya yazma hatasi: {e}")

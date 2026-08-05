@@ -60,11 +60,17 @@ tr:hover { background:rgba(59,130,246,0.05); }
 <div class="field"><label>Limit (bar)</label><input id="limit" type="number" value="300" min="50"></div>
 <div class="field"><label>Objective</label><select id="objective"><option value="combined">Combined</option><option value="return">Return</option><option value="sharpe">Sharpe</option><option value="pf">Profit Factor</option></select></div>
 <div class="field"><label>Max Workers</label><input id="max_workers" type="number" value="1" min="1" max="8"></div>
-<div class="field"><label>rangefilt_length</label><input id="rangefilt_length" placeholder="2,3,4,5"><div class="hint">Bos = varsayilan grid</div></div>
-<div class="field"><label>range_filt_mult</label><input id="range_filt_mult" placeholder="1.5,2.0,2.5,3.0"><div class="hint">Bos = varsayilan grid</div></div>
-<div class="field"><label>signal_expiry</label><input id="signal_expiry" placeholder="1,2,3,4"><div class="hint">Bos = varsayilan grid</div></div>
-<div class="field"><label>rr_ratio</label><input id="rr_ratio" placeholder="1.0,1.5,2.0,3.0"><div class="hint">Bos = varsayilan grid</div></div>
-<div class="field"><label>sl_lookback</label><input id="sl_lookback" placeholder="3,5,7"><div class="hint">Bos = varsayilan grid</div></div>
+<div class="field"><label>Strategy</label><select id="strategy" onchange="onStrategyChange()"><option value="v23">v23 (Range Filter)</option><option value="ttp">TTPTSL (MA Crossover)</option></select></div>
+<div class="field v23-field"><label>rangefilt_length</label><input id="rangefilt_length" placeholder="2,3,4,5"><div class="hint">Bos = varsayilan grid</div></div>
+<div class="field v23-field"><label>range_filt_mult</label><input id="range_filt_mult" placeholder="1.5,2.0,2.5,3.0"><div class="hint">Bos = varsayilan grid</div></div>
+<div class="field v23-field"><label>signal_expiry</label><input id="signal_expiry" placeholder="1,2,3,4"><div class="hint">Bos = varsayilan grid</div></div>
+<div class="field v23-field"><label>rr_ratio</label><input id="rr_ratio" placeholder="1.0,1.5,2.0,3.0"><div class="hint">Bos = varsayilan grid</div></div>
+<div class="field v23-field"><label>sl_lookback</label><input id="sl_lookback" placeholder="3,5,7"><div class="hint">Bos = varsayilan grid</div></div>
+<div class="field ttp-field hidden"><label>fast_ma_len</label><input id="fast_ma_len" placeholder="15,25,31"><div class="hint">Bos = varsayilan grid</div></div>
+<div class="field ttp-field hidden"><label>slow_ma_len</label><input id="slow_ma_len" placeholder="60,92,120"><div class="hint">Bos = varsayilan grid</div></div>
+<div class="field ttp-field hidden"><label>atr_len</label><input id="atr_len" placeholder="14,24"><div class="hint">Bos = varsayilan grid</div></div>
+<div class="field ttp-field hidden"><label>tp_long_rr</label><input id="tp_long_rr" placeholder="2.0,2.5,3.1"><div class="hint">Bos = varsayilan grid</div></div>
+<div class="field ttp-field hidden"><label>tp_short_rr</label><input id="tp_short_rr" placeholder="1.5,1.95"><div class="hint">Bos = varsayilan grid</div></div>
 <div class="checkbox"><input id="save_to_file" type="checkbox"><label for="save_to_file">En iyi kombinasyonu optimized_settings.json dosyasina yaz</label></div>
 </div>
 <div style="margin-top:16px; display:flex; gap:8px; align-items:center;">
@@ -105,12 +111,22 @@ window.fetch = function(url, opts) {
   });
 };
 const GRID_KEYS = ['rangefilt_length','range_filt_mult','signal_expiry','rr_ratio','sl_lookback'];
+const TTP_GRID_KEYS = ['fast_ma_len','slow_ma_len','atr_len','tp_long_rr','tp_short_rr'];
+let currentKeys = GRID_KEYS;
+function onStrategyChange() {
+const ttp = document.getElementById('strategy').value === 'ttp';
+document.querySelectorAll('.v23-field').forEach(el => el.classList.toggle('hidden', ttp));
+document.querySelectorAll('.ttp-field').forEach(el => el.classList.toggle('hidden', !ttp));
+currentKeys = ttp ? TTP_GRID_KEYS : GRID_KEYS;
+const th = document.getElementById('comboHeader');
+if (th) th.textContent = currentKeys.map(k => k.toUpperCase()).join(' | ');
+}
 async function loadMeta() {
 try {
 const r = await fetch('/api/v1/optimize/defaults');
 const d = await r.json();
 const th = document.getElementById('comboHeader');
-th.textContent = GRID_KEYS.map(k => k.toUpperCase()).join(' | ');
+th.textContent = currentKeys.map(k => k.toUpperCase()).join(' | ');
 const s = await fetch('/api/v1/backtest/symbols?interval=4h');
 const sd = await s.json();
 const dl = document.getElementById('symbolList');
@@ -132,9 +148,10 @@ interval: document.getElementById('interval').value,
 limit: document.getElementById('limit').value,
 objective: document.getElementById('objective').value,
 max_workers: document.getElementById('max_workers').value,
+strategy: document.getElementById('strategy').value,
 save_to_file: document.getElementById('save_to_file').checked
 });
-GRID_KEYS.forEach(k => {
+currentKeys.forEach(k => {
 const v = document.getElementById(k).value.trim();
 if (v) params.set(k, v);
 });
@@ -161,7 +178,7 @@ document.getElementById('summary').classList.remove('hidden');
 const body = document.getElementById('resultsBody');
 body.innerHTML = '';
 results.forEach((r, i) => {
-const comboStr = GRID_KEYS.map(k => r.combo[k] !== undefined ? r.combo[k] : '-').join(' | ');
+const comboStr = currentKeys.map(k => r.combo[k] !== undefined ? r.combo[k] : '-').join(' | ');
 const bestCls = i === 0 ? ' rank-best' : '';
 let detailHtml = '';
 (r.details||[]).forEach(det => {
