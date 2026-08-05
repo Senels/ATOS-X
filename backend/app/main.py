@@ -36,10 +36,12 @@ telegram = TelegramNotifier()
 auto_trader = None
 daily_report_task = None
 system_status = {"status": "initializing", "start_time": datetime.utcnow()}
+_PRICE_ALERTS = {}  # symbol -> [{price, side, created}]
+_alarm_task = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    global auto_trader, daily_report_task
+    global auto_trader, daily_report_task, _alarm_task
     import os
     if os.environ.get("ATOS_TEST_MODE"):
         yield
@@ -73,6 +75,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         system_status["status"] = "online"
     daily_report_task = asyncio.create_task(_daily_report_loop())
     ws_sync_task = asyncio.create_task(_ws_sync_loop())
+    _alarm_task = asyncio.create_task(_alarm_loop())
     telegram.start_listener(_telegram_command)
     await telegram.send(f"ATOS X v{settings.APP_VERSION} baslatildi!")
 
@@ -81,6 +84,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if daily_report_task:
         daily_report_task.cancel()
     ws_sync_task.cancel()
+    if _alarm_task:
+        _alarm_task.cancel()
     telegram.stop_listener()
     await auto_trader.stop()
     await ws.stop()
@@ -198,6 +203,46 @@ async def _ws_sync_loop():
                     await ws.sync(target, on_price_update)
         except Exception as e:
             logger.error(f"WebSocket sembol senkronizasyonu hatasi: {e}")
+
+async def _alarm_loop():
+    """Fiyat alarmlarini kontrol eder; esik asilinca Telegram'dan bildirir."""
+    while True:
+        await asyncio.sleep(20)
+        try:
+            if not _PRICE_ALERTS or not auto_trader:
+                continue
+            for sym, alerts in list(_PRICE_ALERTS.items()):
+                if not alerts:
+                    continue
+                price = auto_trader.live_prices.get(sym)
+                if price is None:
+                    continue
+                still = []
+                for a in alerts:
+                    hit = price >= a["price"] if a["side"] == "above" else price <= a["price"]
+                    if hit:
+                        dir_word = "ustune cikti" if a["side"] == "above" else "altina indi"
+                        await telegram.send(
+                            f"⏰ ATOS X ALARM: {sym} ${price:g} "
+                            f"{a['price']:g} {dir_word} (esik {a['side']})"
+                        )
+                    else:
+                        still.append(a)
+                _PRICE_ALERTS[sym] = still
+            for sym in [s for s, a in list(_PRICE_ALERTS.items()) if not a]:
+                del _PRICE_ALERTS[sym]
+        except Exception as e:
+            logger.error(f"Alarm kontrol hatasi: {e}")
+
+def _alarm_list() -> str:
+    if not _PRICE_ALERTS:
+        return "ATOS X: aktif alarm yok"
+    lines = [f"ATOS X aktif alarmlar ({sum(len(a) for a in _PRICE_ALERTS.values())}):"]
+    for sym, alerts in _PRICE_ALERTS.items():
+        for a in alerts:
+            side_word = "ustu" if a["side"] == "above" else "alti"
+            lines.append(f"  {sym} {side_word} ${a['price']:g}")
+    return "\n".join(lines)
 
 def _protected_count() -> int:
     """Exchange-side SL/TP ile korunan acik pozisyon sayisi."""
@@ -329,6 +374,9 @@ def _telegram_command(text: str):
                 "/islem - bugunun kapanan islemleri\n"
                 "/bekleyen - bekleyen TP/SL emirleri\n"
                 "/bakiye - bakiye + pozisyon ozeti\n"
+                "/alarm <SEMBOL> <FIYAT> [ust/alt] - fiyat alarmi ekle\n"
+                "/alarm - aktif alarmlari listele\n"
+                "/alarm temizle - tum alarmlari sil\n"
                 "/ayarla - tum ayarlari ozet goruntusu\n"
                 "/yardim - bu liste")
     if cmd.startswith("/blok"):
@@ -1002,6 +1050,37 @@ def _telegram_command(text: str):
             await telegram.send("\n".join(lines))
         _run_later(_fetch_orders())
         return "ATOS X: bekleyen emirler sorgulanıyor"
+    if cmd.startswith("/alarm"):
+        parts = text.strip().split()
+        if len(parts) == 1:
+            return _alarm_list()
+        sub = parts[1].lower()
+        if sub in ("temizle", "sil", "clear"):
+            n = sum(len(a) for a in _PRICE_ALERTS.values())
+            _PRICE_ALERTS.clear()
+            return f"ATOS X: {n} alarm silindi"
+        if len(parts) >= 3:
+            sym = parts[1].upper()
+            try:
+                target = float(parts[2])
+            except ValueError:
+                return "ATOS X: gecersiz fiyat"
+            side = "above"
+            if len(parts) >= 4 and parts[3].lower() in ("alt", "alti", "below", "down"):
+                side = "below"
+            current = auto_trader.live_prices.get(sym) if auto_trader else None
+            if current is not None and side == "above" and current >= target:
+                return f"ATOS X: {sym} zaten ${current:g} - esik ${target:g} ustunde"
+            if current is not None and side == "below" and current <= target:
+                return f"ATOS X: {sym} zaten ${current:g} - esik ${target:g} altinda"
+            if sym not in _PRICE_ALERTS:
+                _PRICE_ALERTS[sym] = []
+            _PRICE_ALERTS[sym].append({
+                "price": target, "side": side, "created": datetime.utcnow().isoformat()
+            })
+            side_word = "ustune cikinca" if side == "above" else "altina inince"
+            return f"ATOS X: {sym} alarm eklendi - ${target:g} {side_word} bildir"
+        return "ATOS X: kullanim /alarm <SEMBOL> <FIYAT> [ust/alt] | /alarm | /alarm temizle"
     if cmd.startswith("/bakiye"):
         if not auto_trader:
             return "ATOS X: motor calismiyor"
