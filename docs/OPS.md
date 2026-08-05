@@ -311,16 +311,20 @@ yoksa dinleyici devre dışıdır.
 | `/blok` | Aktif konsantrasyon engelleri (veya `yok`) |
 | `/pozisyon` | Her pozisyon: sembol, taraf, qty, fiyat + `korumali`/`KORUMASIZ`, varsa SL/TP fiyatları, gerçekleşmemiş PnL ve pozisyon yaşı (saat) |
 | `/kapat <SEMBOL>` | Tek pozisyonu manuel kapatır (canlı fiyat ile) |
-| `/sl <SEMBOL> <FIYAT>` | Açık pozisyonun SL'sini günceller; `/sl all <FIYAT>` tüm pozisyonlar için toplu güncelleme |
-| `/tp <SEMBOL> <FIYAT>` | Açık pozisyonun TP'sini günceller (SL korunur); `/tp all <FIYAT>` tüm pozisyonlar için toplu güncelleme |
-| `/kapatall` | Açık tüm pozisyonları kapatır; onay gerektirir: `/kapatall` → onay isteği, `/kapatall onay` → kapatır |
-| `/koruma` veya `/ayar` | Risk eşiklerini gösterir; `/koruma <anahtar> <deger>` ile canlı değiştirir (kalıcı) |
+| `/sl <SEMBOL> <FIYAT>` | Açık pozisyonun SL'sini günceller; `/sl all <FIYAT>` tüm pozisyonlar için toplu, `/sl all %P` giriş ile mevcut fiyat arasındaki mesafenin %'si, `/sl breakeven` tüm SL'leri giriş fiyatına taşır |
+| `/tp <SEMBOL> <FIYAT>` | Açık pozisyonun TP'sini günceller (SL korunur); `/tp all <FIYAT>` tüm pozisyonlar için toplu, `/tp all %P` giriş ile mevcut fiyat arasındaki mesafenin %'si |
+| `/kapatall` | Açık tüm pozisyonları kapatır; onay gerektirir: `/kapatall` → onay isteği, `/kapatall onay` → kapatır. Sembol listesi desteği: `/kapatall BTCUSDT,ETHUSDT onay` yalnızca belirtilen pozisyonları kapatır; belirtilen sembollerde açık pozisyon yoksa işlem iptal edilir |
+| `/koruma`, `/ayar` veya `/ayarla` | Risk eşiklerini gösterir; `/koruma <anahtar> <deger>` ile canlı değiştirir (kalıcı) |
 | `/durdur` veya `/stop` | Acil durdurma; tüm pozisyonları kapatır + kapanış özeti gönderir; onay gerektirir: `/durdur` → onay isteği, `/durdur onay` → çalıştırır |
-| `/sinyal <SEMBOL>` veya `/signal <SEMBOL>` | Canlı kline'dan v23 sinyalini Telegram'a gönderir |
-| `/sinyalall [N] [INTERVAL]` veya `/scan [N] [INTERVAL]` | İlk N (varsayılan 5, en fazla 10) tarama sembolü için toplu sinyal özeti; interval opsiyonel (`15m`…`1d`, varsayılan `4h`) |
+| `/sinyal <SEMBOL>` veya `/signal <SEMBOL>` | Canlı kline'dan v23 sinyalini Telegram'a gönderir; güç (aktif konfirmasyon / toplam konfirmasyon) yüzdesi dahil |
+| `/sinyalall [N] [INTERVAL] [BUY/SELL/HOLD]` veya `/scan [N] [INTERVAL]` | İlk N (varsayılan 5, en fazla 10) tarama sembolü için toplu sinyal özeti; interval opsiyonel (`15m`…`1d`, varsayılan `4h`), sinyal tipi filtresi ve her satırda `guc:%` dahil |
 | `/ac` veya `/resume` | Motoru yeniden başlatır |
-| `/rapor` veya `/report` | Günlük raporu anında gönderir (gerçekleşmemiş PnL, durmalar, risk olayları) |
-| `/risk` | Risk durumu: equity, LONG/SHORT maruziyeti, drawdown, ardışık/günlük zarar, equity tabanı ve tüm durma durumları |
+| `/rapor [GUN]` veya `/report [GUN]` | Günlük raporu anında gönderir; `GUN` opsiyonel (varsayılan 1, en fazla 90) geriye dönük pencereyi belirler |
+| `/risk` | Risk durumu: equity, LONG/SHORT maruziyeti, drawdown, ardışık/günlük zarar, equity tabanı, tüm durma durumları ve **pozisyon bazlı risk dağılımı** (her pozisyon için notional, SL mesafe %, risk $) + toplam notional (% equity) |
+| `/islem` | Bugün kapanan işlemlerin listesi: sembol, taraf, çıkış fiyatı, PnL + Toplam PnL ve W/L özeti |
+| `/bekleyen` | Borsadaki bekleyen SL/TP algo emirlerini sorgular ve listeler (`bekleyen emir yok` veya sembol bazlı `SL`/`TP` satırları) |
+| `/bakiye` | Bakiye özeti: equity, gerçekleşmemiş PnL, toplam, pozisyon sayısı (L/S), günlük PnL, drawdown ve açık pozisyonların satır satır PnL/yaş bilgisi |
+| `/alarm <SEMBOL> <FIYAT> [ust/alt]` | Fiyat alarmı ekler; `ust` (varsayılan) fiyat eşiğin üstüne çıkınca, `alt` altına inince Telegram bildirir. `/alarm` aktif alarmları listeler, `/alarm temizle` hepsini siler. Alarmlar her 20 sn'de kontrol edilir; tetiklenen alarm otomatik silinir |
 | `/gecmis [N] [SEMBOL]` | Son N kapanış işlemi (varsayılan 5, en fazla 20); sembol verilirse sadece o sembolün işlemleri gösterilir; üstte pencere özeti (Net, Kazanma %, PF) |
 | `/istatistik` veya `/stats` | Tüm geçmişin özeti: işlem sayısı, Net PnL, Kazanma %, Profit Factor, ortalama kar/zarar, en iyi sembol ve trailing/breakeven koruma istatistikleri |
 | `/veri` veya `/data` | CSV veri tazeliği özeti (Guncel/Eski/Eksik) + eski/eksik semboller |
@@ -330,6 +334,29 @@ yoksa dinleyici devre dışıdır.
 | `/performans` | Equity curve özeti: equity, peak, drawdown %, kazanma oranı ve son 6 aylık istatistik (işlem sayısı, net PnL, kazanma %) |
 | `/son` | Son kapanan işlemin detayı: sembol, yön, giriş/çıkış fiyatı, PnL, neden, koruma (trailing/breakeven) ve zaman |
 | `/yardim` veya `/help` | Komut listesi |
+
+## Fiyat Alarmları
+
+`/alarm` komutuyla canlı fiyat eşikleri tanımlanır; arka plandaki
+`_alarm_loop` her 20 sn'de bir `live_prices` üzerinden kontrol eder:
+
+- `/alarm <SEMBOL> <FIYAT>` — sembol eşiğin **üstüne** çıkınca bildirir.
+- `/alarm <SEMBOL> <FIYAT> alt` — eşiğin **altına** inince bildirir.
+- `/alarm` — aktif alarmları listeler; `/alarm temizle` hepsini siler.
+- Zaten eşiğin üstünde/altında olan fiyata alarm eklenmez (anında tetikleme
+  yok); tetiklenen alarm otomatik olarak listeden çıkar.
+- Alarmlar yalnızca bellekte tutulur (restart'ta sıfırlanır); motor durmuşsa
+  kontrol yapılmaz.
+
+## Sinyal Gücü (Strength)
+
+`TradeBotV23._confirmations` artık aktif konfirmasyon sayısını da üretir;
+`generate_signal` çıktısına `strength` (0-1) ekler. Güç = sinyal yönüyle
+uyumlu aktif konfirmasyon / toplam açık konfirmasyon oranıdır (HOLD → 0).
+
+- `/sinyal <SEMBOL>` ve `/sinyalall` mesajlarında `Guc: %N` olarak gösterilir.
+- `/api/v1/signals` her sinyal için `strength` alanı döndürür.
+- Güç yalnızca görsel bilgidir; giriş kararını doğrudan değiştirmez.
 
 ## Koruma (SL/TP)
 
@@ -350,6 +377,10 @@ yoksa dinleyici devre dışıdır.
 - Manuel müdahale sonrası trailing/breakeven bayrakları sıfırlanır (DB'ye
   yazılır); otomatik koruma sonraki döngüde yeniden devreye girebilir.
 - İşlem `risk_events`'e `manual_sl_update` olarak kaydedilir.
+- Toplu varyantlar: `/sl all <FIYAT>` tüm SL'leri sabit fiyata çeker,
+  `/sl all %P` giriş-mevcut-fiyat mesafesinin %'sini SL olarak verir
+  (BUY'da giriş + mesafe·%, SELL'de giriş − mesafe·%),
+  `/sl breakeven` tüm SL'leri giriş fiyatına taşır.
 
 **Manuel TP güncelleme** (`/tp <SEMBOL> <FIYAT>` → `AutoTrader.update_tp`):
 - Yön korunur: BUY pozisyonunda TP giriş fiyatının üstünde, SELL'de altında
@@ -365,7 +396,9 @@ yoksa dinleyici devre dışıdır.
   `max_consecutive_losses`, `max_daily_loss_pct`, `min_equity`,
   `risk_per_trade`, `max_position_pct`, `max_side_pct`,
   `trailing_activate_pct`, `trailing_sl_pct`, `trailing_min_move_pct`,
-  `breakeven_activate_pct`, `max_position_age_hours`, `max_leverage`.
+  `breakeven_activate_pct`, `max_position_age_hours`, `max_leverage`,
+  `use_decision_council`, `council_min_confidence`, `use_score_ranking`,
+  `data_backfill_hours`, `data_freshness_hours`.
 - `/koruma` (parametresiz) mevcut değerleri ve anahtar listesini gösterir.
 
 **Dashboard'dan pozisyon SL/TP düzenleme ve kapatma:**
@@ -492,7 +525,8 @@ yoksa dinleyici devre dışıdır.
 | `/api/v1/positions` | Pozisyon başına `protected` bayrağı + `protected`/`unprotected` sayıları |
 | `/api/v1/risk/positions` | Pozisyon bazlı risk: `notional`, `size_pct`, `sl_distance_pct`, `risk_amount`, `upnl`, `protected`/`trailing`/`breakeven`, `age_hours` + toplamlar (`total_notional`, `total_risk_amount`) |
 | `/api/v1/priority` | Tarama listesi (`scanned`) ve rank edilmiş semboller (`symbols`) |
-| `/api/v1/signals` | Tarama listesi için canlı v23 sinyalleri (`BUY`/`SELL`/`HOLD`): `symbol`, `price`, `sl`, `tp`, `reason`, `indicator`; `limit` (varsayılan 12) ve `interval` |
+| `/api/v1/signals` | Tarama listesi için canlı v23 sinyalleri (`BUY`/`SELL`/`HOLD`): `symbol`, `price`, `sl`, `tp`, `reason`, `indicator`, `strength` (0-1 konfirmasyon oranı); `limit` (varsayılan 12) ve `interval` |
+| `/api/v1/performance/summary` | Performans özeti: Bugun/Haftalik/Aylik/Tum zaman için işlem sayısı, W/L, win rate, net PnL ve profit factor; dashboard `🚀 Performans` kartında gösterilir |
 | `/api/v1/positions/<S>/sl` | Dashboard/API'den açık pozisyon SL güncelleme (`AutoTrader.update_sl`) |
 | `/api/v1/positions/<S>/tp` | Dashboard/API'den açık pozisyon TP güncelleme (`AutoTrader.update_tp`) |
 | `/api/v1/positions/<S>/close` | Açık pozisyonu canlı fiyatla kapatma (`AutoTrader.close_position`) |
@@ -507,7 +541,7 @@ yoksa dinleyici devre dışıdır.
 | `/api/v1/data/backfill/stale` | Eski/eksik sembolleri otomatik seçip backfill eder (`days=`, varsayılan 30) |
 | `/api/v1/portfolio` | Portföy özeti (senkron equity, bakiye, uPnL, pozisyonlar) |
 | `/dashboard/metrics` | Aynı + pozisyon başına `protected` |
-| `/dashboard` | Pozisyon tablosunda `KORUMALI`/`KORUMASIZ` rozetleri + kart özeti; `🧮 Position Risk` kartında notional, size %, SL mesafesi, risk tutarı, uPnL ve pozisyon yaşı; `📡 Live Signals` kartında tarama listesinin canlı sinyalleri (60 sn'de bir yenilenir; üstten interval seçilir — varsayılan `4h`, seçim `localStorage`'da saklanır) ve sinyal tipi filtresi (Tumu/BUY/SELL/HOLD); `🌡️ Market Regime` kartında trend/volatilite rejimi + ATR%; `🏆 Coin Scores` kartında skor sıralaması; `⚖️ Decision Council` kartında kararlar + güven + kaynaklar; `🗃️ Data Freshness` kartında CSV tazeliği (guncel/eski/eksik özeti + sembol tablosu) ve `↻ Backfill` butonu (eski/eksik veriyi anında tazeler); Trade History kartında `TRAIL`/`BE` rozetleri; her satırda SL/TP düzenleme + `Uygula`/`Kapat` butonları |
+| `/dashboard` | Pozisyon tablosunda `KORUMALI`/`KORUMASIZ` rozetleri + kart özeti; `🧮 Position Risk` kartında notional, size %, SL mesafesi, risk tutarı, uPnL ve pozisyon yaşı; `🚀 Performans` kartında Bugun/Haftalik/Aylik/Tum zaman metrikleri; `📡 Live Signals` kartında tarama listesinin canlı sinyalleri (60 sn'de bir yenilenir; üstten interval seçilir — varsayılan `4h`, seçim `localStorage`'da saklanır) ve sinyal tipi filtresi (Tumu/BUY/SELL/HOLD); `🌡️ Market Regime` kartında trend/volatilite rejimi + ATR%; `🏆 Coin Scores` kartında skor sıralaması; `⚖️ Decision Council` kartında kararlar + güven + kaynaklar; `🗃️ Data Freshness` kartında CSV tazeliği (guncel/eski/eksik özeti + sembol tablosu) ve `↻ Backfill` butonu (eski/eksik veriyi anında tazeler); Trade History kartında `TRAIL`/`BE` rozetleri; her satırda SL/TP düzenleme + `Uygula`/`Kapat` butonları |
 
 ## Doğrulama
 
