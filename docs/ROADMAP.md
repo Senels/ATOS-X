@@ -17,10 +17,14 @@
 
 > Not: Tüm sprintler tamamlandı. Operasyon katmanı eklendi: Telegram
 > komutları (`/sl /tp /koruma /kapat /kapatall /sinyal /rapor /risk /gecmis
-> /istatistik /veri /backfill`), risk durumu restart kalıcılığı, canlı giriş
-> kapısı (Decision Council), market rejim/score/dashboard kartları, kline
-> collect/backfill arşivi + otomatik backfill, borsa bakiye senkronu ve
-> `/api/v1/portfolio` özeti. Tüm detaylar `docs/OPS.md`'de.
+> /istatistik /veri /backfill /giris /yedek /yedekler /geriyukle`), risk
+> durumu restart kalıcılığı, canlı giriş kapısı (Decision Council), market
+> rejim/score/dashboard kartları, kline collect/backfill arşivi + otomatik
+> backfill, borsa bakiye senkronu ve `/api/v1/portfolio` özeti. Güvenlik
+> katmanı: Telegram chat whitelist, API-key koruması, CORS. Canlı trading:
+> paper/kill-switch/testnet/live modları, `halt_entries` + `/giris`, emir
+> gönderimi açık onayla. DB yedekleme/geri yükleme (integrity check, 6 saatlik
+> periyodik loop, Telegram hata bildirimi). Tüm detaylar `docs/OPS.md`'de.
 
 ## Veri
 

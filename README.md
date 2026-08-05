@@ -15,7 +15,7 @@
 |---|---|
 | Sürüm | 0.1.0 |
 | Faz | Core Foundation |
-| Trading | Disabled (testnet/manuel onay bekliyor) |
+| Trading | Motor tamamlandı (varsayılan: paper + kill-switch; canlı için açık onay gerekir) |
 | Backtest | Aktif (gerçek 4h OHLCV + toplu tarama + optimizasyon) |
 | AI | Disabled |
 
@@ -41,13 +41,15 @@ backend/        ATOS X
 │   ├── websocket/  canlı fiyat akışı
 │   └── main.py     FastAPI entry
 ├── scripts/      tarama (scan_backtest) + optimizasyon (optimize)
-└── tests/        pytest (31 test)
+└── tests/        pytest (523 test)
 legacy/data/    backtest için yerel OHLCV CSV arşivi (futures_4h/30m/15m/2h)
 docs/           mimari dokümanlar (ROADMAP, OPS — operasyon/risk rehberi)
 ```
 
 Operasyon ve risk özellikleri (konsantrasyon engelleri, Telegram
-komutları, koruma/SL-TP) için bkz. [docs/OPS.md](docs/OPS.md).
+komutları, koruma/SL-TP, canlı trading kill-switch/giriş durdurma,
+DB yedekleme/geri yükleme, Telegram chat whitelist) için
+bkz. [docs/OPS.md](docs/OPS.md).
 
 ## Başlatma
 
