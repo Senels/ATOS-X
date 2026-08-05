@@ -398,6 +398,26 @@ async def test_update_tp_rejects_missing_position(trader):
     assert res["error"] == "position_not_found"
 
 
+async def test_update_sl_failure_reports_error_and_keeps_old(trader):
+    tr, fb, db = trader
+    await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
+    fb.fail_tp_sl = True
+    res = await tr.update_sl("BTCUSDT", 64000.0)
+    assert res["ok"] is False
+    assert res["error"] == "exchange_sl_update_failed"
+    assert tr.active_positions["BTCUSDT"]["sl"] == 63000.0
+
+
+async def test_update_tp_failure_reports_error_and_keeps_old(trader):
+    tr, fb, db = trader
+    await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
+    fb.fail_tp_sl = True
+    res = await tr.update_tp("BTCUSDT", 72000.0)
+    assert res["ok"] is False
+    assert res["error"] == "exchange_tp_update_failed"
+    assert tr.active_positions["BTCUSDT"]["tp"] == 69000.0
+
+
 async def test_reconcile_restores_exchange_positions(trader):
     tr, fb, db = trader
     fb.open_positions = [

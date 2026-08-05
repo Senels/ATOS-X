@@ -764,11 +764,21 @@ class AutoTrader:
                 algo = await self.binance.set_tp_sl(
                     symbol, "LONG" if side == "BUY" else "SHORT", new_sl, 0.0
                 )
-                if algo.get("sl"):
-                    pos["sl_order_id"] = algo["sl"]
-                    logger.info(f"{symbol}: manuel SL borsaya yerleştirildi")
+                if not algo.get("sl"):
+                    raise RuntimeError("set_tp_sl SL id dondurmedi")
+                pos["sl_order_id"] = algo["sl"]
+                logger.info(f"{symbol}: manuel SL borsaya yerleştirildi")
             except Exception as e:
                 logger.error(f"{symbol}: manuel SL guncelleme hatasi: {e}")
+                pos["sl"] = old_sl
+                try:
+                    await self.binance.set_tp_sl(
+                        symbol, "LONG" if side == "BUY" else "SHORT", old_sl, 0.0
+                    )
+                except Exception:
+                    pass
+                return {"ok": False, "error": "exchange_sl_update_failed",
+                        "symbol": symbol}
         logger.info(f"{symbol}: SL manuel olarak {old_sl} -> {new_sl}")
         return {"ok": True, "symbol": symbol, "old_sl": old_sl, "new_sl": new_sl}
 
@@ -799,11 +809,21 @@ class AutoTrader:
                 algo = await self.binance.set_tp_sl(
                     symbol, "LONG" if side == "BUY" else "SHORT", 0.0, new_tp
                 )
-                if algo.get("tp"):
-                    pos["tp_order_id"] = algo["tp"]
-                    logger.info(f"{symbol}: manuel TP borsaya yerleştirildi")
+                if not algo.get("tp"):
+                    raise RuntimeError("set_tp_sl TP id dondurmedi")
+                pos["tp_order_id"] = algo["tp"]
+                logger.info(f"{symbol}: manuel TP borsaya yerleştirildi")
             except Exception as e:
                 logger.error(f"{symbol}: manuel TP guncelleme hatasi: {e}")
+                pos["tp"] = old_tp
+                try:
+                    await self.binance.set_tp_sl(
+                        symbol, "LONG" if side == "BUY" else "SHORT", 0.0, old_tp
+                    )
+                except Exception:
+                    pass
+                return {"ok": False, "error": "exchange_tp_update_failed",
+                        "symbol": symbol}
         logger.info(f"{symbol}: TP manuel olarak {old_tp} -> {new_tp}")
         return {"ok": True, "symbol": symbol, "old_tp": old_tp, "new_tp": new_tp}
 
