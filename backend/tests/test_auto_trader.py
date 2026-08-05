@@ -1496,6 +1496,45 @@ async def test_breakeven_does_not_override_trailing(trader):
     assert pos["sl"] > 100.0
 
 
+async def test_breakeven_exchange_failure_keeps_old_sl_and_retries(trader):
+    tr, fb, db = trader
+    tr.breakeven_activate_pct = 2.0
+    tr.trailing_activate_pct = 0
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
+    fb.fail_tp_sl = True
+    await tr.check_positions({"BTCUSDT": 102.5})
+    pos = tr.active_positions["BTCUSDT"]
+    assert pos["sl"] == 95.0
+    assert "breakeven" not in pos
+    assert db.get_open_trade_protection("BTCUSDT") == (False, False)
+    fb.fail_tp_sl = False
+    await tr.check_positions({"BTCUSDT": 102.5})
+    pos = tr.active_positions["BTCUSDT"]
+    assert pos["breakeven"] is True
+    assert pos["sl"] == 100.0
+    assert db.get_open_trade_protection("BTCUSDT") == (False, True)
+
+
+async def test_trailing_exchange_failure_keeps_old_sl_and_retries(trader):
+    tr, fb, db = trader
+    tr.trailing_activate_pct = 3.0
+    tr.trailing_sl_pct = 1.5
+    tr.breakeven_activate_pct = 0
+    await tr.open_position("BTCUSDT", "BUY", 100.0, 95.0, 110.0)
+    fb.fail_tp_sl = True
+    await tr.check_positions({"BTCUSDT": 105.0})
+    pos = tr.active_positions["BTCUSDT"]
+    assert pos["sl"] == 95.0
+    assert "trailing" not in pos
+    assert db.get_open_trade_protection("BTCUSDT") == (False, False)
+    fb.fail_tp_sl = False
+    await tr.check_positions({"BTCUSDT": 105.0})
+    pos = tr.active_positions["BTCUSDT"]
+    assert pos["trailing"] is True
+    assert pos["sl"] == pytest.approx(105.0 * 0.985, abs=0.001)
+    assert db.get_open_trade_protection("BTCUSDT") == (True, False)
+
+
 async def test_fetch_klines_batch(trader):
     tr, fb, db = trader
     n = 200

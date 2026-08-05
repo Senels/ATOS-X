@@ -1535,24 +1535,38 @@ class AutoTrader:
             need_move = cur_sl > entry
         if profit_pct < self.breakeven_activate_pct or not need_move:
             return
-        pos["sl"] = entry
-        pos["breakeven"] = True
-        self.db.update_trade_protection(symbol, breakeven=True)
-        self._log_risk_event("breakeven_move",
-                             f"{symbol} SL giris fiyatina tasindi ({entry:.2f})")
-        logger.info(f"{symbol}: SL giris fiyatina tasindi -> {entry:.2f} (kar %{profit_pct:.1f})")
         if self.paper or not pos.get("sl_order_id"):
+            pos["sl"] = entry
+            pos["breakeven"] = True
+            self.db.update_trade_protection(symbol, breakeven=True)
+            self._log_risk_event("breakeven_move",
+                                 f"{symbol} SL giris fiyatina tasindi ({entry:.2f})")
+            logger.info(f"{symbol}: SL giris fiyatina tasindi -> {entry:.2f} (kar %{profit_pct:.1f})")
             return
         try:
             await self.binance.cancel_algo_order(symbol, pos["sl_order_id"])
             algo = await self.binance.set_tp_sl(
                 symbol, "LONG" if side == "BUY" else "SHORT", entry, 0.0
             )
-            if algo.get("sl"):
-                pos["sl_order_id"] = algo["sl"]
-                logger.info(f"{symbol}: breakeven SL borsaya yerleştirildi")
+            if not algo.get("sl"):
+                raise RuntimeError("set_tp_sl SL id dondurmedi")
+            pos["sl"] = entry
+            pos["breakeven"] = True
+            pos["sl_order_id"] = algo["sl"]
+            self.db.update_trade_protection(symbol, breakeven=True)
+            self._log_risk_event("breakeven_move",
+                                 f"{symbol} SL giris fiyatina tasindi ({entry:.2f})")
+            logger.info(f"{symbol}: SL giris fiyatina tasindi -> {entry:.2f} (kar %{profit_pct:.1f})")
         except Exception as e:
             logger.error(f"{symbol}: breakeven SL guncelleme hatasi: {e}")
+            last_alert = float(pos.get("sl_alert_ts") or 0)
+            if self.telegram and time.time() - last_alert > 600:
+                pos["sl_alert_ts"] = time.time()
+                await self.telegram.send(
+                    f"ATOS X UYARI: {symbol} breakeven SL borsaya tasinamadi "
+                    f"(mevcut {pos.get('sl')}, hedef {entry:.2f}). Koruma eski "
+                    f"seviyede; sonraki taramada yeniden denenir."
+                )
 
     async def _check_trailing(self, symbol: str, pos: dict, side: str, price: float):
         """Kar esigini asan pozisyonun SL'sini fiyati takip edecek sekilde kaydirir.
@@ -1579,16 +1593,17 @@ class AutoTrader:
             return
         if self.trailing_min_move_pct > 0 and move_pct < self.trailing_min_move_pct:
             return
-        if not pos.get("trailing"):
-            self._log_risk_event("trailing_activate",
-                                 f"{symbol} SL takibi: kar %{profit_pct:.1f}, SL {new_sl:.2f}")
-        else:
-            self._log_risk_event("trailing_move",
-                                 f"{symbol} SL {cur_sl:.2f} -> {new_sl:.2f} (kar %{profit_pct:.1f})")
-        pos["sl"] = new_sl
-        pos["trailing"] = True
-        self.db.update_trade_protection(symbol, trailing=True)
+        was_trailing = bool(pos.get("trailing"))
         if self.paper or not pos.get("sl_order_id"):
+            pos["sl"] = new_sl
+            pos["trailing"] = True
+            self.db.update_trade_protection(symbol, trailing=True)
+            if not was_trailing:
+                self._log_risk_event("trailing_activate",
+                                     f"{symbol} SL takibi: kar %{profit_pct:.1f}, SL {new_sl:.2f}")
+            else:
+                self._log_risk_event("trailing_move",
+                                     f"{symbol} SL {cur_sl:.2f} -> {new_sl:.2f} (kar %{profit_pct:.1f})")
             logger.info(f"{symbol}: SL takibe girdi -> {new_sl:.2f} (kar %{profit_pct:.1f})")
             return
         try:
@@ -1596,11 +1611,29 @@ class AutoTrader:
             algo = await self.binance.set_tp_sl(
                 symbol, "LONG" if side == "BUY" else "SHORT", new_sl, 0.0
             )
-            if algo.get("sl"):
-                pos["sl_order_id"] = algo["sl"]
-                logger.info(f"{symbol}: trailing SL {new_sl:.2f} borsaya yerleştirildi")
+            if not algo.get("sl"):
+                raise RuntimeError("set_tp_sl SL id dondurmedi")
+            pos["sl"] = new_sl
+            pos["trailing"] = True
+            pos["sl_order_id"] = algo["sl"]
+            self.db.update_trade_protection(symbol, trailing=True)
+            if not was_trailing:
+                self._log_risk_event("trailing_activate",
+                                     f"{symbol} SL takibi: kar %{profit_pct:.1f}, SL {new_sl:.2f}")
+            else:
+                self._log_risk_event("trailing_move",
+                                     f"{symbol} SL {cur_sl:.2f} -> {new_sl:.2f} (kar %{profit_pct:.1f})")
+            logger.info(f"{symbol}: trailing SL {new_sl:.2f} borsaya yerleştirildi")
         except Exception as e:
             logger.error(f"{symbol}: trailing SL guncelleme hatasi: {e}")
+            last_alert = float(pos.get("sl_alert_ts") or 0)
+            if self.telegram and time.time() - last_alert > 600:
+                pos["sl_alert_ts"] = time.time()
+                await self.telegram.send(
+                    f"ATOS X UYARI: {symbol} trailing SL borsaya tasinamadi "
+                    f"(mevcut {pos.get('sl')}, hedef {new_sl:.2f}). Koruma eski "
+                    f"seviyede; sonraki taramada yeniden denenir."
+                )
 
     async def update_equity(self):
         now = time.monotonic()
