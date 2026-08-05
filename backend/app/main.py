@@ -356,7 +356,7 @@ def _telegram_command(text: str):
                 "/sl breakeven [SEMBOL] - SL'leri giris fiyatina tasir\n"
                 "/tp <SEMBOL> <FIYAT> - acik pozisyonun TP'sini gunceller\n"
                 "/durdur - acil durdurma (tum pozisyonlari kapatir)\n"
-                "/kapatall - acik tum pozisyonlari kapatir\n"
+                "/kapatall [SEMBOLLER] - acik tum/sectik pozisyonlari kapatir (onay gerekli)\n"
                 "/sinyal <SEMBOL> - sembol icin canli sinyal gonder\n"
                 "/sinyalall [N] - ilk N sembolun toplu tarama ozeti\n"
                 "/koruma [ANAHTAR] [DEGER] - risk ayarlarini gor/degistir\n"
@@ -449,11 +449,39 @@ def _telegram_command(text: str):
         if not auto_trader.active_positions:
             return "ATOS X: kapatilacak pozisyon yok"
         parts = text.strip().split()
-        confirmed = len(parts) > 1 and parts[1].lower() == "onay"
+        syms = list(auto_trader.active_positions.keys())
+        confirmed = False
+        symbols_arg = []
+        for p in parts[1:]:
+            if p.lower() == "onay":
+                confirmed = True
+            else:
+                for s in p.split(","):
+                    s = s.strip().upper()
+                    if s:
+                        symbols_arg.append(s)
+        if symbols_arg:
+            target = [s for s in symbols_arg if s in auto_trader.active_positions]
+            missing = [s for s in symbols_arg if s not in auto_trader.active_positions]
+            if not target:
+                return "ATOS X: belirtilen sembollerde acik pozisyon yok"
+            if not confirmed:
+                return (f"ATOS X: {len(target)} pozisyon kapatilacak ({', '.join(target)})\n"
+                        "Devam icin: /kapatall <SEMBOLLER> onay")
+            async def _close_selected():
+                for s in target:
+                    price = auto_trader.live_prices.get(s)
+                    if price is None:
+                        await telegram.send(f"ATOS X: {s} fiyat bulunamadi, atlandi")
+                        continue
+                    await auto_trader.close_position(s, price, "manual_close_all")
+                await telegram.send(f"ATOS X: {len(target)} pozisyon kapatildi")
+            if not _run_later(_close_selected()):
+                return "ATOS X: komut arka planda calistirilamadi"
+            return f"ATOS X: {len(target)} pozisyon kapatiliyor"
         if not confirmed:
             n = len(auto_trader.active_positions)
-            syms = ", ".join(auto_trader.active_positions.keys())
-            return (f"ATOS X: {n} pozisyon kapatilacak ({syms})\n"
+            return (f"ATOS X: {n} pozisyon kapatilacak ({', '.join(syms)})\n"
                     "Devam icin: /kapatall onay")
         if not _run_later(auto_trader.close_all("manual_close_all")):
             return "ATOS X: komut arka planda calistirilamadi"
