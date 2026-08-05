@@ -1426,6 +1426,11 @@ class AutoTrader:
         await self._update_consecutive_losses()
         await self._update_daily_pnl(net)
         self._persist_risk_state()
+        if self.telegram:
+            await self.telegram.send_trade(
+                symbol, pos["side"], exit_price, exit_qty,
+                f"{reason} (kismi, kalan {pos['quantity']:.4f})"
+            )
         logger.success(
             f"{symbol}: kismi {reason} {exit_qty:.4f} @ {exit_price} (kalan {pos['quantity']:.4f})"
         )

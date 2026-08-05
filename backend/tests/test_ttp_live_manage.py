@@ -62,6 +62,18 @@ class FakeBinanceKlines:
         return {"symbol": symbol}
 
 
+class FakeTelegram:
+    def __init__(self):
+        self.trade_msgs = []
+        self.sent = []
+
+    async def send_trade(self, symbol, side, price, quantity, status):
+        self.trade_msgs.append((symbol, side, price, quantity, status))
+
+    async def send(self, msg):
+        self.sent.append(msg)
+
+
 def _make_trader(tmp_path, monkeypatch, df, ttp_patch):
     db = Database(str(tmp_path / "at.db"))
     monkeypatch.setattr(at_mod, "Database", lambda *a, **k: db)
@@ -104,6 +116,25 @@ async def test_ttp_live_partial_then_full_close(tmp_path, monkeypatch):
         assert "BTCUSDT" not in tr.active_positions
         assert len(tr.trade_history) == 2
         assert tr.trade_history[-1]["reason"] == "stop_loss"
+    finally:
+        ss.update_settings(prev)
+
+
+async def test_ttp_live_partial_notifies_telegram(tmp_path, monkeypatch):
+    df = _klines_frame([100.0] * 20 + [195.0, 215.0, 215.0, 215.0, 215.0] + [120.0] * 10)
+    tr, prev = _make_trader(tmp_path, monkeypatch, df, _P)
+    tg = FakeTelegram()
+    tr.telegram = tg
+    try:
+        await _open_signal(tr, df, 20, 195.0, 195.0 * 0.94, 195.0 * 1.09)
+        qty0 = tr.active_positions["BTCUSDT"]["quantity"]
+        await tr.check_positions({})
+        assert len(tg.trade_msgs) == 1
+        sym, side, price, qty, status = tg.trade_msgs[0]
+        assert sym == "BTCUSDT"
+        assert side == "BUY"
+        assert qty == pytest.approx(qty0 * 0.5)
+        assert "kismi" in status
     finally:
         ss.update_settings(prev)
 
