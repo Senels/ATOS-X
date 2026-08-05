@@ -406,11 +406,31 @@ def objective(trial, df: pd.DataFrame) -> float:
 
 def optimize_symbol(df: pd.DataFrame, trials: int, seed: int) -> dict:
     optuna.logging.set_verbosity(optuna.logging.WARNING)
-    study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler(seed=seed))
+    study = optuna.create_study(
+        direction="maximize",
+        sampler=optuna.samplers.TPESampler(seed=seed, n_startup_trials=30),
+    )
     study.optimize(lambda t: objective(t, df), n_trials=trials, show_progress_bar=False)
     best = study.best_params
     res = run_backtest(df, best)
     return {"best_params": best, "best_score": study.best_value, "results": res}
+
+
+def split_by_time(
+    df: pd.DataFrame, train_days: int, oos_days: int
+) -> tuple:
+    """Veriyi zamana gore boler: train (son train_days gun) + oos (oncesindeki gunler)."""
+    if oos_days <= 0 or len(df) == 0:
+        return df.reset_index(drop=True), None
+    train_cut = df["timestamp"].max() - train_days * 86400_000
+    train = df[df["timestamp"] > train_cut]
+    oos = df[df["timestamp"] <= train_cut]
+    if len(oos) == 0:
+        return train.reset_index(drop=True), None
+    if oos_days > 0:
+        oos_cut = oos["timestamp"].max() - oos_days * 86400_000
+        oos = oos[oos["timestamp"] > oos_cut]
+    return train.reset_index(drop=True), oos.reset_index(drop=True)
 
 
 def _average_params(param_sets: List[dict]) -> dict:
@@ -454,8 +474,9 @@ def main():
     parser.add_argument("--top", type=int, default=5, help="Otomatik sembol secimi: ilk N USDT futures")
     parser.add_argument("--symbols", default="", help="Virgulle ayrilmis semboller (bos = --top kullanir)")
     parser.add_argument("--trials", type=int, default=500, help="Sembol basi trial sayisi")
-    parser.add_argument("--days", type=int, default=60, help="Kullanilacak veri gunu")
-    parser.add_argument("--bars", type=int, default=0, help="Sembol basi bar limiti (0 = hepsi)")
+    parser.add_argument("--days", type=int, default=60, help="Optimizasyon (train) penceresi, gun")
+    parser.add_argument("--oos-days", type=int, default=30, help="Out-of-sample test penceresi, gun (0 = kapat)")
+    parser.add_argument("--bars", type=int, default=0, help="Train bar limiti (0 = hepsi)")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output", default=OUTPUT_FILE)
     args = parser.parse_args()
@@ -468,26 +489,40 @@ def main():
     if not symbols:
         print(f"Top USDT futures (top {args.top}) taranir...")
         symbols = get_top_usdt_symbols(args.top)
-    print(f"Semboller: {symbols} | Trial/sembol: {args.trials} | Gun: {args.days} | Bar limiti: {args.bars or 'hepsi'}")
+    print(f"Semboller: {symbols} | Trial/sembol: {args.trials} | Train: {args.days} gun | OOS: {args.oos_days} gun | Bar limiti: {args.bars or 'hepsi'}")
 
+    fetch_days = args.days + args.oos_days
     data: Dict[str, pd.DataFrame] = {}
+    oos_data: Dict[str, pd.DataFrame] = {}
     per_symbol: Dict[str, dict] = {}
     for sym in symbols:
         try:
-            df = load_data(sym, days=args.days, bars=args.bars)
+            df = load_data(sym, days=fetch_days, bars=0)
         except Exception as e:
             print(f"  {sym}: veri alinamadi ({e}), atlaniyor.")
             continue
-        data[sym] = df
-        print(f"  {sym}: {len(df)} bar yuklendi, optimize ediliyor...")
-        best = optimize_symbol(df, args.trials, args.seed)
-        per_symbol[sym] = {
+        train, oos = split_by_time(df, args.days, args.oos_days)
+        if args.bars > 0:
+            train = train.tail(args.bars).reset_index(drop=True)
+        data[sym] = train
+        if oos is not None and len(oos) > 0:
+            oos_data[sym] = oos
+        print(f"  {sym}: {len(df)} bar yuklendi, train={len(train)} bar optimize ediliyor...")
+        best = optimize_symbol(train, args.trials, args.seed)
+        entry = {
             "best_params": best["best_params"],
             "best_score": round(best["best_score"], 4),
             "results": _fmt_results(best["results"]),
         }
+        if oos is not None and len(oos) > 0:
+            entry["oos_results"] = _fmt_results(run_backtest(oos, best["best_params"]))
+        per_symbol[sym] = entry
+        oos_txt = ""
+        if oos is not None and len(oos) > 0:
+            o_r = entry["oos_results"]
+            oos_txt = f" | OOS: {o_r['trades']} trade np=%{o_r['net_profit_pct']} pf={o_r['profit_factor']}"
         print(f"    score={best['best_score']:.2f} {best['results']['trades']} trade "
-              f"wr=%{best['results']['win_rate'] * 100:.1f} np=%{best['results']['net_profit_pct']:.2f}")
+              f"wr=%{best['results']['win_rate'] * 100:.1f} np=%{best['results']['net_profit_pct']:.2f}{oos_txt}")
 
     if not per_symbol:
         print("Hicbir sembol icin veri alinamadi.")
@@ -502,11 +537,20 @@ def main():
             "tested_on": list(data.keys()),
             "results": tested,
         }
+        if oos_data:
+            unified["oos_results"] = {
+                sym: _fmt_results(test_params_on(df, avg)) for sym, df in oos_data.items()
+            }
 
     report = {
         "strategy": "TTPTSL",
         "optimized_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
-        "config": {"symbols": list(data.keys()), "trials_per_symbol": args.trials, "data_days": args.days},
+        "config": {
+            "symbols": list(data.keys()),
+            "trials_per_symbol": args.trials,
+            "train_days": args.days,
+            "oos_days": args.oos_days,
+        },
         "per_symbol": per_symbol,
         "unified": unified,
     }
@@ -517,7 +561,11 @@ def main():
 
     if unified:
         print("\n=== UNIFIED (semboller arasi ortak) ===")
+        print("TRAIN sonuclari:")
         print(json.dumps(unified["results"], indent=2, ensure_ascii=False))
+        if unified.get("oos_results"):
+            print("OOS sonuclari:")
+            print(json.dumps(unified["oos_results"], indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":
