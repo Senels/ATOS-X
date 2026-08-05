@@ -114,8 +114,11 @@ async def _send_symbol_signal(symbol: str, interval: str = "4h"):
 
 async def _send_batch_signals(symbols: list, interval: str = "4h"):
     """Tarama listesi icin toplu sinyal ozetini Telegram'a gonderir."""
+    from app.strategy.coin_intel import trend_regime
     arrows = {"BUY": "🟢", "SELL": "🔴", "HOLD": "⚪"}
+    trend_icons = {"UPTREND": "📈", "DOWNTREND": "📉", "RANGE": "➡️"}
     lines = [f"ATOS X tarama ({interval}):"]
+    client = getattr(app.state, "binance", None)
     for sym in symbols:
         sig = await _signal_for_symbol(sym, interval)
         signal = sig.get("signal")
@@ -134,7 +137,16 @@ async def _send_batch_signals(symbols: list, interval: str = "4h"):
             extra = f" SL:${sl:g}"
         elif tp:
             extra = f" TP:${tp:g}"
-        lines.append(f"{sym} {arrow} {signal} ${price:.4g}{extra} - {sig.get('reason', '')[:40]}")
+        trend_str = ""
+        try:
+            if client:
+                df = await client.get_klines(sym, interval, 200)
+                tr = trend_regime(df)
+                ti = trend_icons.get(tr.get("regime", ""), "")
+                trend_str = f" {ti}" if ti else ""
+        except Exception:
+            pass
+        lines.append(f"{sym} {arrow} {signal} ${price:.4g}{extra}{trend_str} - {sig.get('reason', '')[:40]}")
     if len(lines) == 1:
         lines.append("Sinyal alinamadi")
     await telegram.send("\n".join(lines))
