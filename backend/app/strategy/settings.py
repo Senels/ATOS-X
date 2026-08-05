@@ -42,13 +42,13 @@ DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
     "max_daily_loss_pct": 5.0,     # Gunluk toplam zarar siniri (% equity; asilinca girisler durur; 0 = devre disi)
     "min_equity": 5000.0,          # Equity bu taban degerin altina duserse girisler durur (USDT; 0 = devre disi)
     # Decision Council: canli girislerde coklu sinyal oylamasi filtresi
-    "use_decision_council": False,  # True iken girisler council kararina ve min guvene tabi
+    "use_decision_council": True,   # True iken girisler council kararina ve min guvene tabi
     "council_min_confidence": 0.6,  # Council kararina gerekli minimum guven (0-1)
-    "min_signal_strength": 0.0,     # Sinyal gucu esigi (0-1; alti giris engellenir; 0 = devre disi)
+    "min_signal_strength": 0.6,     # Sinyal gucu esigi (0-1; alti giris engellenir; 0 = devre disi)
     # Coin Intelligence: canli momentum skoruna gore sembol onceligi
-    "use_score_ranking": False,     # True iken ranking canli coin_score'a gore yeniden siralanir
+    "use_score_ranking": True,      # True iken ranking canli coin_score'a gore yeniden siralanir
     # Market Collector: ranking icin yerel CSV tazeligi
-    "data_backfill_hours": 0.0,     # Otomatik backfill araligi (saat; 0 = devre disi)
+    "data_backfill_hours": 24.0,    # Otomatik backfill araligi (saat; 0 = devre disi)
     "data_freshness_hours": 12.0,   # Son bar bu saatten eskiyse sembol eski sayilir
     # Strateji parametreleri
     "rr_ratio": 1.5,             # TP = SL mesafesi * rr_ratio
@@ -86,18 +86,18 @@ DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
     },
     # Konfirmasyonlar (True = aktif, yonde bazli kosul aranir)
     "confirmations": {
-        "ema": False,
-        "2ma": False,
-        "3ma": False,
-        "rf": False,
+        "ema": True,
+        "2ma": True,
+        "3ma": True,
+        "rf": True,
         "rqk": True,
-        "st": False,
-        "ht": False,
-        "rsi": False,
-        "macd": False,
-        "stoch": False,
-        "ichi": False,
-        "ce": False,
+        "st": True,
+        "ht": True,
+        "rsi": True,
+        "macd": True,
+        "stoch": True,
+        "ichi": True,
+        "ce": True,
     },
 }
 

@@ -60,14 +60,20 @@ def test_get_settings_returns_copy():
 def test_council_defaults():
     _reset()
     state = s.get_settings()
-    assert state["use_decision_council"] is False
+    assert state["use_decision_council"] is True
     assert state["council_min_confidence"] == 0.6
-    assert state["use_score_ranking"] is False
-    assert state["min_signal_strength"] == 0.0
+    assert state["use_score_ranking"] is True
+    assert state["min_signal_strength"] == 0.6
 
 
 def test_data_freshness_defaults():
     _reset()
     state = s.get_settings()
-    assert state["data_backfill_hours"] == 0.0
+    assert state["data_backfill_hours"] == 24.0
     assert state["data_freshness_hours"] == 12.0
+
+
+def test_confirmations_all_enabled_by_default():
+    _reset()
+    state = s.get_settings()
+    assert all(state["confirmations"].values())

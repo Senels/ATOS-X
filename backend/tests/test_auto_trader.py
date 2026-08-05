@@ -196,6 +196,14 @@ def test_rank_symbols_skips_missing_data(tmp_path, monkeypatch):
         pytest.skip("BTCUSDT_4h.csv yok; rank testi atlandi")
     db = Database(str(tmp_path / "at.db"))
     monkeypatch.setattr(at_mod, "Database", lambda *a, **k: db)
+    # Tum konfirmasyonlar AND filtresi oldugundan varsayilan ayarlar sinyal
+    # uretmez; ranking mekanigi icin tek konfirmasyonlu fonksiyonel ayar kullanilir.
+    _orig_get_settings = at_mod.strat_settings.get_settings
+    monkeypatch.setattr(
+        at_mod.strat_settings, "get_settings",
+        lambda: {**_orig_get_settings(),
+                 "confirmations": {k: (k == "rqk") for k in _orig_get_settings()["confirmations"]}},
+    )
     tr = at_mod.AutoTrader(FakeBinance())
     tr.trading_symbols = ["BTCUSDT", "ETHUSDT", "NOPEUSDT"]
     ranked = tr.rank_symbols(limit=400)
