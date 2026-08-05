@@ -14,9 +14,13 @@ class FakeTelegram:
     def __init__(self):
         self.sent = []
         self.stop_summaries = []
+        self.signal_msgs = []
 
     async def send(self, message):
         self.sent.append(message)
+
+    async def send_signal(self, symbol, side, price, reason, sl=None, tp=None, strength=0.0):
+        self.signal_msgs.append((symbol, side, price, reason, sl, tp))
 
     async def send_stop_summary(self, closed):
         self.stop_summaries.append(closed)
@@ -486,6 +490,32 @@ async def test_ttp_open_places_sl_only_order(trader):
         assert pos["tp_order_id"] is None
     finally:
         strat_settings.update_settings(prev)
+
+
+async def test_open_position_alerts_when_sl_order_fails(trader):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+    fb.fail_tp_sl = True
+    await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
+    pos = tr.active_positions["BTCUSDT"]
+    assert pos["sl_order_id"] is None
+    assert any("BTCUSDT" in m and "koruma" in m for m in tg.sent)
+
+
+async def test_open_position_alerts_when_sl_order_raises(trader, monkeypatch):
+    tr, fb, db = trader
+    tg = FakeTelegram()
+    tr.telegram = tg
+
+    async def _boom(*a, **k):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr(fb, "set_tp_sl", _boom)
+    await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
+    pos = tr.active_positions["BTCUSDT"]
+    assert pos["sl_order_id"] is None
+    assert any("BTCUSDT" in m and "koruma" in m for m in tg.sent)
 
 
 async def test_ttp_manage_moves_exchange_sl(trader):

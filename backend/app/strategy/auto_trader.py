@@ -656,14 +656,29 @@ class AutoTrader:
                     await self.telegram.send_signal(symbol, side, price, reason, sl=sl, tp=tp, strength=strength)
                 if not self.paper:
                     position_side = "LONG" if side == "BUY" else "SHORT"
-                    if strat_settings.get_settings().get("active_strategy") == "ttp":
-                        # TTPTSL: TP cikisini strateji yonetir (kismi TP icin tam
-                        # pozisyon TP emri yerine SL koruma emri konur).
-                        algo = await self.binance.set_tp_sl(symbol, position_side, sl, 0.0)
-                    else:
-                        algo = await self.binance.set_tp_sl(symbol, position_side, sl, tp)
+                    algo = {}
+                    try:
+                        if strat_settings.get_settings().get("active_strategy") == "ttp":
+                            # TTPTSL: TP cikisini strateji yonetir (kismi TP icin tam
+                            # pozisyon TP emri yerine SL koruma emri konur).
+                            algo = await self.binance.set_tp_sl(symbol, position_side, sl, 0.0)
+                        else:
+                            algo = await self.binance.set_tp_sl(symbol, position_side, sl, tp)
+                    except Exception as e:
+                        logger.error(f"{symbol}: SL/TP koruma emri hatasi: {e}")
                     self.active_positions[symbol]["sl_order_id"] = algo.get("sl")
                     self.active_positions[symbol]["tp_order_id"] = algo.get("tp")
+                    if not algo.get("sl"):
+                        logger.critical(
+                            f"{symbol}: SL koruma emri borsaya yerlestirilemedi; "
+                            f"pozisyon korumasiz (sonraki taramada tamir edilir)"
+                        )
+                        if self.telegram:
+                            await self.telegram.send(
+                                f"ATOS X UYARI: {symbol} pozisyonu acik ama SL koruma "
+                                f"emri yerlestirilemedi! Pozisyon korumasiz, sonraki "
+                                f"taramada tamir edilecek."
+                            )
                 logger.success(f"Pozisyon acildi: {symbol} {side} {qty:.4f} @ {price}")
                 self._persist_risk_state()
         except Exception as e:
