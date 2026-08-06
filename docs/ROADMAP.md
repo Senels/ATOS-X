@@ -66,25 +66,26 @@
 
 ## Açık Konular (bilinen eksikler)
 
-- **Council–TTP oyu (497be93, eb82c5d)**: council TTP modunda sinyalin kendisini
-  birincil oy alır (v23 zorunluluğu kalktı); trend/momentum/volatilite
-  oyları aynen uygulanır. `decide()` ttp modunda otomatik TTP analizi yapar —
-  `/api/v1/market/decision` ve `/api/v1/market/decisions` endpoint'leri de
-  gerçek kapının aynı kararını döndürür (dashboard kartı uyumlu).
-- **Canlı AI feedback birikimi sürüyor** (06.08: 3 kayıt — DOLOUSDT dahil; çözüm
-  08.08 12:00 UTC sonrası): beklenen yakınsama ~0.61 genel / ~0.586 son 1 ay.
-  `ai_auto_retrain` **açık ve E2E doğrulandı** (06.08: zaman tetikleyicisi → eğitim
-  64 sn → cache temizliği → yeni model canlıda); accuracy tetikleyicisi
-  `ai_retrain_min_samples=30` çözülmüş tahmin + accuracy < `ai_retrain_min_acc=0.55`.
-- **Sinyal yoğunluğu**: TTP burst'leri 4h bar kapanışlarına yakın gelir;
-  pazar sessizken günlerce sinyal üretilmeyebilir → feedback yavaş birikir.
-  İyileştirme (06.08): `scan_limit` **200**'e çıkarıldı (CPU ~%13, rate-limit
-  güvenli; OPS.md). Interval değişikliği (2h/30m) ölçülüp **reddedildi** —
-  4h parametreleri 2h'de zararda, AI filtresi 30m'de ters çalışıyor.
-- **scan_limit=200**: 550+ sembolün %36'sı taranır; tam evren (550) rate-limit
-  bütçesini aşar (~18 istek/sn vs 20 limit) — 200 doğru denge.
-- **v23 AI eşiği doğrulandı (06.08)**: 0.50/0.45 → 26 geçen/+220 USDT, 0.55 →
-  16 geçen/**+299 USDT** → `ai_min_confidence=0.55` v23 için de doğru eşik.
+- **Canlı AI feedback birikimi sürüyor** (06.08: 8 kayıt; çözüm 08.08 12:00 UTC
+  sonrası): beklenen yakınsama ~0.61 genel / ~0.586 son 1 ay. `ai_auto_retrain`
+  açık ve E2E doğrulandı — accuracy tetikleyicisi `ai_retrain_min_samples=30`
+  çözülmüş tahmin + accuracy < `ai_retrain_min_acc=0.55` koşulu dolunca devrede.
+  Feedback hızı artık yeterli: scan_limit=200 + ~30-60 sn/döngü (günde 6 4h
+  kapanışı × 200 sembol evreni; DOLOUSDT pozisyonu 06.08'de açıldı).
+
+## Kapanan Konular (kanıtlı, kod/ölçüm kapalı)
+
+- **Council–TTP oyu (497be93, eb82c5d)**: TTP modunda sinyal birincil oy; `decide()`
+  otomatik TTP analizi; `/api/v1/market/decision|decisions` gerçek kapıyla aynı
+  kararı döndürür. Canlı doğrulandı (BTCUSDT HOLD 0.18, C98USDT BUY 0.59).
+- **Sinyal yoğunluğu**: `scan_limit` 100→200 (CPU ~%13, rate-limit güvenli);
+  interval değişikliği (2h/30m) ölçülüp reddedildi (4h parametreleri 2h'de
+  zararda, AI filtresi 30m'de ters). Döngü canlılığı: kline timeout'u (20 sn/
+  istek) + websocket top 20 sınırı → döngü ~30-60 sn/döngü (eskiden ~30 dk).
+- **v23 AI eşiği (070774c)**: 0.55 doğru eşik (0.50/0.45 neti düşürüyor).
+- **Settings API persist (6818d78)**: REST değişiklikleri artık kalıcı.
+- **Auto-retrain E2E (06.08)**: zaman tetikleyicisi → eğitim 64 sn → cache
+  temizliği → yeni model restart'sız (HFTUSDT 0.7091→0.7158) + Telegram bildirimleri.
 
 ## Veri
 
