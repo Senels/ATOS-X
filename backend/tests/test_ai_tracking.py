@@ -349,3 +349,28 @@ def test_dashboard_has_ai_feedback_card():
     assert 'id="aiStatsBody"' in resp.text
     assert "/api/v1/ai/stats" in resp.text
     client.close()
+
+
+def test_ai_stats_endpoint_includes_model_fields(monkeypatch):
+    fake_db = SimpleNamespace(ai_stats=lambda limit_hours=0: {
+        "total": 10, "resolved": 8, "pending": 2, "hits": 6, "misses": 2,
+        "accuracy": 0.75, "executed": 3, "avg_confidence": 0.61,
+        "by_direction": {"BUY": {"total": 5, "hits": 4, "accuracy": 0.8,
+                                 "avg_confidence": 0.6}},
+    })
+    main_mod.auto_trader = SimpleNamespace(db=fake_db)
+    main_mod.app.state.db = fake_db
+    try:
+        client = TestClient(main_mod.app)
+        resp = client.get("/api/v1/ai/stats")
+        client.close()
+    finally:
+        main_mod.auto_trader = None
+        main_mod.app.state.db = None
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["model_name"] == "ai_direction"
+    assert body["auto_retrain"] is False
+    assert body["pending"] == 2
+    assert body["accuracy"] == 0.75
+    assert body["by_direction"]["BUY"]["hits"] == 4
