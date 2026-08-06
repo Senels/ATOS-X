@@ -683,6 +683,12 @@ MIN_NOTIONAL=5.0
 - **Yeniden eğitim**: `python scripts/train_ai.py` ile modeli tazele; predictor
   işlem ömrü boyunca cache'lidir (`auto_trader._ai_predictor_cache`), bu yüzden
   yeni modeli yüklemek için sunucu restart gerekir.
+- **Hızlı doğruluk ölçümü**: `python scripts/eval_ai.py [--symbols 80]` — arşivdeki
+  sembollerde canlı çözümleme semantiğiyle (BUY: +12 bar yükseliş hit; SELL: düşüş
+  hit; HOLD hariç) genel + yön bazlı + sembol başına son `--recent-bars` (200 ≈ 1 ay)
+  accuracy hesaplar. Beklenti (06.08): genel ~0.61, BUY ~0.60, SELL ~0.62, son 1 ay
+  ~0.59. Canlı `/api/v1/ai/stats` döngüsü bu değerlere yakınsamalı; acc < ~0.55 ise
+  yeniden eğitim düşünülür. CI'da çalışmaz (TF yok).
 
 ## Doğrulama
 
