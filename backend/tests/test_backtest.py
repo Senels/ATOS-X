@@ -95,6 +95,30 @@ def test_position_size_zero_sl_distance():
     assert s["qty"] == pytest.approx(100.0)
 
 
+# -- volatilite rejimi boyutlandirma -----------------------------------------
+def test_position_size_vol_regime_shrinks_risk():
+    engine = BacktestEngine(initial_equity=10000, risk_per_trade=0.02,
+                            vol_sizing_enabled=True)
+    s = engine.position_size(entry=100.0, sl=90.0, equity=10000, atr_ratio=2.0)
+    # yuksek rejim: risk 200 -> 100 -> qty = 100/10 = 10
+    assert s["qty"] == pytest.approx(10.0)
+    assert s["risk_amount"] == pytest.approx(100.0)
+
+
+def test_position_size_vol_regime_normal_risk_below_hi():
+    engine = BacktestEngine(initial_equity=10000, risk_per_trade=0.02,
+                            vol_sizing_enabled=True)
+    s = engine.position_size(entry=100.0, sl=90.0, equity=10000, atr_ratio=1.2)
+    assert s["qty"] == pytest.approx(20.0)
+    assert s["risk_amount"] == pytest.approx(200.0)
+
+
+def test_position_size_vol_regime_disabled_by_default():
+    engine = BacktestEngine(initial_equity=10000, risk_per_trade=0.02)
+    s = engine.position_size(entry=100.0, sl=90.0, equity=10000, atr_ratio=2.0)
+    assert s["qty"] == pytest.approx(20.0)
+
+
 def test_open_uses_position_size(btc_df):
     orders = TradeBotV23().analyze(btc_df)["orders"]
     engine = BacktestEngine(initial_equity=10000, risk_per_trade=0.02)

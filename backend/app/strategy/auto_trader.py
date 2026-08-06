@@ -14,6 +14,7 @@ from app.strategy import get_strategy
 from app.strategy import settings as strat_settings
 from app.strategy.coin_intel import coin_score as score_symbol
 from app.strategy.decision import decide as decide_council
+from app.strategy.tradebot_v23 import atr as atr_series
 
 _SCORE_POOL = 200  # skor bazli siralama icin canli degerlendirilen sembol sayisi
 
@@ -421,6 +422,7 @@ class AutoTrader:
                     signal = bot.generate_signal(klines)
                     price = float(klines["close"].iloc[-1])
                     signal["bar_ts"] = str(klines.index[-1])
+                    signal["atr_ratio"] = self._signal_atr_ratio(klines)
 
                     if signal.get("signal") in ("BUY", "SELL") and signal.get("sl") and signal.get("tp"):
                         allow_ai, ai_info, allow, decision, allow_str, str_info = \
@@ -625,14 +627,17 @@ class AutoTrader:
             from app.ai.retrain import RetrainRunner
             symbols = int(settings.get("ai_retrain_symbols", 400) or 400)
             epochs = int(settings.get("ai_retrain_epochs", 30) or 30)
+            horizon = int(settings.get("ai_horizon", 24) or 24)
+            atr_mult = float(settings.get("ai_atr_mult", 1.0) or 1.0)
             if self.telegram:
                 await self.telegram.send(
                     f"AI yeniden egitimi basladi ({model_name}, "
-                    f"{symbols} sembol, {epochs} epoch)...")
+                    f"{symbols} sembol, {epochs} epoch, h={horizon})...")
             logger.info(f"AI yeniden egitimi basladi: {model_name} "
-                        f"({symbols} sembol, {epochs} epoch)")
+                        f"({symbols} sembol, {epochs} epoch, h={horizon})")
             ok, tail = await RetrainRunner(model_name=model_name).train(
-                symbols=symbols, epochs=epochs)
+                symbols=symbols, epochs=epochs,
+                horizon=horizon, atr_mult=atr_mult)
             if ok:
                 self._ai_predictor_cache = None
                 logger.info(f"AI modeli yeniden egitildi: {model_name}")
@@ -677,13 +682,20 @@ class AutoTrader:
             bar_ts=signal.get("bar_ts"),
         )
 
-    def _resolve_pending_predictions(self, klines_map: dict, resolution_bars: int = 12):
+    def _resolve_pending_predictions(self, klines_map: dict, resolution_bars: int = None):
         """Bekleyen AI tahminlerini bar-bazli cozer.
 
         Tahmin barindan `resolution_bars` bar sonraki kapanis, tahmin anindaki
         fiyatla karsilastirilir: BUY -> yukseldiyse hit, SELL -> dustuyse hit.
+        `resolution_bars` verilmezse modelin horizon'u kullanilir (model yoksa 12).
         Veri yetmiyorsa bekler; sembol cikmis ya da cok eskiyse `na`.
         """
+        if resolution_bars is None:
+            try:
+                pred = self._ai_predictor()
+                resolution_bars = pred.horizon if pred is not None else 12
+            except Exception:
+                resolution_bars = 12
         pending = self.db.list_pending_predictions(limit=200)
         if not pending:
             return
@@ -752,7 +764,8 @@ class AutoTrader:
                 if len(self.active_positions) >= self.max_positions:
                     continue
                 side = "LONG" if signal["signal"] == "BUY" else "SHORT"
-                notional = self._projected_notional(signal["price"], signal["sl"])
+                notional = self._projected_notional(signal["price"], signal["sl"],
+                                                    signal.get("atr_ratio"))
                 if await self._blocked_by_side(side, notional):
                     logger.warning(
                         f"{symbol}: {side} yonunde asiri pozisyon, giris engellendi"
@@ -771,6 +784,7 @@ class AutoTrader:
                     council_confidence=signal.get("council_confidence"),
                     ai_direction=signal.get("ai_direction"),
                     ai_confidence=signal.get("ai_confidence"),
+                    atr_ratio=signal.get("atr_ratio"),
                 )
 
     def _apply_risk_settings(self, s: dict):
@@ -787,11 +801,28 @@ class AutoTrader:
         self.breakeven_activate_pct = float(s.get("breakeven_activate_pct", self.breakeven_activate_pct))
         self.max_daily_loss_pct = float(s.get("max_daily_loss_pct", self.max_daily_loss_pct))
         self.min_equity = float(s.get("min_equity", self.min_equity))
+        self.engine.vol_sizing_enabled = bool(s.get("vol_sizing_enabled", False))
+        self.engine.vol_mult_hi = float(s.get("vol_mult_hi", 1.5))
+        self.engine.vol_mult_lo = float(s.get("vol_mult_lo", 0.6))
+        self.engine.vol_mult_factor = float(s.get("vol_mult_factor", 0.5))
 
-    def _projected_notional(self, price: float, sl: float) -> float:
+    def _signal_atr_ratio(self, klines) -> float:
+        """Sinyal bari ATR / 20 bar ortalama ATR orani (volatilite rejimi)."""
+        try:
+            a = atr_series(klines, 14)
+            cur = float(a.iloc[-1])
+            mean20 = float(a.rolling(20).mean().iloc[-1])
+            if mean20 > 0 and cur > 0:
+                return cur / mean20
+        except Exception:
+            pass
+        return 1.0
+
+    def _projected_notional(self, price: float, sl: float, atr_ratio: float = None) -> float:
         """Yeni bir pozisyonun boyutlandirma sonrasi nominal degeri."""
         try:
-            sizing = self.engine.position_size(price, sl, self.equity)
+            sizing = self.engine.position_size(price, sl, self.equity,
+                                               atr_ratio=atr_ratio)
             return price * float(sizing["qty"])
         except Exception:
             return 0.0
@@ -845,10 +876,12 @@ class AutoTrader:
         return await self.binance.close_position(symbol)
 
     async def open_position(self, symbol: str, side: str, price: float, sl: float, tp: float, reason: str = "", strength: float = 0.0, entry_ts=None,
-                            council_confidence: float = None, ai_direction: str = None, ai_confidence: float = None):
+                            council_confidence: float = None, ai_direction: str = None, ai_confidence: float = None,
+                            atr_ratio: float = None):
         try:
             side = "BUY" if side == "BUY" else "SELL"
-            sizing = self.engine.position_size(price, sl, self.equity)
+            sizing = self.engine.position_size(price, sl, self.equity,
+                                               atr_ratio=atr_ratio)
             qty = float(sizing["qty"])
             if qty <= 0:
                 return

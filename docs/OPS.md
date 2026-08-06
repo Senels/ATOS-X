@@ -754,6 +754,33 @@ MIN_NOTIONAL=5.0
   `ai_retrain_min_samples`, `ai_retrain_symbols`, `ai_retrain_epochs`.
   Durum: `/ai` komutu ve `/api/v1/ai/stats` yanıtında (`auto_retrain`,
   `last_trained_at`).
+- **Model kalitesi (Sprint 13, 06.08)**: horizon ve özellik deneyleri yapıldı.
+  Horizon duyarlılığı (`eval_ai` 79 sembol, canlı çözümleme semantiği):
+  **h6 (24s): 0.591**, **h12 (48s): 0.611** (önceki canlı), **h24 (96s): 0.610**;
+  son 1 ay diliminde h24 belirgin üstün (0.603 vs 0.584). Yeni özellikler
+  (`features.py`, 20 → 24: `vol_regime` ATR z-skoru, `ema100_r` uzun trend,
+  `vol_mom` hacim momentumu, `bb_pos` Bollinger konumu): h12'de genel 0.622
+  (+1.1 puan), val_acc 0.644 (+1.6). **Kazanan kombinasyon (24 özellik + h24):
+  genel 0.625, BUY 0.623, SELL 0.627, son 1 ay 0.621** — `ai_direction` bu
+  konfigürasyonla yeniden eğitildi (val_acc 0.636, eval 0.623 / son 1 ay 0.607).
+  Zincir parametrik yapıldı: `ai_horizon=24`, `ai_atr_mult=1.0` (settings.json);
+  eğitim meta'sına horizon yazılır; `_resolve_pending_predictions` çözümleme
+  bar sayısını modelin horizon'undan alır (eski modellerde 12); auto-retrain
+  `--horizon`/`--atr-mult`'u alt sürece geçirir. **Davranış değişikliği**:
+  feedback çözümleme süresi 48s → 96s (24 bar) — 06.08 12:00/16:00 UTC'deki
+  8 bekleyen tahmin 10.08 00:00-04:00 UTC'de çözülür.
+- **Volatilite rejimi boyutlandırma (Sprint 13, 06.08)**: `BacktestEngine.position_size`
+  `atr_ratio` (sinyal barı ATR% / 20 bar ortalama ATR%) kabul eder; `vol_sizing_enabled`
+  açıkken `atr_ratio > vol_mult_hi` (1.5) ise risk `vol_mult_factor` (0.5) ile
+  küçülür (düşük rejimde normal risk korunur — aşırı küçük pozisyon istenmez).
+  Canlı: sinyal üretiminde `signal["atr_ratio"]` hesaplanır → `_projected_notional`
+  ve `open_position` aynı çarpanı kullanır (council/konsantrasyon kontrolleri ile
+  tutarlı). Backtest API ve `scan_backtest.py` settings'ten taşır (`--vol-sizing`/
+  `--no-vol-sizing` ile A/B). **A/B (06.08, 200 sembol/160 trade)**: yüksek ATR
+  rejimi trade'lerinde kayıp küçüldü — net -4,567 → -4,065 USDT, maxDD -3.62% →
+  -3.50%; 5 sembolde iyileşme, kötüleşen yok (pozisyon boyutu küçüldüğünden
+  win rate değişmiyor, kayıp asimetrisi azalıyor). Settings: `vol_sizing_enabled
+  =True` canlıda aktif (restart ile).
 
 ## Doğrulama
 

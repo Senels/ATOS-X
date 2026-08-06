@@ -14,6 +14,8 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+from app.strategy.tradebot_v23 import atr
+
 _BARS_PER_YEAR = {
     "1m": 525600, "3m": 175200, "5m": 105120, "15m": 35040,
     "30m": 17520, "1h": 8760, "2h": 4380, "4h": 2190,
@@ -43,6 +45,10 @@ class BacktestEngine:
         breakeven_activate_pct: float = 0.0,
         max_position_age_hours: float = 0.0,
         min_signal_strength: float = 0.0,
+        vol_sizing_enabled: bool = False,
+        vol_mult_hi: float = 1.5,
+        vol_mult_lo: float = 0.6,
+        vol_mult_factor: float = 0.5,
     ):
         self.initial_equity = float(initial_equity)
         self.risk_per_trade = float(risk_per_trade)
@@ -59,6 +65,10 @@ class BacktestEngine:
         self.breakeven_activate_pct = float(breakeven_activate_pct)
         self.max_position_age_hours = float(max_position_age_hours)
         self.min_signal_strength = float(min_signal_strength)
+        self.vol_sizing_enabled = bool(vol_sizing_enabled)
+        self.vol_mult_hi = float(vol_mult_hi)
+        self.vol_mult_lo = float(vol_mult_lo)
+        self.vol_mult_factor = float(vol_mult_factor)
 
     # ------------------------------------------------------------------
     def _can_enter(self) -> bool:
@@ -138,6 +148,9 @@ class BacktestEngine:
         self.consec = 0
         peak_bt = self.initial_equity
         hours_per_bar = 24.0 * 365 / max(bars_per_year(interval), 1)
+        atr_series = atr(df, 14)
+        atr_arr = atr_series.to_numpy(dtype=float)
+        atr_mean_arr = atr_series.rolling(20).mean().to_numpy(dtype=float)
 
         for i in range(n):
             # 1) Bekleyen emir: bir onceki barin sinyali -> bu barin acilisi
@@ -145,6 +158,11 @@ class BacktestEngine:
                 side = int(sig[i - 1])
                 slp = sl_arr[i - 1]
                 tpp = tp_arr[i - 1]
+                atr_ratio = None
+                if self.vol_sizing_enabled:
+                    am = atr_mean_arr[i - 1]
+                    if np.isfinite(am) and am > 0:
+                        atr_ratio = float(atr_arr[i - 1] / am)
 
                 if pos is not None and pos["side"] != side:
                     self._close(pos, o[i], "flip", i, trades)
@@ -156,18 +174,22 @@ class BacktestEngine:
                     px = o[i] * (1 + self.slippage * side)
                     if side == 1:
                         if px <= slp:
-                            self._gap_trade(1, px, slp, tpp, "immediate_sl", i, trades)
+                            self._gap_trade(1, px, slp, tpp, "immediate_sl", i, trades,
+                                            atr_ratio=atr_ratio)
                         elif px >= tpp:
-                            self._gap_trade(1, px, slp, tpp, "immediate_tp", i, trades)
+                            self._gap_trade(1, px, slp, tpp, "immediate_tp", i, trades,
+                                            atr_ratio=atr_ratio)
                         else:
-                            pos = self._open(1, px, slp, tpp, i)
+                            pos = self._open(1, px, slp, tpp, i, atr_ratio=atr_ratio)
                     else:
                         if px >= slp:
-                            self._gap_trade(-1, px, slp, tpp, "immediate_sl", i, trades)
+                            self._gap_trade(-1, px, slp, tpp, "immediate_sl", i, trades,
+                                            atr_ratio=atr_ratio)
                         elif px <= tpp:
-                            self._gap_trade(-1, px, slp, tpp, "immediate_tp", i, trades)
+                            self._gap_trade(-1, px, slp, tpp, "immediate_tp", i, trades,
+                                            atr_ratio=atr_ratio)
                         else:
-                            pos = self._open(-1, px, slp, tpp, i)
+                            pos = self._open(-1, px, slp, tpp, i, atr_ratio=atr_ratio)
                     if pos is not None:
                         self.equity -= pos["entry_fee"]
 
@@ -259,15 +281,22 @@ class BacktestEngine:
         return self._metrics(df, eq_curve, trades, interval, exposure)
 
     # ------------------------------------------------------------------
-    def position_size(self, entry: float, sl: float, equity: float) -> Dict[str, float]:
+    def position_size(self, entry: float, sl: float, equity: float,
+                      atr_ratio: Optional[float] = None) -> Dict[str, float]:
         """Risk bazli pozisyon boyutlandirma (backtest + canli ortak).
 
         qty = risk_amari / SL mesafesi; notional kaldirac siniriyla cappili.
+        `atr_ratio` = sinyal bari ATR% / 20 bar ortalama ATR%. Rejim yuksekse
+        (`> vol_mult_hi`) risk `vol_mult_factor` ile kucultulur; dusukse
+        normal risk korunur (asiri kucuk pozisyon istemeyiz).
         """
         sl_dist = abs(entry - sl)
         if sl_dist <= 0:
             sl_dist = entry * 0.02
         risk_amt = equity * self.risk_per_trade
+        if self.vol_sizing_enabled and atr_ratio is not None \
+                and atr_ratio > self.vol_mult_hi:
+            risk_amt *= self.vol_mult_factor
         qty = risk_amt / sl_dist
         max_notional = equity * self.max_leverage
         if qty * entry > max_notional:
@@ -279,8 +308,9 @@ class BacktestEngine:
             "sl_dist": sl_dist,
         }
 
-    def _open(self, side: int, entry: float, sl: float, tp: float, bar: int) -> Dict[str, Any]:
-        sizing = self.position_size(entry, sl, self.equity)
+    def _open(self, side: int, entry: float, sl: float, tp: float, bar: int,
+              atr_ratio: Optional[float] = None) -> Dict[str, Any]:
+        sizing = self.position_size(entry, sl, self.equity, atr_ratio=atr_ratio)
         return {
             "side": side, "entry": entry, "sl": sl, "tp": tp,
             "qty": sizing["qty"], "entry_fee": sizing["entry_fee"],
@@ -314,9 +344,10 @@ class BacktestEngine:
         pos["entry_fee"] -= entry_fee_part
 
     def _gap_trade(self, side: int, px: float, sl: float, tp: float, reason: str,
-                   bar: int, trades: List[Dict[str, Any]]) -> None:
+                   bar: int, trades: List[Dict[str, Any]],
+                   atr_ratio: Optional[float] = None) -> None:
         """Acilis fiyati SL/TP'nin otesinde kaldi: giris aninda kapanir."""
-        pos = self._open(side, px, sl, tp, bar)
+        pos = self._open(side, px, sl, tp, bar, atr_ratio=atr_ratio)
         self.equity -= pos["entry_fee"]
         self._close(pos, px, reason, bar, trades)
 

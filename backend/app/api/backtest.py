@@ -126,6 +126,10 @@ async def run_backtest(
         breakeven_activate_pct=breakeven_activate_pct if breakeven_activate_pct is not None else engine_cfg.get("breakeven_activate_pct", 0.0),
         max_position_age_hours=max_position_age_hours if max_position_age_hours is not None else engine_cfg.get("max_position_age_hours", 0.0),
         min_signal_strength=min_signal_strength if min_signal_strength is not None else engine_cfg.get("min_signal_strength", 0.0),
+        vol_sizing_enabled=bool(engine_cfg.get("vol_sizing_enabled", False)),
+        vol_mult_hi=float(engine_cfg.get("vol_mult_hi", 1.5)),
+        vol_mult_lo=float(engine_cfg.get("vol_mult_lo", 0.6)),
+        vol_mult_factor=float(engine_cfg.get("vol_mult_factor", 0.5)),
     )
     bot = get_strategy(settings)
     analyze = getattr(bot, "analyze_full", None)

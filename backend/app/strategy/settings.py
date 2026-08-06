@@ -48,6 +48,12 @@ DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
     "use_decision_council": True,   # True iken girisler council kararina ve min guvene tabi
     "council_min_confidence": 0.6,  # Council kararina gerekli minimum guven (0-1)
     "min_signal_strength": 0.6,     # Sinyal gucu esigi (0-1; alti giris engellenir; 0 = devre disi)
+    # Volatilite rejimi pozisyon boyutlandirma: sinyal bari ATR% 20 bar
+    # ortalamasinin vol_mult_hi katinin ustundeyse risk vol_mult_factor ile kucultur
+    "vol_sizing_enabled": True,     # True iken yuksek ATR rejiminde risk carpani uygulanir
+    "vol_mult_hi": 1.5,             # Rejim esigi (atr_ratio ustu = yuksek volatilite)
+    "vol_mult_lo": 0.6,             # Dusuk rejim esigi (altinda normal risk; kullanilmaz rezerv)
+    "vol_mult_factor": 0.5,         # Yuksek rejimde risk carpani
     "scan_limit": 50,               # Her tarama dongusunde degerlendirilen sembol sayisi (oncelik listesinden)
     # Coin Intelligence: canli momentum skoruna gore sembol onceligi
     "use_score_ranking": True,      # True iken ranking canli coin_score'a gore yeniden siralanir
@@ -55,6 +61,8 @@ DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
     "use_ai_model": True,           # True iken AI tahmini sinyal yonuyle uyusmali (model yoksa pasif)
     "ai_min_confidence": 0.55,      # AI tahminini gecirmek icin gereken min guven (0-1)
     "ai_model_path": "ai_direction",  # backend/models/ altindaki model adi
+    "ai_horizon": 24,               # Egitim etiketi ileri kapanis horizonu (4h bar; 12=48s, 24=96s)
+    "ai_atr_mult": 1.0,             # Etiket esigi ATR carpani
     # Otomatik yeniden egitim (feedback dongusu)
     "ai_auto_retrain": False,        # True iken zaman/accuracy tetikleyicisiyle yeniden egitir
     "ai_retrain_interval_hours": 24.0,  # Zaman tetikleyicisi (saat; 0 = kapali)

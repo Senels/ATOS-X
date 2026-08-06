@@ -60,6 +60,7 @@ class RetrainRunner:
         self._create_subprocess = asyncio.create_subprocess_exec
 
     async def train(self, symbols: int = 400, epochs: int = 30,
+                    horizon: int = 24, atr_mult: float = 1.0,
                     timeout: int = 1800) -> Tuple[bool, str]:
         """Alt sureci baslatir; (basarili mi, cikti sonu) dondurur."""
         script = self.backend_dir / "scripts" / "train_ai.py"
@@ -67,6 +68,8 @@ class RetrainRunner:
             self.python_exe, str(script),
             "--symbols", str(symbols),
             "--epochs", str(epochs),
+            "--horizon", str(horizon),
+            "--atr-mult", str(atr_mult),
             "--model", self.model_name,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,

@@ -136,9 +136,11 @@ def train_from_dataframe(dfs: List[pd.DataFrame], horizon: int = 12,
     out_dir.mkdir(parents=True, exist_ok=True)
     model.save(out_dir / "model.keras")
     joblib.dump(scaler, out_dir / "scaler.joblib")
-    joblib.dump({"features": FEATURE_NAMES, "n_classes": _N_CLASSES},
+    joblib.dump({"features": FEATURE_NAMES, "n_classes": _N_CLASSES,
+                 "horizon": horizon, "atr_mult": atr_mult},
                 out_dir / "meta.joblib")
-    metrics = {"samples": int(len(X)), "val_loss": val_loss, "val_acc": val_acc}
+    metrics = {"samples": int(len(X)), "val_loss": val_loss, "val_acc": val_acc,
+               "horizon": horizon, "atr_mult": atr_mult}
     joblib.dump(metrics, out_dir / "metrics.joblib")
 
     return {"model_dir": str(out_dir), "samples": int(len(X)),
@@ -166,12 +168,19 @@ def train_from_archive(interval: str = "4h", max_symbols: int = 400,
 # Tahmin
 # ---------------------------------------------------------------------------
 class Predictor:
-    """Yuklenmis model + scaler ile son barin yon tahmini."""
+    """Yuklenmis model + scaler ile son barin yon tahmini.
 
-    def __init__(self, model, scaler, features: List[str]):
+    `horizon` meta'dan okunur (canli cozumleme semantigi ile uyumluluk icin);
+    eski modellerde varsayilan 12'dir.
+    """
+
+    def __init__(self, model, scaler, features: List[str],
+                 horizon: int = 12, atr_mult: float = 1.0):
         self.model = model
         self.scaler = scaler
         self.features = features
+        self.horizon = horizon
+        self.atr_mult = atr_mult
 
     def predict(self, df: pd.DataFrame) -> Dict[str, Any]:
         feats = _standardize(build_features(df))
@@ -203,6 +212,10 @@ def load_predictor(model_name: str) -> Optional[Predictor]:
         scaler = joblib.load(out_dir / "scaler.joblib")
         meta = joblib.load(out_dir / "meta.joblib")
         features = meta.get("features", FEATURE_NAMES)
-        return Predictor(model, scaler, features)
+        return Predictor(
+            model, scaler, features,
+            horizon=int(meta.get("horizon", 12)),
+            atr_mult=float(meta.get("atr_mult", 1.0)),
+        )
     except Exception:
         return None

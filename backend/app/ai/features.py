@@ -2,7 +2,7 @@
 
 Her tamamlanmis bar icin ileriye donuk sizinti olmadan (yalnizca t ve oncesi
 bilgisiyle) sayisal ozellikler uretilir. `build_features` satir bazli
-(her bar bir ornek) ~20 ozellik dondurur; TensorFlow katmanli ag bunu
+(her bar bir ornek) ~24 ozellik dondurur; TensorFlow katmanli ag bunu
 yond tahmini icin kullanir.
 """
 from typing import List, Tuple
@@ -28,6 +28,7 @@ FEATURE_NAMES: List[str] = [
     "rqk_spread", "rf_state",
     "stoch_kd", "chand_dist",
     "vol_z", "ret_std20", "dn_pos20", "hl_range", "mom5",
+    "vol_regime", "ema100_r", "vol_mom", "bb_pos",
 ]
 
 
@@ -75,6 +76,13 @@ def build_features(df: pd.DataFrame, min_rows: int = 60) -> pd.DataFrame:
     out["dn_pos20"] = (close - roll_lo) / (roll_hi - roll_lo + 1e-9)
     out["hl_range"] = (df["high"] - df["low"]) / close
     out["mom5"] = close.pct_change(5) - close.pct_change(1)
+    ap = out["atr_pct"]
+    out["vol_regime"] = (ap - ap.rolling(20).mean()) / (ap.rolling(20).std() + 1e-9)
+    out["ema100_r"] = ema(close, 100) / close
+    logv5 = logv.rolling(5).mean()
+    out["vol_mom"] = logv5 - vol20
+    sma20 = close.rolling(20).mean()
+    out["bb_pos"] = (close - sma20) / (2 * close.rolling(20).std() + 1e-9)
     return out[FEATURE_NAMES]
 
 

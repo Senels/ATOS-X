@@ -16,6 +16,7 @@
 | 10 | Trading | emir yönetimi, TP/SL/trailing, portföy senkronu | ✅ |
 | 11 | TTPTSL Motor | optimize_ttp.py durum makinesi → TtpTsl (analyze_full/manage) + engine managed yol + canlı pozisyon yönetimi | ✅ |
 | 12 | AI Katmanı | TensorFlow yön tahmini (`app/ai/`), görünürlük (signals API/Telegram/dashboard/koruma editor), doğruluk izleme (`predictions` tablosu, bar-bazlı 12 bar sonrası çözümleme, `/api/v1/ai/stats`, `/ai` komutu) | ✅ |
+| 13 | Model Kalitesi + Risk | horizon/özellik deneyleri (h24 + 24 özellik kazandı, `ai_horizon=24` parametrik zincir), volatilite rejimi pozisyon boyutlandırma (`atr_ratio`, A/B doğrulandı) | ✅ |
 
 > Not: Sprint 11, `optimize_ttp.py run_backtest`'in tam state machine'ini
 > (sl_trail_mode, tp_qty_pct kısmi TP, breakeven, reversal, trailing TP)
@@ -64,14 +65,26 @@
 > toleranslı yüklenir (`utf-8-sig`) — dosya **PowerShell ile değil Python ile**
 > yazılmalıdır.
 
+> Not: Sprint 13 (Model Kalitesi + Risk): horizon deneyleri (eval_ai 79 sembol) —
+> h6 0.591 / h12 0.611 / h24 0.610; son 1 ayda h24 üstün (0.603 vs 0.584). Yeni
+> özellikler (`vol_regime`, `ema100_r`, `vol_mom`, `bb_pos`; 20→24) h12'de genel
+> 0.622 (+1.1). Kazanan: 24 özellik + h24 (genel 0.625, son 1 ay 0.621) →
+> `ai_direction` bu konfigürasyonla yeniden eğitildi (eval 0.623). Zincir
+> parametrik: `ai_horizon=24`/`ai_atr_mult` (settings), meta'da horizon,
+> feedback çözümleme model horizon'undan (12→24 bar), auto-retrain
+> `--horizon/--atr-mult` geçirir. Volatilite boyutlandırma: `position_size`
+> `atr_ratio` çarpanı (`vol_sizing_enabled=True`, `vol_mult_hi=1.5`,
+> `vol_mult_factor=0.5`); canlı sinyal üretimi + engine + backtest API + A/B
+> (200 sembol: net -4,567→-4,065, maxDD iyileşti, kötüleşme yok). Plan:
+> `.opencode/plans/sprint13_model_risk_plan.md`.
+
 ## Açık Konular (bilinen eksikler)
 
-- **Canlı AI feedback birikimi sürüyor** (06.08: 8 kayıt; çözüm 08.08 12:00 UTC
-  sonrası): beklenen yakınsama ~0.61 genel / ~0.586 son 1 ay. `ai_auto_retrain`
-  açık ve E2E doğrulandı — accuracy tetikleyicisi `ai_retrain_min_samples=30`
-  çözülmüş tahmin + accuracy < `ai_retrain_min_acc=0.55` koşulu dolunca devrede.
-  Feedback hızı artık yeterli: scan_limit=200 + ~30-60 sn/döngü (günde 6 4h
-  kapanışı × 200 sembol evreni; DOLOUSDT pozisyonu 06.08'de açıldı).
+- **Canlı AI feedback birikimi sürüyor** (06.08: 8 kayıt; horizon 24 bar'a
+  çıktığı için çözüm 10.08 00:00-04:00 UTC civarı): beklenen yakınsama ~0.62
+  genel (yeni model) / son 1 ay ~0.61. `ai_auto_retrain` açık — accuracy
+  tetikleyicisi `ai_retrain_min_samples=30` çözülmüş tahmin + accuracy <
+  `ai_retrain_min_acc=0.55` koşulu dolunca devrede.
 
 ## Kapanan Konular (kanıtlı, kod/ölçüm kapalı)
 
@@ -86,6 +99,12 @@
 - **Settings API persist (6818d78)**: REST değişiklikleri artık kalıcı.
 - **Auto-retrain E2E (06.08)**: zaman tetikleyicisi → eğitim 64 sn → cache
   temizliği → yeni model restart'sız (HFTUSDT 0.7091→0.7158) + Telegram bildirimleri.
+- **Sprint 13 model kalitesi**: h24 + 24 özellik kazandı (eval genel 0.625,
+  son 1 ay 0.621; önceki 0.611/0.584) — `ai_direction` deploy edildi; horizon
+  zinciri parametrik (settings/meta/çözümleme/retrain).
+- **Sprint 13 vol boyutlandırma**: `atr_ratio > 1.5` ise risk 0.5× (canlı +
+  backtest aynı yol); A/B: net -4,567→-4,065 USDT, maxDD -3.62%→-3.50%, 5
+  sembol iyileşme / 0 kötüleşme.
 
 ## Veri
 

@@ -1,4 +1,4 @@
-"""Otomatik AI yeniden egitim testleri (TensorFlow gerektirmez).
+﻿"""Otomatik AI yeniden egitim testleri (TensorFlow gerektirmez).
 
 Kapsar: tetikleyici mantigi (zaman/accuracy), model dizini mtime okuma,
 `_maybe_retrain_ai` kapilari ve `_run_retrain` arka plan gorevi (cache
@@ -157,7 +157,7 @@ def test_run_retrain_success_invalidates_cache_and_notifies(trader, monkeypatch)
         def __init__(self, model_name="ai_direction"):
             self.model_name = model_name
 
-        async def train(self, symbols=400, epochs=30):
+        async def train(self, symbols=400, epochs=30, horizon=24, atr_mult=1.0):
             return True, "val_acc: 0.630"
 
     monkeypatch.setattr(retrain_mod, "RetrainRunner", FakeRunner)
@@ -177,10 +177,11 @@ def test_run_retrain_failure_notifies(trader, monkeypatch):
         def __init__(self, model_name="ai_direction"):
             self.model_name = model_name
 
-        async def train(self, symbols=400, epochs=30):
+        async def train(self, symbols=400, epochs=30, horizon=24, atr_mult=1.0):
             return False, "zaman asimi"
 
     monkeypatch.setattr(retrain_mod, "RetrainRunner", FakeRunner)
     asyncio.run(t._run_retrain(_settings(), "ai_direction"))
     assert t._retrain_running is False
     assert any("BASARISIZ" in m for m in tg.sent)
+

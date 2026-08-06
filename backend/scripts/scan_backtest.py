@@ -47,6 +47,10 @@ def main():
     parser.add_argument("--sort", default="net_profit", help="Siralama olcutu")
     parser.add_argument("--top", type=int, default=10, help="Konsola yazilacak satir sayisi")
     parser.add_argument("--min-trades", type=int, default=1, help="Min trade esigi")
+    parser.add_argument("--vol-sizing", action="store_true",
+                        help="Volatilite rejimi pozisyon boyutlandirmayi ac")
+    parser.add_argument("--no-vol-sizing", action="store_true",
+                        help="Volatilite rejimi pozisyon boyutlandirmayi kapat")
     parser.add_argument("--out", default="", help="CSV/JSON cikti dosyasi (bos = yok)")
     args = parser.parse_args()
 
@@ -58,12 +62,22 @@ def main():
 
     strat_settings.load()
     settings = strat_settings.get_settings()
+    if args.vol_sizing:
+        vol_enabled = True
+    elif args.no_vol_sizing:
+        vol_enabled = False
+    else:
+        vol_enabled = settings.get("vol_sizing_enabled", False)
     engine_kwargs = {
         "initial_equity": settings["initial_equity"],
         "risk_per_trade": settings["risk_per_trade"],
         "fee_rate": settings["fee_rate"],
         "slippage": 0.0001,
         "max_leverage": settings["max_leverage"],
+        "vol_sizing_enabled": bool(vol_enabled),
+        "vol_mult_hi": float(settings.get("vol_mult_hi", 1.5)),
+        "vol_mult_lo": float(settings.get("vol_mult_lo", 0.6)),
+        "vol_mult_factor": float(settings.get("vol_mult_factor", 0.5)),
     }
 
     t0 = time.time()
