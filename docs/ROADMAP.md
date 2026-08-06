@@ -45,14 +45,41 @@
 > `/api/v1/signals` + Telegram sinyal/pozisyon bildirimlerinde + dashboard
 > Live Signals sütununda görünür. Doğruluk izleme: her BUY/SELL sinyali
 > `predictions` tablosuna yazılır (bar_ts ile), 12 bar sonraki kapanışla
-> hit/miss çözülür; özet `/api/v1/ai/stats` ve `/ai` Telegram komutuyla.
-> Tahminler istatistik için kaydedilir ama `executed` bayrağı yalnızca AI
-> kapısından geçenlerde 1'dir (yani sonuç metrikleri karışmaz). Değerlendirme:
-> `scripts/eval_ai.py` (arşivde canlı semantiğiyle hızlı acc). Otomatik
-> yeniden eğitim: `ai_auto_retrain` açıkken 15 dakikada bir tetikleyiciler
-> değerlendirilir (zaman `ai_retrain_interval_hours` veya accuracy
-> `ai_retrain_min_acc` + `ai_retrain_min_samples` + 6h soğuma); eğitim ayrı
-> süreçte koşar, başarıda predictor cache'i temizlenir (restart gerekmez).
+> hit/miss çözülür; özet `/api/v1/ai/stats` ve `/ai` Telegram komutuyla +
+> dashboard `🤖 AI Feedback` kartında (`model_name`, isabet, yön bazlı tablo).
+> **Kayıt semantiği (2dc9d57)**: kayıt üç kapıdan (güç/council/AI) ÖNCE
+> yapılır — council/güç engeli sinyali feedback döngüsünden kaçırmaz;
+> `executed=1` yalnızca üç kapının tümünden geçilirse; (symbol, bar_ts)
+> tekillemesi tarama döngüsünün aynı barı mükerrer kaydetmesini önler,
+> sonradan geçen sinyalin kaydı executed=1'e yükseltilir. Değerlendirme:
+> `scripts/eval_ai.py` (arşivde canlı semantiğiyle hızlı acc). Backtest
+> simülasyonu: `scripts/ai_backtest.py --strategy v23|ttp` (motor
+> `BacktestEngine.run(..., ai_blocks=)`) — TTP ölçümleri (60/200/550 sembol)
+> ve v23 ölçümü docs/OPS.md'de. Otomatik yeniden eğitim: `ai_auto_retrain`
+> açıkken 15 dakikada bir tetikleyiciler değerlendirilir (zaman
+> `ai_retrain_interval_hours` veya accuracy `ai_retrain_min_acc` +
+> `ai_retrain_min_samples` + 6h soğuma); eğitim ayrı süreçte koşar, başarıda
+> predictor cache'i temizlenir (restart gerekmez). `scan_limit` ayarlanabilir
+> (`/koruma scan_limit <N>`, varsayılan 50; canlıda 100). settings.json BOM
+> toleranslı yüklenir (`utf-8-sig`) — dosya **PowerShell ile değil Python ile**
+> yazılmalıdır.
+
+## Açık Konular (bilinen eksikler)
+
+- **Council–TTP oyu (497be93)**: council TTP modunda sinyalin kendisini
+  birincil oy alır (v23 zorunluluğu kalktı); trend/momentum/volatilite
+  oyları aynen uygulanır. `/api/v1/market/decisions` endpoint'i hâlâ v23
+  tabanlı karar gösterir (dashboard kartı TTP modunda tam gerçeği yansıtmaz).
+- **Canlı AI feedback birikimi sürüyor** (06.08: 2 kayıt, çözüm 08.08 12:00
+  UTC sonrası): beklenen yakınsama ~0.61 genel / ~0.586 son 1 ay.
+  `ai_auto_retrain` açma kriteri: `ai_retrain_min_samples=30` çözülmüş tahmin
+  + accuracy < `ai_retrain_min_acc=0.55`.
+- **Sinyal yoğunluğu**: TTP burst'leri 4h bar kapanışlarına yakın gelir;
+  pazar sessizken günlerce sinyal üretilmeyebilir → feedback yavaş birikir.
+- **scan_limit=100**: 550+ sembolün %18'i taranır; CPU bütçesine göre
+  artırılabilir (TTP kurulumları listede olmayan sembollerde kaçabilir).
+- **v23 AI eşiği**: v23 simülasyonunda AI %89 engelledi (16 trade kaldı);
+  v23 canlıya dönerse `ai_min_confidence≈0.50` denenmelidir.
 
 ## Veri
 
