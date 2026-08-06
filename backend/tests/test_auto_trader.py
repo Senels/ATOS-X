@@ -1690,6 +1690,19 @@ async def test_council_gate_disabled_passes(trader):
     assert decision is None
 
 
+async def test_scan_limit_from_settings(trader, monkeypatch):
+    from app.strategy import settings as s
+    tr, fb, db = trader
+    monkeypatch.setattr(s, "get_settings",
+                        lambda: {"scan_limit": 120})
+    assert tr._scan_limit() == 120
+    monkeypatch.setattr(s, "get_settings",
+                        lambda: {"scan_limit": 0})
+    assert tr._scan_limit() == 1  # min 1 koruma
+    monkeypatch.setattr(s, "get_settings", lambda: {})
+    assert tr._scan_limit() == tr.scan_limit  # ayar yoksa sabit
+
+
 async def test_council_gate_mismatch_rejects(trader, monkeypatch):
     tr, fb, db = trader
     klines = pd.DataFrame({"open": [100.0], "high": [101.0], "low": [99.0],

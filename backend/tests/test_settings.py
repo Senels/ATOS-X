@@ -64,6 +64,7 @@ def test_council_defaults():
     assert state["council_min_confidence"] == 0.6
     assert state["use_score_ranking"] is True
     assert state["min_signal_strength"] == 0.6
+    assert state["scan_limit"] == 50
 
 
 def test_data_freshness_defaults():

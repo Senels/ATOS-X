@@ -1117,6 +1117,22 @@ def test_command_koruma_set_int(monkeypatch):
     assert applied["max_open_positions"] == 5
 
 
+def test_command_koruma_set_scan_limit(monkeypatch):
+    fake = _FakeTrader()
+    main_mod.auto_trader = fake
+    applied = {}
+    monkeypatch.setattr(main_mod.strat_settings, "update_settings",
+                        lambda patch: applied.update(patch) or main_mod.strat_settings.get_settings())
+    monkeypatch.setattr(main_mod.strat_settings, "persist", lambda: {})
+    try:
+        reply = main_mod._telegram_command("/koruma scan_limit 100")
+    finally:
+        main_mod.auto_trader = None
+    assert reply is not None
+    assert "scan_limit = 100" in reply
+    assert applied["scan_limit"] == 100
+
+
 def test_command_koruma_set_bool_toggle(monkeypatch):
     fake = _FakeTrader()
     main_mod.auto_trader = fake

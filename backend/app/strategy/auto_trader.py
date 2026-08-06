@@ -226,7 +226,7 @@ class AutoTrader:
         if strat_settings.get_settings().get("use_score_ranking", False):
             ranked = await self._rank_by_score(ranked)
         self.priority = ranked
-        self.top_symbols = ranked[: self.scan_limit]
+        self.top_symbols = ranked[: self._scan_limit()]
         self._last_rank = time.time()
         logger.info(
             f"Backtest oncelik listesi: {len(ranked)} sembol, "
@@ -398,8 +398,8 @@ class AutoTrader:
                 if self.priority and time.time() - self._last_rank > 1800:
                     asyncio.create_task(self._refresh_ranking())
                 ranked = [s for s in self.priority if s in all_prices] if self.priority else None
-                candidates = ranked[: self.scan_limit] if ranked \
-                    else self.trading_symbols[: self.scan_limit]
+                candidates = ranked[: self._scan_limit()] if ranked \
+                    else self.trading_symbols[: self._scan_limit()]
 
                 klines_map = await self._fetch_klines_batch(candidates)
                 try:
@@ -498,6 +498,10 @@ class AutoTrader:
         except Exception as e:
             logger.warning(f"AI tahmin kaydi hatasi {symbol}: {e}")
         return allow_ai, ai_info, allow, decision, allow_str, str_info
+
+    def _scan_limit(self) -> int:
+        """Tarama limiti: ayarlardan (runtime degistirilebilir), yoksa sabitten."""
+        return max(1, int(strat_settings.get_settings().get("scan_limit", self.scan_limit)))
 
     def _council_gate(self, signal, klines, settings):
         """Decision Council filtresi.

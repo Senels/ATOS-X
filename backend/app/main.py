@@ -381,6 +381,7 @@ _EDITABLE_RISK_KEYS = {
     "use_decision_council": "use_decision_council",
     "council_min_confidence": "council_min_confidence",
     "min_signal_strength": "min_signal_strength",
+    "scan_limit": "scan_limit",
     "use_score_ranking": "use_score_ranking",
     "data_backfill_hours": "data_backfill_hours",
     "data_freshness_hours": "data_freshness_hours",
@@ -395,7 +396,8 @@ _EDITABLE_RISK_KEYS = {
     "ai_retrain_epochs": "ai_retrain_epochs",
 }
 _INT_RISK_KEYS = {"max_open_positions", "max_consecutive_losses", "max_position_age_hours",
-                  "ai_retrain_min_samples", "ai_retrain_symbols", "ai_retrain_epochs"}
+                  "ai_retrain_min_samples", "ai_retrain_symbols", "ai_retrain_epochs",
+                  "scan_limit"}
 _BOOL_RISK_KEYS = {"use_decision_council", "use_score_ranking", "use_ai_model", "ai_auto_retrain"}
 _STR_RISK_KEYS = {"ai_model_path"}
 

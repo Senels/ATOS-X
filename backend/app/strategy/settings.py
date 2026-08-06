@@ -45,6 +45,7 @@ DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
     "use_decision_council": True,   # True iken girisler council kararina ve min guvene tabi
     "council_min_confidence": 0.6,  # Council kararina gerekli minimum guven (0-1)
     "min_signal_strength": 0.6,     # Sinyal gucu esigi (0-1; alti giris engellenir; 0 = devre disi)
+    "scan_limit": 50,               # Her tarama dongusunde degerlendirilen sembol sayisi (oncelik listesinden)
     # Coin Intelligence: canli momentum skoruna gore sembol onceligi
     "use_score_ranking": True,      # True iken ranking canli coin_score'a gore yeniden siralanir
     # AI (TensorFlow): derin ogrenme yon tahmini kapisi
