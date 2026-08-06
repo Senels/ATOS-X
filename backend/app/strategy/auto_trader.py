@@ -400,6 +400,10 @@ class AutoTrader:
                     else self.trading_symbols[: self.scan_limit]
 
                 klines_map = await self._fetch_klines_batch(candidates)
+                try:
+                    self._resolve_pending_predictions(klines_map)
+                except Exception as e:
+                    logger.warning(f"AI tahmin cozumleme hatasi: {e}")
 
                 for symbol in candidates:
                     klines = klines_map.get(symbol)
@@ -408,6 +412,7 @@ class AutoTrader:
 
                     signal = bot.generate_signal(klines)
                     price = float(klines["close"].iloc[-1])
+                    signal["bar_ts"] = str(klines.index[-1])
 
                     if signal.get("signal") in ("BUY", "SELL") and signal.get("sl") and signal.get("tp"):
                         allow, decision = self._council_gate(signal["signal"], klines, s)
@@ -431,6 +436,11 @@ class AutoTrader:
                             )
                             continue
                         allow_ai, ai_info = self._ai_gate(signal, klines, s)
+                        try:
+                            self._record_prediction(symbol, signal, decision, ai_info,
+                                                    executed=allow_ai)
+                        except Exception as e:
+                            logger.warning(f"AI tahmin kaydi hatasi {symbol}: {e}")
                         if not allow_ai:
                             logger.info(
                                 f"{symbol}: AI tahmini sinyali engelledi"
@@ -535,6 +545,64 @@ class AutoTrader:
                 self._ai_predictor_cache = False
         return None if self._ai_predictor_cache is False else self._ai_predictor_cache
 
+    def _record_prediction(self, symbol: str, signal: dict, decision: dict,
+                           ai_info: dict, executed: bool = False):
+        """Her BUY/SELL sinyali icin AI yon tahminini DB'ye yazar (feedback dongusu).
+
+        `executed` = AI kapisindan gecildi (entry olusturuldu). AI kapali ya da
+        model yoksa `ai_direction` NULL kalir; yine de kaydedilir ki sinyal-tahmin
+        karsilastirmasi yapilabilsin.
+        """
+        self.db.save_prediction(
+            symbol=symbol,
+            signal=signal.get("signal", ""),
+            price=float(signal.get("price", 0.0) or 0.0),
+            ai_direction=ai_info.get("direction") if ai_info else None,
+            ai_confidence=ai_info.get("confidence") if ai_info else None,
+            council_confidence=decision.get("confidence") if decision else None,
+            strength=float(signal.get("strength", 0.0) or 0.0),
+            executed=executed,
+            bar_ts=signal.get("bar_ts"),
+        )
+
+    def _resolve_pending_predictions(self, klines_map: dict, resolution_bars: int = 12):
+        """Bekleyen AI tahminlerini bar-bazli cozer.
+
+        Tahmin barindan `resolution_bars` bar sonraki kapanis, tahmin anindaki
+        fiyatla karsilastirilir: BUY -> yukseldiyse hit, SELL -> dustuyse hit.
+        Veri yetmiyorsa bekler; sembol cikmis ya da cok eskiyse `na`.
+        """
+        pending = self.db.list_pending_predictions(limit=200)
+        if not pending:
+            return
+        for pred in pending:
+            df = klines_map.get(pred["symbol"])
+            if df is None or len(df) < 2:
+                continue
+            bar_ts = pred.get("bar_ts")
+            if not bar_ts:
+                self.db.resolve_prediction(pred["id"], "na")
+                continue
+            try:
+                idxs = list(df.index.astype(str))
+                pos = idxs.index(bar_ts)
+            except ValueError:
+                self.db.resolve_prediction(pred["id"], "na")
+                continue
+            if pos + resolution_bars >= len(df):
+                continue
+            p0 = float(pred["price"] or df["close"].iloc[pos])
+            p1 = float(df["close"].iloc[pos + resolution_bars])
+            direction = pred.get("ai_direction")
+            if direction == "BUY":
+                outcome = "hit" if p1 > p0 else "miss"
+            elif direction == "SELL":
+                outcome = "hit" if p1 < p0 else "miss"
+            else:
+                outcome = "na"
+            self.db.resolve_prediction(pred["id"], outcome)
+        self.db.resolve_stale_predictions()
+
     async def process_signals(self, signals):
         for signal in signals:
             symbol = signal["symbol"]
@@ -588,6 +656,9 @@ class AutoTrader:
                     signal["sl"], signal["tp"], signal.get("reason"),
                     float(signal.get("strength", 0.0) or 0.0),
                     entry_ts=signal.get("entry_ts"),
+                    council_confidence=signal.get("council_confidence"),
+                    ai_direction=signal.get("ai_direction"),
+                    ai_confidence=signal.get("ai_confidence"),
                 )
 
     def _apply_risk_settings(self, s: dict):
@@ -661,7 +732,8 @@ class AutoTrader:
             return {"symbol": symbol, "paper": True}
         return await self.binance.close_position(symbol)
 
-    async def open_position(self, symbol: str, side: str, price: float, sl: float, tp: float, reason: str = "", strength: float = 0.0, entry_ts=None):
+    async def open_position(self, symbol: str, side: str, price: float, sl: float, tp: float, reason: str = "", strength: float = 0.0, entry_ts=None,
+                            council_confidence: float = None, ai_direction: str = None, ai_confidence: float = None):
         try:
             side = "BUY" if side == "BUY" else "SELL"
             sizing = self.engine.position_size(price, sl, self.equity)
@@ -697,9 +769,13 @@ class AutoTrader:
                 }
                 self.db.save_trade(symbol, side, price, qty,
                                    entry_ts=str(entry_ts) if entry_ts else None)
-                self.db.save_signal(symbol, side, price, 0.0, reason or "auto")
+                conf = float(ai_confidence) if ai_confidence is not None else (
+                    float(council_confidence) if council_confidence is not None else 0.0)
+                self.db.save_signal(symbol, side, price, conf, reason or "auto")
                 if self.telegram:
-                    await self.telegram.send_signal(symbol, side, price, reason, sl=sl, tp=tp, strength=strength)
+                    await self.telegram.send_signal(symbol, side, price, reason, sl=sl, tp=tp,
+                                                    strength=strength, ai_direction=ai_direction,
+                                                    ai_confidence=ai_confidence)
                 if not self.paper:
                     position_side = "LONG" if side == "BUY" else "SHORT"
                     algo = {}

@@ -103,6 +103,23 @@ class Database:
                 PRIMARY KEY (symbol, price, side)
             )
         ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS predictions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol TEXT NOT NULL,
+                signal TEXT NOT NULL,
+                ai_direction TEXT,
+                ai_confidence REAL,
+                council_confidence REAL,
+                strength REAL,
+                price REAL NOT NULL,
+                bar_ts TEXT,
+                executed INTEGER DEFAULT 0,
+                outcome TEXT DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                resolved_at TIMESTAMP
+            )
+        ''')
         conn.commit()
         conn.close()
         print("Veritabani hazir")
@@ -294,6 +311,115 @@ class Database:
         ''', (symbol, signal, price, confidence, reason))
         conn.commit()
         conn.close()
+
+    def save_prediction(self, symbol: str, signal: str, price: float,
+                        ai_direction: str = None, ai_confidence: float = None,
+                        council_confidence: float = None, strength: float = None,
+                        executed: bool = False, bar_ts: str = None):
+        """Bir sinyalin AI yon tahminini kaydeder (feedback dongusu icin)."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO predictions (symbol, signal, ai_direction, ai_confidence,
+                                     council_confidence, strength, price, bar_ts, executed)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (symbol, signal, ai_direction, ai_confidence,
+              council_confidence, strength, price, bar_ts, int(bool(executed))))
+        conn.commit()
+        conn.close()
+
+    def list_pending_predictions(self, limit: int = 500):
+        """Sonucu cozumlenmemis tahminleri en eskiden itibaren doner."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, symbol, signal, ai_direction, ai_confidence, price,
+                   created_at, bar_ts FROM predictions
+            WHERE outcome = 'pending' ORDER BY id ASC LIMIT ?
+        ''', (limit,))
+        rows = cursor.fetchall()
+        conn.close()
+        return [
+            {"id": r[0], "symbol": r[1], "signal": r[2], "ai_direction": r[3],
+             "ai_confidence": r[4], "price": r[5], "created_at": r[6], "bar_ts": r[7]}
+            for r in rows
+        ]
+
+    def resolve_prediction(self, pred_id: int, outcome: str):
+        """Bekleyen tahminin sonucunu yazar: hit | miss | na."""
+        conn = sqlite3.connect(self.db_path)
+        conn.execute('''
+            UPDATE predictions SET outcome = ?, resolved_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (outcome, pred_id))
+        conn.commit()
+        conn.close()
+
+    def resolve_stale_predictions(self, days: int = 7):
+        """Belirli yastan eski bekleyen tahminleri veri yoklugu nedeniyle 'na' yapar."""
+        conn = sqlite3.connect(self.db_path)
+        conn.execute('''
+            UPDATE predictions SET outcome = 'na', resolved_at = CURRENT_TIMESTAMP
+            WHERE outcome = 'pending'
+              AND created_at < datetime('now', ?)
+        ''', (f"-{days} days",))
+        conn.commit()
+        conn.close()
+
+    def ai_stats(self, limit_hours: int = 0) -> dict:
+        """Tahmin istatistikleri: toplam, hit rate, yon dagilimi, ortalama guven."""
+        conn = sqlite3.connect(self.db_path)
+        if limit_hours > 0:
+            rows = conn.execute('''
+                SELECT outcome, signal, ai_direction, ai_confidence, executed
+                FROM predictions
+                WHERE outcome != 'pending'
+                  AND created_at >= datetime('now', ?)
+            ''', (f"-{limit_hours} hours",)).fetchall()
+        else:
+            rows = conn.execute('''
+                SELECT outcome, signal, ai_direction, ai_confidence, executed
+                FROM predictions
+                WHERE outcome != 'pending'
+            ''').fetchall()
+        conn.close()
+        total = len(rows)
+        hits = sum(1 for r in rows if r[0] == "hit")
+        resolved = sum(1 for r in rows if r[0] in ("hit", "miss"))
+        by_direction: dict = {}
+        for r in rows:
+            if r[0] not in ("hit", "miss"):
+                continue
+            d = r[2] or "NA"
+            b = by_direction.setdefault(d, {"total": 0, "hits": 0, "conf_sum": 0.0})
+            b["total"] += 1
+            b["conf_sum"] += float(r[3] or 0.0)
+            if r[0] == "hit":
+                b["hits"] += 1
+        for d, b in by_direction.items():
+            b["accuracy"] = round(b["hits"] / b["total"], 4) if b["total"] else 0.0
+            b["avg_confidence"] = round(b["conf_sum"] / b["total"], 4) if b["total"] else 0.0
+            b.pop("conf_sum", None)
+        confs = [float(r[3] or 0.0) for r in rows]
+        return {
+            "total": total,
+            "resolved": resolved,
+            "pending": self._count_pending(),
+            "hits": hits,
+            "misses": resolved - hits,
+            "accuracy": round(hits / resolved, 4) if resolved else 0.0,
+            "executed": sum(1 for r in rows if r[4]),
+            "avg_confidence": round(sum(confs) / len(confs), 4) if confs else 0.0,
+            "by_direction": by_direction,
+        }
+
+    def _count_pending(self) -> int:
+        conn = sqlite3.connect(self.db_path)
+        n = conn.execute(
+            "SELECT COUNT(*) FROM predictions WHERE outcome = 'pending'"
+        ).fetchone()[0]
+        conn.close()
+        return int(n)
 
     def save_performance(self, equity: float, open_positions: int, total_trades: int, win_rate: float):
         conn = sqlite3.connect(self.db_path)

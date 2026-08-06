@@ -37,13 +37,17 @@ class TelegramNotifier:
             logger.error(f"❌ Telegram gönderme hatası: {e}")
 
     async def send_signal(self, symbol: str, signal: str, price: float, reason: str = "",
-                          sl: float = None, tp: float = None, strength: float = None):
+                          sl: float = None, tp: float = None, strength: float = None,
+                          ai_direction: str = None, ai_confidence: float = None):
         emoji = {"BUY": "🟢", "SELL": "🔴", "HOLD": "🟡"}.get(signal, "⚪")
         msg = f"{emoji} <b>ATOS X Sinyal</b>\n"
         msg += f"Symbol: {symbol}\n"
         msg += f"Signal: <b>{signal}</b>\n"
         if strength is not None:
             msg += f"Guc: %{strength * 100:.0f}\n"
+        if ai_direction is not None:
+            conf = f" %{ai_confidence * 100:.0f}" if ai_confidence is not None else ""
+            msg += f"AI: <b>{ai_direction}</b>{conf}\n"
         msg += f"Price: ${price:.2f}\n"
         if sl is not None:
             msg += f"SL: ${sl:g}"

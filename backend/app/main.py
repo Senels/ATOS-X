@@ -117,15 +117,27 @@ async def _signal_for_symbol(symbol: str, interval: str = "4h") -> dict:
         return {}
 
 async def _send_symbol_signal(symbol: str, interval: str = "4h"):
-    """Bir sembolun sinyalini Telegram'a gonderir."""
+    """Bir sembolun sinyalini Telegram'a gonderir (AI tahmini dahil)."""
     sig = await _signal_for_symbol(symbol, interval)
     signal = sig.get("signal")
     if not signal:
         await telegram.send(f"ATOS X: {symbol} icin sinyal alinamadi")
         return
+    ai_direction, ai_confidence = None, None
+    if auto_trader is not None:
+        try:
+            predictor = auto_trader._ai_predictor()
+            if predictor is not None:
+                df = await app.state.binance.get_klines(symbol, interval, 400)
+                ai = predictor.predict(df)
+                ai_direction = ai.get("direction")
+                ai_confidence = ai.get("confidence")
+        except Exception as e:
+            logger.warning(f"AI tahmini alinamadi {symbol}: {e}")
     await telegram.send_signal(symbol, signal, sig.get("price") or 0.0,
                                sig.get("reason", ""), sig.get("sl"), sig.get("tp"),
-                               strength=sig.get("strength"))
+                               strength=sig.get("strength"),
+                               ai_direction=ai_direction, ai_confidence=ai_confidence)
 
 async def _send_batch_signals(symbols: list, interval: str = "4h", sig_filter: str = None):
     """Tarama listesi icin toplu sinyal ozetini Telegram'a gonderir."""
@@ -372,9 +384,13 @@ _EDITABLE_RISK_KEYS = {
     "use_score_ranking": "use_score_ranking",
     "data_backfill_hours": "data_backfill_hours",
     "data_freshness_hours": "data_freshness_hours",
+    "use_ai_model": "use_ai_model",
+    "ai_min_confidence": "ai_min_confidence",
+    "ai_model_path": "ai_model_path",
 }
 _INT_RISK_KEYS = {"max_open_positions", "max_consecutive_losses", "max_position_age_hours"}
-_BOOL_RISK_KEYS = {"use_decision_council", "use_score_ranking"}
+_BOOL_RISK_KEYS = {"use_decision_council", "use_score_ranking", "use_ai_model"}
+_STR_RISK_KEYS = {"ai_model_path"}
 
 
 def _format_koruma() -> str:
@@ -392,6 +408,7 @@ def _format_koruma() -> str:
         f"Decision Council: {'acik' if s.get('use_decision_council') else 'kapali'} | Min guven: %{s.get('council_min_confidence', 0.6) * 100:.0f}\n"
         f"Min sinyal gucu: %{float(s.get('min_signal_strength', 0.0) or 0.0) * 100:.0f} (0 = kapali)\n"
         f"Skor siralamasi: {'acik' if s.get('use_score_ranking') else 'kapali'}\n"
+        f"AI tahmini: {'acik' if s.get('use_ai_model') else 'kapali'} | Min guven: %{float(s.get('ai_min_confidence', 0.0) or 0.0) * 100:.0f} | Model: {s.get('ai_model_path', 'ai_direction')}\n"
         f"Otomatik backfill: {s.get('data_backfill_hours', 0.0):g} saat arayla | Tazelik: {s.get('data_freshness_hours', 12.0):g} saat\n"
         "Ayarlamak icin: /koruma <anahtar> <deger> "
         "(anahtarlar: " + ", ".join(sorted(_EDITABLE_RISK_KEYS)) + ")"
@@ -427,6 +444,7 @@ def _telegram_command(text: str):
                 "/temizle [hepsi] - kapanan islem gecmisini temizler (hepsi: +sinyal/backtest/risk/performans)\n"
                 "/izleme [N] - oncelik listesi + canli skor siralamasi\n"
                 "/performans - equity curve ozeti + aylik istatistik\n"
+                "/ai - AI tahmin dogruluk istatistikleri\n"
                 "/son - son kapanan islem detayi\n"
                 "/islem - bugunun kapanan islemleri\n"
                 "/bekleyen - bekleyen TP/SL emirleri\n"
@@ -489,17 +507,20 @@ def _telegram_command(text: str):
         if key not in _EDITABLE_RISK_KEYS:
             return (f"ATOS X: bilinmeyen anahtar '{key}'. "
                     "Mevcut anahtarlar: " + ", ".join(sorted(_EDITABLE_RISK_KEYS)))
-        try:
-            value = float(parts[2])
-        except ValueError:
-            return "ATOS X: gecersiz deger"
         settings_key = _EDITABLE_RISK_KEYS[key]
-        if settings_key in _BOOL_RISK_KEYS:
-            value = bool(value)
-        elif settings_key in _INT_RISK_KEYS:
-            value = int(value)
-        elif settings_key in ("council_min_confidence", "min_signal_strength"):
-            value = max(0.0, min(1.0, value))
+        if settings_key in _STR_RISK_KEYS:
+            value = parts[2]
+        else:
+            try:
+                value = float(parts[2])
+            except ValueError:
+                return "ATOS X: gecersiz deger"
+            if settings_key in _BOOL_RISK_KEYS:
+                value = bool(value)
+            elif settings_key in _INT_RISK_KEYS:
+                value = int(value)
+            elif settings_key in ("council_min_confidence", "min_signal_strength", "ai_min_confidence"):
+                value = max(0.0, min(1.0, value))
         strat_settings.update_settings({settings_key: value})
         strat_settings.persist()
         if auto_trader:
@@ -1106,6 +1127,34 @@ def _telegram_command(text: str):
                 sign = "+" if d["pnl"] >= 0 else ""
                 lines.append(f"  {m}: {d['count']} islem {sign}{d['pnl']:.2f} (%{mwr:.0f})")
         return "\n".join(lines)
+    if cmd.startswith("/ai"):
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        try:
+            stats = auto_trader.db.ai_stats()
+        except Exception as e:
+            return f"ATOS X: AI istatistik hatasi: {e}"
+        if stats["resolved"] == 0:
+            return ("ATOS X AI tahmin istatistikleri:\n"
+                    f"Toplam: {stats['total']} | Bekleyen: {stats['pending']}\n"
+                    "Henuz cozumlenmis tahmin yok")
+        lines = [
+            "ATOS X AI tahmin istatistikleri:",
+            f"Toplam: {stats['total']} | Cozumlenen: {stats['resolved']} | "
+            f"Bekleyen: {stats['pending']}",
+            f"Isabet: {stats['hits']} (%{stats['accuracy'] * 100:.0f}) | "
+            f"Uygulanan: {stats['executed']}",
+            f"Ort. guven: %{stats['avg_confidence'] * 100:.0f}",
+        ]
+        for direction in ("BUY", "SELL", "HOLD"):
+            b = stats["by_direction"].get(direction)
+            if b:
+                lines.append(
+                    f"{direction}: %{b['accuracy'] * 100:.0f} isabet "
+                    f"({b['total']} tahmin, ort. guven %{b['avg_confidence'] * 100:.0f})"
+                )
+        return "\n".join(lines)
+
     if cmd.startswith("/son"):
         if not auto_trader:
             return "ATOS X: motor calismiyor"
@@ -1512,19 +1561,31 @@ async def live_signals(limit: int = 12, interval: str = "4h"):
     if not candidates:
         return {"signals": [], "count": 0, "scanned": []}
     bot = get_strategy(strat_settings.get_settings())
+    ai_predictor = None
+    if auto_trader is not None:
+        try:
+            ai_predictor = auto_trader._ai_predictor()
+        except Exception:
+            ai_predictor = None
 
     async def fetch(symbol):
         try:
             df = await app.state.binance.get_klines(symbol, interval, 400)
-            return symbol, bot.generate_signal(df)
+            return symbol, bot.generate_signal(df), df
         except Exception:
-            return symbol, None
+            return symbol, None, None
 
     results = await asyncio.gather(*(fetch(s) for s in candidates))
     signals = []
-    for symbol, sig in results:
+    for symbol, sig, df in results:
         if not sig:
             continue
+        ai = None
+        if ai_predictor is not None and df is not None:
+            try:
+                ai = ai_predictor.predict(df)
+            except Exception:
+                ai = None
         signals.append({
             "symbol": symbol,
             "signal": sig.get("signal", "HOLD"),
@@ -1534,6 +1595,8 @@ async def live_signals(limit: int = 12, interval: str = "4h"):
             "reason": sig.get("reason", ""),
             "indicator": sig.get("indicator", ""),
             "strength": sig.get("strength", 0.0),
+            "ai_direction": ai.get("direction") if ai else None,
+            "ai_confidence": ai.get("confidence") if ai else None,
         })
     order = {"BUY": 0, "SELL": 1, "HOLD": 2}
     signals.sort(key=lambda s: order.get(s["signal"], 3))
@@ -1846,6 +1909,14 @@ async def list_backups():
             items.append({"name": f.name, "path": str(f), "size": st.st_size,
                           "modified": datetime.fromtimestamp(st.st_mtime).isoformat()})
     return {"ok": True, "items": items}
+
+@app.get("/api/v1/ai/stats")
+async def ai_stats(limit_hours: int = 0):
+    """AI yon tahminlerinin dogruluk istatistikleri (feedback dongusu)."""
+    db = getattr(app.state, "db", None)
+    if not db:
+        return {"ok": False, "error": "not_running"}
+    return await asyncio.to_thread(db.ai_stats, limit_hours)
 
 @app.post("/api/v1/backup")
 async def trigger_backup():

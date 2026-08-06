@@ -19,8 +19,9 @@ class FakeTelegram:
     async def send(self, message):
         self.sent.append(message)
 
-    async def send_signal(self, symbol, side, price, reason, sl=None, tp=None, strength=0.0):
-        self.signal_msgs.append((symbol, side, price, reason, sl, tp))
+    async def send_signal(self, symbol, side, price, reason, sl=None, tp=None,
+                          strength=0.0, ai_direction=None, ai_confidence=None):
+        self.signal_msgs.append((symbol, side, price, reason, sl, tp, strength))
 
     async def send_stop_summary(self, closed):
         self.stop_summaries.append(closed)

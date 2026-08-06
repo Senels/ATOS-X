@@ -17,7 +17,7 @@
 | Faz | Tüm sprintler tamamlandı (11/11) |
 | Trading | Motor tamamlandı (varsayılan: paper + kill-switch; canlı için açık onay gerekir) |
 | Backtest | Aktif (gerçek 4h OHLCV + toplu tarama + optimizasyon + TTPTSL motoru) |
-| AI | Disabled |
+| AI | Aktif (TensorFlow derin öğrenme yön tahmini, `backend/app/ai/`) |
 
 ## Teknoloji
 

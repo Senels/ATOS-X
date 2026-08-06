@@ -1303,12 +1303,14 @@ def test_send_symbol_signal_buy(monkeypatch):
     monkeypatch.setattr(main_mod, "_signal_for_symbol", fake_signal)
     sent = []
 
-    async def fake_send_signal(symbol, signal, price, reason="", sl=None, tp=None, strength=None):
-        sent.append((symbol, signal, price, reason, sl, tp, strength))
+    async def fake_send_signal(symbol, signal, price, reason="", sl=None, tp=None,
+                               strength=None, ai_direction=None, ai_confidence=None):
+        sent.append((symbol, signal, price, reason, sl, tp, strength, ai_direction, ai_confidence))
 
     monkeypatch.setattr(main_mod.telegram, "send_signal", fake_send_signal)
+    monkeypatch.setattr(main_mod, "auto_trader", None)
     asyncio.run(main_mod._send_symbol_signal("BTCUSDT"))
-    assert sent == [("BTCUSDT", "BUY", 65000.0, "test", 63000.0, 69000.0, None)]
+    assert sent == [("BTCUSDT", "BUY", 65000.0, "test", 63000.0, 69000.0, None, None, None)]
 
 
 def test_send_symbol_signal_failure(monkeypatch):
