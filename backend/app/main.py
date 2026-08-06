@@ -216,12 +216,18 @@ async def _set_tp(symbol: str, new_tp: float):
     await telegram.send(msg)
 
 async def _ws_sync_loop():
-    """WebSocket fiyat aboneliklerini tarama listesine (top_symbols) gore hizalar."""
+    """WebSocket fiyat aboneliklerini tarama listesine gore hizalar (mark fiyatlari icin).
+
+    Kritik karar yolu REST (`get_all_tickers`/`get_klines`) kullandigindan
+    websocket abonelik sayisi top 20 ile sinirlidir: tek tek stream baglantilari
+    (sembol basina 1 ws) fazlalikta kopma/yeniden baglanma firtinasina donusup
+    event loop'u mesgul ediyor ve ana tarama dongusunu dakikalarca geciktiriyordu.
+    """
     while True:
         await asyncio.sleep(60)
         try:
             if auto_trader:
-                target = auto_trader.top_symbols or []
+                target = (auto_trader.top_symbols or [])[:20]
                 if target:
                     await ws.sync(target, on_price_update)
         except Exception as e:
