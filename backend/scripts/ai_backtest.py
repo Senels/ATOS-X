@@ -4,6 +4,7 @@ filtresini geriye donuk uygular, temiz vs AI filtreli performansi karsilastirir.
 Kullanim (backend/ icinden):
     python scripts/ai_backtest.py [--symbols 60] [--min-bars 300]
         [--threshold 0.55] [--model ai_direction] [--interval 4h]
+        [--strategy v23|ttp]
 
 Cikti: tarama ozeti (sinyal/engellenen isabet oranlari, trade/win rate/net
 temiz vs AI) + sembol bazli tablo. AI filtre degeri hakkinda karar vermek
@@ -33,6 +34,9 @@ def main() -> int:
     ap.add_argument("--threshold", type=float, default=0.55)
     ap.add_argument("--model", type=str, default="ai_direction")
     ap.add_argument("--interval", default="4h")
+    ap.add_argument("--strategy", default=None,
+                    help="aktif stratejiyi gecici olarak degistir (v23/ttp); "
+                         "yoksa settings'teki ayar kullanilir")
     args = ap.parse_args()
 
     pred = m.load_predictor(args.model)
@@ -42,6 +46,10 @@ def main() -> int:
 
     strat_settings.load()
     settings = strat_settings.get_settings()
+    if args.strategy:
+        settings["active_strategy"] = args.strategy
+    print(f"[AI] Strateji: {settings.get('active_strategy')} | "
+          f"Sembol: {args.symbols} | EsiK: {args.threshold} | Model: {args.model}")
     bot = get_strategy(settings)
     analyze = getattr(bot, "analyze_full", None)
     engine_kwargs = {

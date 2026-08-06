@@ -703,7 +703,12 @@ MIN_NOTIONAL=5.0
   Eşik duyarlılığı (200 sembol): 0.50 → 463 geçen, +19,793; **0.55 → 280 geçen,
   +20,143**; 0.60 → 179 geçen, +18,462, %72 isabet → **`ai_min_confidence=0.55`
   doğru denge** (0.60 daha seçici ama trade fırsatını azaltıyor). → **AI kapısı
-  değer katıyor, `use_ai_model=True` doğru karar**.
+  değer katıyor, `use_ai_model=True` doğru karar**. **v23 kontrolü (06.08,
+  `--strategy v23`, 200 sembol/152 sinyal)**: AI %89 engelledi; engellenen %40 vs
+  geçen %50 isabet; temiz -4,538 USDT → AI filtreli **+299 USDT**, win rate
+  %43.4 → %56.2 → v23'te de filtrenin yönü aynı (zarardan kâra) ama TTP'den
+  zayıf: v23 sinyalleri zaten council kaynaklı, örneklem küçük (16 geçen).
+  `--strategy v23|ttp` ile strateji seçilir (yoksa settings'teki aktif strateji).
 - **Otomatik yeniden eğitim** (`ai_auto_retrain`): kapalıyken (`False`, varsayılan)
   yalnızca manuel `python scripts/train_ai.py` ile eğitilir + restart ile yüklenir.
   Açıkken scan döngüsü 15 dakikada bir tetikleyicileri değerlendirir: (1) zaman —
