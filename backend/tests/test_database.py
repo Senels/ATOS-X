@@ -27,7 +27,7 @@ def test_trade_open_close_by_symbol(tmp_path):
     assert rows[0][4] == 64000.0
 
 
-def test_close_trade_by_symbol_closes_latest_open(tmp_path):
+def test_close_trade_by_symbol_closes_all_open(tmp_path):
     db = Database(str(tmp_path / "t.db"))
     db.save_trade("ETHUSDT", "BUY", 3000.0, 2.0)
     db.save_trade("ETHUSDT", "BUY", 3100.0, 2.0)
@@ -35,7 +35,7 @@ def test_close_trade_by_symbol_closes_latest_open(tmp_path):
 
     rows = db.get_trades(limit=10)
     assert rows[0][7] == "CLOSED"
-    assert rows[1][7] == "OPEN"
+    assert rows[1][7] == "CLOSED"  # hayalet/mukerrer satirlar da kapanir (restore dongusu onlenir)
 
 
 def test_save_signal(tmp_path):

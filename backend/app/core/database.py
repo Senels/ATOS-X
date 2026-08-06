@@ -138,17 +138,19 @@ class Database:
         return trade_id
 
     def close_trade_by_symbol(self, symbol: str, exit_price: float, pnl: float, reason: str = ""):
-        """Sembolun en guncel OPEN kaydini kapatir (canli trader icin)."""
+        """Sembolun TUM OPEN kayitlarini kapatir (paper restore hayaletlerini onler).
+
+        Sistem sembol basina tek pozisyon tuttugundan (active_positions dict),
+        ayni semboldeki coklu OPEN satirlari ayni pozisyonun mukererleri/
+        hayaletleridir — yalnizca en guncel satiri kapatmak, her restart'ta
+        restore'un ayni kayiplari yeniden canlandirmasina yol acardi.
+        """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute('''
             UPDATE trades
             SET exit_price = ?, pnl = ?, status = 'CLOSED', exit_time = CURRENT_TIMESTAMP, reason = ?
-            WHERE id = (
-                SELECT id FROM trades
-                WHERE symbol = ? AND status = 'OPEN'
-                ORDER BY entry_time DESC LIMIT 1
-            )
+            WHERE symbol = ? AND status = 'OPEN'
         ''', (exit_price, pnl, reason, symbol))
         conn.commit()
         conn.close()
