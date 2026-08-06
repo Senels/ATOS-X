@@ -71,10 +71,11 @@
   oyları aynen uygulanır. `decide()` ttp modunda otomatik TTP analizi yapar —
   `/api/v1/market/decision` ve `/api/v1/market/decisions` endpoint'leri de
   gerçek kapının aynı kararını döndürür (dashboard kartı uyumlu).
-- **Canlı AI feedback birikimi sürüyor** (06.08: 2 kayıt, çözüm 08.08 12:00
-  UTC sonrası): beklenen yakınsama ~0.61 genel / ~0.586 son 1 ay.
-  `ai_auto_retrain` açma kriteri: `ai_retrain_min_samples=30` çözülmüş tahmin
-  + accuracy < `ai_retrain_min_acc=0.55`.
+- **Canlı AI feedback birikimi sürüyor** (06.08: 3 kayıt — DOLOUSDT dahil; çözüm
+  08.08 12:00 UTC sonrası): beklenen yakınsama ~0.61 genel / ~0.586 son 1 ay.
+  `ai_auto_retrain` **açık ve E2E doğrulandı** (06.08: zaman tetikleyicisi → eğitim
+  64 sn → cache temizliği → yeni model canlıda); accuracy tetikleyicisi
+  `ai_retrain_min_samples=30` çözülmüş tahmin + accuracy < `ai_retrain_min_acc=0.55`.
 - **Sinyal yoğunluğu**: TTP burst'leri 4h bar kapanışlarına yakın gelir;
   pazar sessizken günlerce sinyal üretilmeyebilir → feedback yavaş birikir.
   İyileştirme (06.08): `scan_limit` **200**'e çıkarıldı (CPU ~%13, rate-limit

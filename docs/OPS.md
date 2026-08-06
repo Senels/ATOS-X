@@ -725,9 +725,24 @@ MIN_NOTIONAL=5.0
   ranking sembolü taranır, evrenin ~%36'sı). CPU etkisi ~%13 tek çekirdek
   (200 sembol, ölçüm 06.08), tarama döngüsü aksamıyor; rate-limit bütçesi
   (~6.7 istek/sn, limit 20/sn) 550 tam evren için yetmez (~18/sn) — 200 doğru
-  denge. Sinyal fırsatları 2x geniş evrende aranır.
+  denge. Sinyal fırsatları 2x geniş evrende aranır. **Canlı kanıt (06.08)**: scan_limit
+  200'de ilk günde DOLOUSDT pozisyonu açıldı (SL/TP yönetim logları) — 100'de
+  yakalanmayan kurulumlardan.
+- **Döngü canlılığı (06.08)**: iki tıkanma düzeltildi — (1) `_fetch_klines_batch`
+  istek başına 20 sn `wait_for` (asılı REST isteği thread pool'daki görevi tüketip
+  ana döngüyü ~30 dk/döngüye düşürüyordu; 100 sembolde bile mevcuttu); (2) websocket
+  abonelik sayısı top 20 ile sınırlı (`_ws_sync_loop`; tek-tek stream bağlantıları
+  kopma/yeniden bağlanma fırtınasına dönüşüp event loop'u meşgul ediyordu — kritik
+  karar yolu REST kullandığından güvenli). Döngü ~30-60 sn/döngüye indi.
+- **Settings API persist (06.08)**: `POST /api/v1/strategy/settings` yalnızca
+  belleğe yazıyordu — REST değişiklikleri restart'ta kayboluyordu; artık `persist()`
+  de çağrılır.
 - **Otomatik yeniden eğitim** (`ai_auto_retrain`): kapalıyken (`False`, varsayılan)
   yalnızca manuel `python scripts/train_ai.py` ile eğitilir + restart ile yüklenir.
+  **Canlıda AÇIK (06.08)** — E2E doğrulandı: zaman tetikleyicisi (`ai_retrain_interval_hours`
+  geçince) `_maybe_retrain_ai`'yi tetikledi → Telegram "eğitim başladı" bildirimi →
+  alt süreç 64 sn'de modeli yeniledi → predictor cache temizlendi → sonraki tahminde
+  yeni model restart'sız yüklendi (HFTUSDT 0.7091 → 0.7158) → Telegram başarı bildirimi.
   Açıkken scan döngüsü 15 dakikada bir tetikleyicileri değerlendirir: (1) zaman —
   `ai_retrain_interval_hours` geçtiyse (varsayılan 24h); (2) accuracy —
   `ai_retrain_min_samples` (30) kadar çözülmüş tahmin birikmişken `ai_retrain_min_acc`
