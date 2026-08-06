@@ -417,14 +417,14 @@ class AutoTrader:
                     signal["bar_ts"] = str(klines.index[-1])
 
                     if signal.get("signal") in ("BUY", "SELL") and signal.get("sl") and signal.get("tp"):
-                        allow, decision = self._council_gate(signal["signal"], klines, s)
+                        allow_ai, ai_info, allow, decision, allow_str, str_info = \
+                            self._gate_and_record(symbol, signal, klines, s)
                         if not allow:
                             logger.info(
                                 f"{symbol}: council karari sinyali engelledi"
                                 f" ({decision['verdict']}, guven {decision['confidence']})"
                             )
                             continue
-                        allow_str, str_info = self._strength_gate(signal, s)
                         if not allow_str:
                             logger.info(
                                 f"{symbol}: sinyal gucu esigin altinda engellendi"
@@ -437,12 +437,6 @@ class AutoTrader:
                                 threshold=float(str_info["threshold"]),
                             )
                             continue
-                        allow_ai, ai_info = self._ai_gate(signal, klines, s)
-                        try:
-                            self._record_prediction(symbol, signal, decision, ai_info,
-                                                    executed=allow_ai)
-                        except Exception as e:
-                            logger.warning(f"AI tahmin kaydi hatasi {symbol}: {e}")
                         if not allow_ai:
                             logger.info(
                                 f"{symbol}: AI tahmini sinyali engelledi"
@@ -487,6 +481,23 @@ class AutoTrader:
             except Exception as e:
                 logger.error(f"Otomatik islem hatasi: {e}")
                 await asyncio.sleep(10)
+
+    def _gate_and_record(self, symbol: str, signal: dict, klines, settings: dict):
+        """Uc kapinin tamamini isletir ve sinyali her durumda AI kaydina yazar.
+
+        Kayit kapilardan ONCE yapilir ki council/guc engeli sinyali AI feedback
+        dongusunden kacirmasin (`executed` yalnizca tum kapilar gecerse 1).
+        Donus: (allow_ai, ai_info, allow, decision, allow_str, str_info).
+        """
+        allow_ai, ai_info = self._ai_gate(signal, klines, settings)
+        allow, decision = self._council_gate(signal["signal"], klines, settings)
+        allow_str, str_info = self._strength_gate(signal, settings)
+        try:
+            self._record_prediction(symbol, signal, decision, ai_info,
+                                    executed=bool(allow and allow_str and allow_ai))
+        except Exception as e:
+            logger.warning(f"AI tahmin kaydi hatasi {symbol}: {e}")
+        return allow_ai, ai_info, allow, decision, allow_str, str_info
 
     def _council_gate(self, signal, klines, settings):
         """Decision Council filtresi.

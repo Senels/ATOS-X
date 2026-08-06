@@ -75,6 +75,27 @@ def test_resolve_stale_predictions(tmp_path):
     assert stats["resolved"] == 0
 
 
+def test_save_prediction_dedup_same_bar(tmp_path):
+    db = Database(str(tmp_path / "t.db"))
+    db.save_prediction("BTCUSDT", "BUY", 100.0, ai_direction="BUY",
+                       bar_ts="2024-01-01 00:00:00+00:00", executed=False)
+    db.save_prediction("BTCUSDT", "BUY", 100.0, ai_direction="BUY",
+                       bar_ts="2024-01-01 00:00:00+00:00", executed=False)
+    pending = db.list_pending_predictions()
+    assert len(pending) == 1
+
+
+def test_save_prediction_dedup_upgrades_executed(tmp_path):
+    db = Database(str(tmp_path / "t.db"))
+    db.save_prediction("BTCUSDT", "BUY", 100.0, ai_direction="BUY",
+                       bar_ts="2024-01-01 00:00:00+00:00", executed=False)
+    db.save_prediction("BTCUSDT", "BUY", 100.0, ai_direction="BUY",
+                       bar_ts="2024-01-01 00:00:00+00:00", executed=True)
+    pending = db.list_pending_predictions()
+    assert len(pending) == 1
+    assert pending[0]["executed"] == 1
+
+
 # -- Outcome cozumleme -------------------------------------------------------
 class _FakeBinance:
     async def connect(self):
@@ -108,6 +129,51 @@ def test_record_prediction_writes_db(trader):
     assert pending[0]["ai_direction"] == "BUY"
     assert pending[0]["ai_confidence"] == 0.8
     assert pending[1]["ai_direction"] is None  # AI kapali/onceki model yok
+
+
+def test_gate_and_record_records_even_when_council_blocks(trader, monkeypatch):
+    t, db = trader
+    sig = {"signal": "BUY", "price": 100.0, "strength": 0.9, "bar_ts": "bar-1"}
+    klines = _df(n=60, seed=2)
+    monkeypatch.setattr(t, "_council_gate",
+                        lambda *a, **k: (False, {"verdict": "HOLD", "confidence": 0.06}))
+    monkeypatch.setattr(t, "_strength_gate", lambda *a, **k: (True, None))
+    monkeypatch.setattr(t, "_ai_gate", lambda *a, **k: (True, {"direction": "BUY", "confidence": 0.8}))
+    allow_ai, ai_info, allow, decision, allow_str, str_info = \
+        t._gate_and_record("BTCUSDT", sig, klines, {})
+    assert allow is False and allow_str is True and allow_ai is True
+    pending = db.list_pending_predictions()
+    assert len(pending) == 1
+    assert pending[0]["ai_direction"] == "BUY"
+    assert pending[0]["executed"] == 0  # council engelledi -> executed 0
+
+
+def test_gate_and_record_executed_when_all_gates_pass(trader, monkeypatch):
+    t, db = trader
+    sig = {"signal": "SELL", "price": 50.0, "strength": 0.8, "bar_ts": "bar-2"}
+    klines = _df(n=60, seed=3)
+    monkeypatch.setattr(t, "_council_gate",
+                        lambda *a, **k: (True, {"verdict": "SELL", "confidence": 0.7}))
+    monkeypatch.setattr(t, "_strength_gate", lambda *a, **k: (True, None))
+    monkeypatch.setattr(t, "_ai_gate", lambda *a, **k: (True, {"direction": "SELL", "confidence": 0.9}))
+    allow_ai, ai_info, allow, decision, allow_str, str_info = \
+        t._gate_and_record("BTCUSDT", sig, klines, {})
+    assert allow and allow_str and allow_ai
+    pending = db.list_pending_predictions()
+    assert len(pending) == 1
+    assert pending[0]["executed"] == 1
+
+
+def test_gate_and_record_dedup_same_bar(trader, monkeypatch):
+    t, db = trader
+    sig = {"signal": "BUY", "price": 100.0, "strength": 0.9, "bar_ts": "bar-3"}
+    klines = _df(n=60, seed=4)
+    monkeypatch.setattr(t, "_council_gate", lambda *a, **k: (False, {"verdict": "HOLD"}))
+    monkeypatch.setattr(t, "_strength_gate", lambda *a, **k: (True, None))
+    monkeypatch.setattr(t, "_ai_gate", lambda *a, **k: (True, {"direction": "BUY"}))
+    t._gate_and_record("BTCUSDT", sig, klines, {})
+    t._gate_and_record("BTCUSDT", sig, klines, {})
+    assert len(db.list_pending_predictions()) == 1
 
 
 def test_resolve_outcome_buy_hit_sell_miss(trader):

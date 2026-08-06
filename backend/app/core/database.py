@@ -316,9 +316,27 @@ class Database:
                         ai_direction: str = None, ai_confidence: float = None,
                         council_confidence: float = None, strength: float = None,
                         executed: bool = False, bar_ts: str = None):
-        """Bir sinyalin AI yon tahminini kaydeder (feedback dongusu icin)."""
+        """Bir sinyalin AI yon tahminini kaydeder (feedback dongusu icin).
+
+        Ayni (symbol, bar_ts) icin tek kayit tutulur (tarama dongusu ayni bari
+        tekrar degerlendirir); yeni kayit `executed=True` ise mevcut satir
+        guncellenir.
+        """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
+        if bar_ts is not None:
+            row = cursor.execute(
+                "SELECT id, executed FROM predictions WHERE symbol=? AND bar_ts=? LIMIT 1",
+                (symbol, bar_ts),
+            ).fetchone()
+            if row:
+                if executed and not row[1]:
+                    cursor.execute(
+                        "UPDATE predictions SET executed=1 WHERE id=?", (row[0],)
+                    )
+                    conn.commit()
+                conn.close()
+                return
         cursor.execute('''
             INSERT INTO predictions (symbol, signal, ai_direction, ai_confidence,
                                      council_confidence, strength, price, bar_ts, executed)
@@ -334,14 +352,15 @@ class Database:
         cursor = conn.cursor()
         cursor.execute('''
             SELECT id, symbol, signal, ai_direction, ai_confidence, price,
-                   created_at, bar_ts FROM predictions
+                   created_at, bar_ts, executed FROM predictions
             WHERE outcome = 'pending' ORDER BY id ASC LIMIT ?
         ''', (limit,))
         rows = cursor.fetchall()
         conn.close()
         return [
             {"id": r[0], "symbol": r[1], "signal": r[2], "ai_direction": r[3],
-             "ai_confidence": r[4], "price": r[5], "created_at": r[6], "bar_ts": r[7]}
+             "ai_confidence": r[4], "price": r[5], "created_at": r[6], "bar_ts": r[7],
+             "executed": r[8]}
             for r in rows
         ]
 
