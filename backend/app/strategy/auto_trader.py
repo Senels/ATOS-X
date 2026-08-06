@@ -316,10 +316,16 @@ class AutoTrader:
         self.live_prices[symbol] = float(price)
 
     async def _fetch_klines_batch(self, candidates: list) -> dict:
-        """Aday sembollerin kline'larini paralel ceker (siralı REST gecikmesini azaltir)."""
+        """Aday sembollerin kline'larini paralel ceker (asilan istekler atlanir).
+
+        Her istek 20 sn ile sinirlidir: testnet/ag takilmasinda asili kalan bir
+        istek thread pool'daki gorevi tuketiyor ve ana tarama dongusu
+        dakikalarca donuyordu (gather asla tamamlanmiyordu).
+        """
         async def fetch(symbol):
             try:
-                return symbol, await self.binance.get_klines(symbol, "4h", 200)
+                return symbol, await asyncio.wait_for(
+                    self.binance.get_klines(symbol, "4h", 200), timeout=20)
             except Exception:
                 return symbol, None
 
