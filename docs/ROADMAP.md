@@ -47,7 +47,12 @@
 > `predictions` tablosuna yazılır (bar_ts ile), 12 bar sonraki kapanışla
 > hit/miss çözülür; özet `/api/v1/ai/stats` ve `/ai` Telegram komutuyla.
 > Tahminler istatistik için kaydedilir ama `executed` bayrağı yalnızca AI
-> kapısından geçenlerde 1'dir (yani sonuç metrikleri karışmaz).
+> kapısından geçenlerde 1'dir (yani sonuç metrikleri karışmaz). Değerlendirme:
+> `scripts/eval_ai.py` (arşivde canlı semantiğiyle hızlı acc). Otomatik
+> yeniden eğitim: `ai_auto_retrain` açıkken 15 dakikada bir tetikleyiciler
+> değerlendirilir (zaman `ai_retrain_interval_hours` veya accuracy
+> `ai_retrain_min_acc` + `ai_retrain_min_samples` + 6h soğuma); eğitim ayrı
+> süreçte koşar, başarıda predictor cache'i temizlenir (restart gerekmez).
 
 ## Veri
 
