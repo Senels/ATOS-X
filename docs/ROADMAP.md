@@ -60,7 +60,7 @@
 > `ai_retrain_interval_hours` veya accuracy `ai_retrain_min_acc` +
 > `ai_retrain_min_samples` + 6h soğuma); eğitim ayrı süreçte koşar, başarıda
 > predictor cache'i temizlenir (restart gerekmez). `scan_limit` ayarlanabilir
-> (`/koruma scan_limit <N>`, varsayılan 50; canlıda 100). settings.json BOM
+> (`/koruma scan_limit <N>`, varsayılan 50; canlıda 200). settings.json BOM
 > toleranslı yüklenir (`utf-8-sig`) — dosya **PowerShell ile değil Python ile**
 > yazılmalıdır.
 
@@ -77,8 +77,11 @@
   + accuracy < `ai_retrain_min_acc=0.55`.
 - **Sinyal yoğunluğu**: TTP burst'leri 4h bar kapanışlarına yakın gelir;
   pazar sessizken günlerce sinyal üretilmeyebilir → feedback yavaş birikir.
-- **scan_limit=100**: 550+ sembolün %18'i taranır; CPU bütçesine göre
-  artırılabilir (TTP kurulumları listede olmayan sembollerde kaçabilir).
+  İyileştirme (06.08): `scan_limit` **200**'e çıkarıldı (CPU ~%13, rate-limit
+  güvenli; OPS.md). Interval değişikliği (2h/30m) ölçülüp **reddedildi** —
+  4h parametreleri 2h'de zararda, AI filtresi 30m'de ters çalışıyor.
+- **scan_limit=200**: 550+ sembolün %36'sı taranır; tam evren (550) rate-limit
+  bütçesini aşar (~18 istek/sn vs 20 limit) — 200 doğru denge.
 - **v23 AI eşiği doğrulandı (06.08)**: 0.50/0.45 → 26 geçen/+220 USDT, 0.55 →
   16 geçen/**+299 USDT** → `ai_min_confidence=0.55` v23 için de doğru eşik.
 

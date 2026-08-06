@@ -713,6 +713,19 @@ MIN_NOTIONAL=5.0
   +220 USDT, win %53.8 — güven dağılımında 0.45-0.50 bandında sinyal yok);
   **0.55 → 16 geçen, +299 USDT, win %56.2** → v23 için de `0.55` doğru eşik
   (daha seçici = daha yüksek net; eşik düşürmek neti azaltıyor).
+  **Interval duyarlılığı (06.08, TTP 4h parametreleri, 200 sembol)** — sinyal
+  yoğunluğunu artırma amacıyla 2h/30m denendi: 2h → 1448 sinyal, temiz **-11,011**
+  vs AI -516 USDT (temiz bile zararda — 4h parametreleri 2h'de geçersiz); 30m →
+  1546 sinyal, temiz +34,252 vs AI **-1,742** USDT, geçen isabet %41 < engellenen
+  %48 (**AI filtresi 30m'de ters çalışıyor** — model 4h barlarla eğitildi,
+  horizon 12 = 48h; 30m'de 6h'ye düşüyor, dağılım dışı). → **Interval değişikliği
+  reddedildi**: TTP canlıda yalnızca 4h çalışır; AI modeli interval'a bağlıdır.
+  Sinyal yoğunluğu bunun yerine sembol evreni genişletilerek artırılır.
+- **Sinyal yoğunluğu (06.08)**: `scan_limit` 100 → **200** çıkarıldı (200/273
+  ranking sembolü taranır, evrenin ~%36'sı). CPU etkisi ~%13 tek çekirdek
+  (200 sembol, ölçüm 06.08), tarama döngüsü aksamıyor; rate-limit bütçesi
+  (~6.7 istek/sn, limit 20/sn) 550 tam evren için yetmez (~18/sn) — 200 doğru
+  denge. Sinyal fırsatları 2x geniş evrende aranır.
 - **Otomatik yeniden eğitim** (`ai_auto_retrain`): kapalıyken (`False`, varsayılan)
   yalnızca manuel `python scripts/train_ai.py` ile eğitilir + restart ile yüklenir.
   Açıkken scan döngüsü 15 dakikada bir tetikleyicileri değerlendirir: (1) zaman —
