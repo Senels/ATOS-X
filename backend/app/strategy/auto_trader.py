@@ -377,6 +377,7 @@ class AutoTrader:
         self.trading_symbols = await self.binance.load_all_symbols()
         logger.info(f"{len(self.trading_symbols)} coin taranacak")
         await self.reconcile_positions()
+        self._restore_paper_positions()
         await self._check_concentration()
         await self._notify_startup_state()
         asyncio.create_task(self._refresh_ranking())
@@ -1154,6 +1155,42 @@ class AutoTrader:
             logger.info(f"Bakiye senkronlandi: equity ${self.equity:.2f}")
         except Exception as e:
             logger.warning(f"Bakiye senkronu atlandi: {e}")
+
+    def _restore_paper_positions(self):
+        """Paper modunda restart sonrasi acik pozisyonlari DB'den geri yukler.
+
+        Borsa emri yoktur (paper); SL/TP burada saklanmaz — ilk TTP manage /
+        check dongusunde strateji `entry_ts`'ten itibaren yeniden hesaplar.
+        """
+        if not self.paper:
+            return
+        try:
+            open_trades = self.db.list_open_trades()
+        except Exception as e:
+            logger.warning(f"Paper pozisyon restore hatasi: {e}")
+            return
+        restored = 0
+        for t in open_trades:
+            symbol = t["symbol"]
+            if symbol in self.active_positions:
+                continue
+            entry_time = t.get("entry_time") or t.get("entry_ts") or datetime.utcnow().isoformat()
+            self.active_positions[symbol] = {
+                "side": "BUY" if t["side"] == "BUY" else "SELL",
+                "entry_price": t["entry_price"],
+                "quantity": t["quantity"],
+                "sl": None,
+                "tp": None,
+                "entry_fee": t["entry_price"] * t["quantity"] * self.engine.fee_rate,
+                "open_time": entry_time,
+                "entry_ts": str(t["entry_ts"]) if t["entry_ts"] else None,
+                "ttp_tp_hit": t["ttp_tp_hit"],
+            }
+            restored += 1
+        if restored:
+            logger.info(
+                f"Paper restart restore: {restored} pozisyon DB'den geri yuklendi"
+            )
 
     async def reconcile_positions(self):
         """Restart sonrasi acik pozisyonlari borsadan geri yukler ve drift temizler.

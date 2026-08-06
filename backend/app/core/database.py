@@ -176,6 +176,24 @@ class Database:
             "reason": r[7] or "",
         } for r in rows]
 
+    def list_open_trades(self):
+        """Acil pozisyon kayitlarini doner (paper restart restore icin)."""
+        conn = sqlite3.connect(self.db_path)
+        rows = conn.execute(
+            "SELECT symbol, side, entry_price, quantity, entry_ts, ttp_tp_hit, entry_time "
+            "FROM trades WHERE status = 'OPEN' ORDER BY id DESC"
+        ).fetchall()
+        conn.close()
+        return [{
+            "symbol": r[0],
+            "side": r[1],
+            "entry_price": float(r[2]),
+            "quantity": float(r[3]),
+            "entry_ts": r[4],
+            "ttp_tp_hit": bool(r[5]),
+            "entry_time": r[6],
+        } for r in rows]
+
     def get_open_trade_entry_time(self, symbol: str):
         """Sembolun en guncel OPEN kaydinin acilis zamanini doner (yoksa None)."""
         conn = sqlite3.connect(self.db_path)

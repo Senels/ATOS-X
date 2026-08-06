@@ -138,6 +138,36 @@ def test_sizing_matches_engine(trader):
     assert sizing["entry_fee"] == pytest.approx(ref["entry_fee"])
 
 
+def test_paper_restore_positions_from_db(tmp_path, monkeypatch):
+    db = Database(str(tmp_path / "at.db"))
+    monkeypatch.setattr(at_mod, "Database", lambda *a, **k: db)
+    db.save_trade("DOLOUSDT", "BUY", 0.02266, 125040.0,
+                  entry_ts="2026-08-06 16:00:00+00:00", ttp_tp_hit=1)
+    tr = at_mod.AutoTrader(FakeBinance(), paper=True)
+    tr._restore_paper_positions()
+    pos = tr.active_positions.get("DOLOUSDT")
+    assert pos is not None
+    assert pos["side"] == "BUY"
+    assert pos["entry_price"] == pytest.approx(0.02266)
+    assert pos["quantity"] == pytest.approx(125040.0)
+    assert pos["entry_ts"] == "2026-08-06 16:00:00+00:00"
+    assert pos["ttp_tp_hit"] is True
+    assert pos["sl"] is None  # ilk manage dongusunde strateji yeniden hesaplar
+    assert pos["entry_fee"] == pytest.approx(0.02266 * 125040.0 * tr.engine.fee_rate)
+
+
+def test_paper_restore_skips_known_symbols(tmp_path, monkeypatch):
+    db = Database(str(tmp_path / "at.db"))
+    monkeypatch.setattr(at_mod, "Database", lambda *a, **k: db)
+    db.save_trade("BTCUSDT", "BUY", 65000.0, 1.0)
+    db.save_trade("ETHUSDT", "SELL", 3500.0, 2.0)
+    tr = at_mod.AutoTrader(FakeBinance(), paper=True)
+    tr.active_positions["BTCUSDT"] = {"side": "BUY"}
+    tr._restore_paper_positions()
+    assert tr.active_positions["BTCUSDT"]["side"] == "BUY"  # ezilmedi
+    assert "ETHUSDT" in tr.active_positions
+
+
 async def test_open_close_persists(trader):
     tr, fb, db = trader
     await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)

@@ -263,6 +263,18 @@ edildiğinde geri yüklenir. Kalıcı alanlar: `equity`, `peak_equity`,
 `drawdown_pct`, `day_pnl`, `day_start_date`, `consecutive_losses` ve
 halt bayrakları (`risk_halted`, `daily_loss_halted`, `equity_halted`).
 
+- **Paper pozisyon restore (Sprint 13 sonrası)**: paper modunda restart
+  sonrası açık pozisyonlar `trades` tablosundan (`status='OPEN'`) geri
+  yüklenir (`_restore_paper_positions`, start'ta reconcile'dan sonra).
+  SL/TP borsada saklanmadığından `None` ile başlar; ilk TTP manage / check
+  döngüsü stratejiyi `entry_ts`/`entry_time`'dan (gerçek giriş zamanı,
+  restore anı DEĞİL) itibaren çalıştırıp SL/TP'yi yeniden hesaplar ve yaşlı
+  pozisyonları zaman-stop/çıkış mantığıyla kapatır. Gerçek modda da aynı
+  kapanış kaydı borsadan `reconcile_positions` ile gelir (değişmedi).
+  İlk geçişte geçmişte yönetimsiz kalan OPEN kayıtlar da restore edilir;
+  manage bunları birkaç döngüde kapatır (birikmiş gerçekleşen PnL equity'ye
+  işlenir — tek seferlik geçiş etkisi).
+
 - **Deterministik yeniden türetim**: `loss_halted` her restart'ta kapanan
   işlem geçmişinden, `equity_halted` ise `equity` vs `min_equity`'den
   yeniden hesaplanır (bayrak birebir geri yüklenmez).
