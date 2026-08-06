@@ -689,6 +689,19 @@ MIN_NOTIONAL=5.0
   accuracy hesaplar. Beklenti (06.08): genel ~0.61, BUY ~0.60, SELL ~0.62, son 1 ay
   ~0.59. Canlı `/api/v1/ai/stats` döngüsü bu değerlere yakınsamalı; acc < ~0.55 ise
   yeniden eğitim düşünülür. CI'da çalışmaz (TF yok).
+- **Otomatik yeniden eğitim** (`ai_auto_retrain`): kapalıyken (`False`, varsayılan)
+  yalnızca manuel `python scripts/train_ai.py` ile eğitilir + restart ile yüklenir.
+  Açıkken scan döngüsü 15 dakikada bir tetikleyicileri değerlendirir: (1) zaman —
+  `ai_retrain_interval_hours` geçtiyse (varsayılan 24h); (2) accuracy —
+  `ai_retrain_min_samples` (30) kadar çözülmüş tahmin birikmişken `ai_retrain_min_acc`
+  (0.55) altındaysa + son eğitim 6 saatten eskiyse. Eğitim `scripts/train_ai.py`'yi
+  ayrı süreçte çalıştırır (event loop bloke olmaz, 30 dk timeout); başarıda predictor
+  cache'i temizlenir → bir sonraki tahminde yeni model yüklenir (restart gerekmez).
+  Başlangıç/başarı/hata Telegram'dan bildirilir. `/koruma` ile değiştirilebilir:
+  `ai_auto_retrain`, `ai_retrain_interval_hours`, `ai_retrain_min_acc`,
+  `ai_retrain_min_samples`, `ai_retrain_symbols`, `ai_retrain_epochs`.
+  Durum: `/ai` komutu ve `/api/v1/ai/stats` yanıtında (`auto_retrain`,
+  `last_trained_at`).
 
 ## Doğrulama
 

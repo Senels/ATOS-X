@@ -51,6 +51,13 @@ DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
     "use_ai_model": True,           # True iken AI tahmini sinyal yonuyle uyusmali (model yoksa pasif)
     "ai_min_confidence": 0.55,      # AI tahminini gecirmek icin gereken min guven (0-1)
     "ai_model_path": "ai_direction",  # backend/models/ altindaki model adi
+    # Otomatik yeniden egitim (feedback dongusu)
+    "ai_auto_retrain": False,        # True iken zaman/accuracy tetikleyicisiyle yeniden egitir
+    "ai_retrain_interval_hours": 24.0,  # Zaman tetikleyicisi (saat; 0 = kapali)
+    "ai_retrain_min_acc": 0.55,      # Canli accuracy bu degerin altina duserse + yeterli ornek + soguma -> tetikler
+    "ai_retrain_min_samples": 30,    # Accuracy tetikleyicisi icin gereken cozulmus tahmin sayisi
+    "ai_retrain_symbols": 400,       # Egitimde kullanilacak sembol sayisi
+    "ai_retrain_epochs": 30,         # Egitim epoch sayisi
     # Market Collector: ranking icin yerel CSV tazeligi
     "data_backfill_hours": 24.0,    # Otomatik backfill araligi (saat; 0 = devre disi)
     "data_freshness_hours": 12.0,   # Son bar bu saatten eskiyse sembol eski sayilir

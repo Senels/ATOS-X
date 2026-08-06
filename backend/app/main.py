@@ -387,9 +387,16 @@ _EDITABLE_RISK_KEYS = {
     "use_ai_model": "use_ai_model",
     "ai_min_confidence": "ai_min_confidence",
     "ai_model_path": "ai_model_path",
+    "ai_auto_retrain": "ai_auto_retrain",
+    "ai_retrain_interval_hours": "ai_retrain_interval_hours",
+    "ai_retrain_min_acc": "ai_retrain_min_acc",
+    "ai_retrain_min_samples": "ai_retrain_min_samples",
+    "ai_retrain_symbols": "ai_retrain_symbols",
+    "ai_retrain_epochs": "ai_retrain_epochs",
 }
-_INT_RISK_KEYS = {"max_open_positions", "max_consecutive_losses", "max_position_age_hours"}
-_BOOL_RISK_KEYS = {"use_decision_council", "use_score_ranking", "use_ai_model"}
+_INT_RISK_KEYS = {"max_open_positions", "max_consecutive_losses", "max_position_age_hours",
+                  "ai_retrain_min_samples", "ai_retrain_symbols", "ai_retrain_epochs"}
+_BOOL_RISK_KEYS = {"use_decision_council", "use_score_ranking", "use_ai_model", "ai_auto_retrain"}
 _STR_RISK_KEYS = {"ai_model_path"}
 
 
@@ -519,7 +526,8 @@ def _telegram_command(text: str):
                 value = bool(value)
             elif settings_key in _INT_RISK_KEYS:
                 value = int(value)
-            elif settings_key in ("council_min_confidence", "min_signal_strength", "ai_min_confidence"):
+            elif settings_key in ("council_min_confidence", "min_signal_strength",
+                                  "ai_min_confidence", "ai_retrain_min_acc"):
                 value = max(0.0, min(1.0, value))
         strat_settings.update_settings({settings_key: value})
         strat_settings.persist()
@@ -1134,10 +1142,26 @@ def _telegram_command(text: str):
             stats = auto_trader.db.ai_stats()
         except Exception as e:
             return f"ATOS X: AI istatistik hatasi: {e}"
+        try:
+            from app.ai.retrain import last_trained_at
+            s = strat_settings.get_settings()
+            last = last_trained_at(str(s.get("ai_model_path", "ai_direction")))
+            retrain_line = ""
+            if s.get("ai_auto_retrain", False):
+                retrain_line = (
+                    f"\nOtomatik egitim: AKTIF (her "
+                    f"{s.get('ai_retrain_interval_hours', 24)}h "
+                    f"veya acc < %{float(s.get('ai_retrain_min_acc', 0.55)) * 100:.0f})"
+                )
+            elif last is not None:
+                retrain_line = "\nOtomatik egitim: kapali"
+        except Exception:
+            last, retrain_line = None, ""
         if stats["resolved"] == 0:
             return ("ATOS X AI tahmin istatistikleri:\n"
                     f"Toplam: {stats['total']} | Bekleyen: {stats['pending']}\n"
-                    "Henuz cozumlenmis tahmin yok")
+                    "Henuz cozumlenmis tahmin yok"
+                    + retrain_line)
         lines = [
             "ATOS X AI tahmin istatistikleri:",
             f"Toplam: {stats['total']} | Cozumlenen: {stats['resolved']} | "
@@ -1153,7 +1177,7 @@ def _telegram_command(text: str):
                     f"{direction}: %{b['accuracy'] * 100:.0f} isabet "
                     f"({b['total']} tahmin, ort. guven %{b['avg_confidence'] * 100:.0f})"
                 )
-        return "\n".join(lines)
+        return "\n".join(lines) + retrain_line
 
     if cmd.startswith("/son"):
         if not auto_trader:
@@ -1916,7 +1940,17 @@ async def ai_stats(limit_hours: int = 0):
     db = getattr(app.state, "db", None)
     if not db:
         return {"ok": False, "error": "not_running"}
-    return await asyncio.to_thread(db.ai_stats, limit_hours)
+    stats = await asyncio.to_thread(db.ai_stats, limit_hours)
+    try:
+        from app.ai.retrain import last_trained_at
+        s = strat_settings.get_settings()
+        stats["auto_retrain"] = bool(s.get("ai_auto_retrain", False))
+        stats["last_trained_at"] = last_trained_at(
+            str(s.get("ai_model_path", "ai_direction")))
+    except Exception:
+        stats["auto_retrain"] = False
+        stats["last_trained_at"] = None
+    return stats
 
 @app.post("/api/v1/backup")
 async def trigger_backup():

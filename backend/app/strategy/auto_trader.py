@@ -85,6 +85,8 @@ class AutoTrader:
         self._conc_blocks = set()
         self._last_block_state = set()
         self._ai_predictor_cache = None
+        self._retrain_running = False
+        self._last_retrain_check = 0.0
         self._last_block_summary = 0.0
         self.block_summary_interval = 3600
         self.risk_events = []
@@ -479,6 +481,7 @@ class AutoTrader:
                 await self._check_concentration()
                 await self._check_drawdown()
                 await self._check_equity_floor()
+                self._maybe_retrain_ai()
                 await asyncio.sleep(self.scan_interval)
 
             except Exception as e:
@@ -544,6 +547,88 @@ class AutoTrader:
                 logger.warning(f"AI predictor yuklenemedi: {e}")
                 self._ai_predictor_cache = False
         return None if self._ai_predictor_cache is False else self._ai_predictor_cache
+
+    def _maybe_retrain_ai(self, now: float = None):
+        """Otomatik yeniden egitim kontrolu (zaman + canli accuracy tetikleyicileri).
+
+        En fazla 15 dakikada bir degerlendirir; tetiklenirse egitimi arka plan
+        gorevi olarak baslatir (event loop bloke olmaz). Egitim bittiginde
+        predictor cache'i gecersizlesir, sonraki tahminde yeni model yuklenir.
+        """
+        if getattr(self, "_retrain_running", False):
+            return
+        now = now or time.time()
+        if now - self._last_retrain_check < 900:
+            return
+        self._last_retrain_check = now
+        try:
+            s = strat_settings.get_settings()
+        except Exception:
+            return
+        if not s.get("ai_auto_retrain", False):
+            return
+        try:
+            from app.ai.retrain import accuracy_trigger, last_trained_at, retrain_due
+            model_name = str(s.get("ai_model_path", "ai_direction"))
+            last = last_trained_at(model_name)
+            interval = float(s.get("ai_retrain_interval_hours", 24.0) or 0.0)
+            due = interval > 0 and retrain_due(last, now, interval)
+            if not due:
+                try:
+                    stats = self.db.ai_stats()
+                except Exception:
+                    stats = {}
+                due = accuracy_trigger(
+                    int(stats.get("resolved", 0) or 0),
+                    float(stats.get("accuracy", 0.0) or 0.0),
+                    int(s.get("ai_retrain_min_samples", 30)),
+                    float(s.get("ai_retrain_min_acc", 0.55) or 0.0),
+                    last, now)
+            if not due:
+                return
+        except Exception as e:
+            logger.warning(f"AI yeniden egitim kontrolu hatasi: {e}")
+            return
+        self._retrain_running = True
+        asyncio.create_task(self._run_retrain(s, model_name))
+
+    async def _run_retrain(self, settings: dict, model_name: str):
+        """Arka plan egitim gorevi: alt sureci calistirir, sonucu bildirir."""
+        try:
+            from app.ai.retrain import RetrainRunner
+            symbols = int(settings.get("ai_retrain_symbols", 400) or 400)
+            epochs = int(settings.get("ai_retrain_epochs", 30) or 30)
+            if self.telegram:
+                await self.telegram.send(
+                    f"AI yeniden egitimi basladi ({model_name}, "
+                    f"{symbols} sembol, {epochs} epoch)...")
+            logger.info(f"AI yeniden egitimi basladi: {model_name} "
+                        f"({symbols} sembol, {epochs} epoch)")
+            ok, tail = await RetrainRunner(model_name=model_name).train(
+                symbols=symbols, epochs=epochs)
+            if ok:
+                self._ai_predictor_cache = None
+                logger.info(f"AI modeli yeniden egitildi: {model_name}")
+                if self.telegram:
+                    msg = f"AI modeli yeniden egitildi ve yuklendi ({model_name})."
+                    if tail:
+                        msg += f"\n{tail}"
+                    await self.telegram.send(msg)
+            else:
+                logger.warning(f"AI yeniden egitimi basarisiz: {tail}")
+                if self.telegram:
+                    await self.telegram.send(
+                        f"AI yeniden egitimi BASARISIZ ({model_name}): {tail}")
+        except Exception as e:
+            logger.warning(f"AI yeniden egitim hatasi: {e}")
+            if self.telegram:
+                try:
+                    await self.telegram.send(
+                        f"AI yeniden egitimi hata ile sonlandi: {e}")
+                except Exception:
+                    pass
+        finally:
+            self._retrain_running = False
 
     def _record_prediction(self, symbol: str, signal: dict, decision: dict,
                            ai_info: dict, executed: bool = False):
