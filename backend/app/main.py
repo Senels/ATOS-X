@@ -1882,6 +1882,7 @@ async def update_strategy_settings(request: Request):
     try:
         data = await request.json()
         strat_settings.update_settings(data)
+        strat_settings.persist()
         return {"status": "ok", "message": "Settings saved"}
     except Exception as e:
         return {"status": "error", "error": str(e)}

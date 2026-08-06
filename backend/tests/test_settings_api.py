@@ -18,14 +18,18 @@ def test_get_strategy_settings(monkeypatch):
 
 def test_update_strategy_settings(monkeypatch):
     calls = []
+    persisted = []
     monkeypatch.setattr(main_mod.strat_settings, "update_settings",
                         lambda data: calls.append(data) or {})
+    monkeypatch.setattr(main_mod.strat_settings, "persist",
+                        lambda: persisted.append(True) or {})
     client = TestClient(app)
     resp = client.post("/api/v1/strategy/settings", json={"rr_ratio": 3.0})
     client.close()
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok", "message": "Settings saved"}
     assert calls == [{"rr_ratio": 3.0}]
+    assert persisted == [True]
 
 
 def test_update_strategy_settings_error(monkeypatch):
