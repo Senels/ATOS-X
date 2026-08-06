@@ -15,6 +15,7 @@
 | 9 | Governor | risk limitleri, konsantrasyon engelleri, koruma tamiri | ✅ |
 | 10 | Trading | emir yönetimi, TP/SL/trailing, portföy senkronu | ✅ |
 | 11 | TTPTSL Motor | optimize_ttp.py durum makinesi → TtpTsl (analyze_full/manage) + engine managed yol + canlı pozisyon yönetimi | ✅ |
+| 12 | AI Katmanı | TensorFlow yön tahmini (`app/ai/`), görünürlük (signals API/Telegram/dashboard/koruma editor), doğruluk izleme (`predictions` tablosu, bar-bazlı 12 bar sonrası çözümleme, `/api/v1/ai/stats`, `/ai` komutu) | ✅ |
 
 > Not: Sprint 11, `optimize_ttp.py run_backtest`'in tam state machine'ini
 > (sl_trail_mode, tp_qty_pct kısmi TP, breakeven, reversal, trailing TP)
@@ -35,6 +36,18 @@
 > paper/kill-switch/testnet/live modları, `halt_entries` + `/giris`, emir
 > gönderimi açık onayla. DB yedekleme/geri yükleme (integrity check, 6 saatlik
 > periyodik loop, Telegram hata bildirimi). Tüm detaylar `docs/OPS.md`'de.
+
+> Not: Sprint 12 (AI Katmanı): `backend/app/ai/` TensorFlow modeli
+> (`scripts/train_ai.py`, tensorflow-intel==2.15.1 — numpy-1 ABI; pandas
+> yüklüyken TF 2.21 DLL verir). Model `backend/app/models/ai_direction/`
+> (gitignore'lı) `predictor.load()` ile yüklenir; TF yoksa/yüklenemezse
+> predictor None olur ve sistem çalışmaya devam eder (graceful). AI tahmini
+> `/api/v1/signals` + Telegram sinyal/pozisyon bildirimlerinde + dashboard
+> Live Signals sütununda görünür. Doğruluk izleme: her BUY/SELL sinyali
+> `predictions` tablosuna yazılır (bar_ts ile), 12 bar sonraki kapanışla
+> hit/miss çözülür; özet `/api/v1/ai/stats` ve `/ai` Telegram komutuyla.
+> Tahminler istatistik için kaydedilir ama `executed` bayrağı yalnızca AI
+> kapısından geçenlerde 1'dir (yani sonuç metrikleri karışmaz).
 
 ## Veri
 

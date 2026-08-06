@@ -658,6 +658,32 @@ LIVE_TRADING_ENABLED=True
 MIN_NOTIONAL=5.0
 ```
 
+## AI Yön Tahmini (Sprint 12)
+
+- **Model**: `backend/app/ai/` TensorFlow derin öğrenme katmanı. Eğitim:
+  `scripts/train_ai.py --symbols N --epochs E` (örnek: 400 sembol, 30 epoch →
+  ~188k örnek, val_acc ~0.63). Çıktı `backend/app/models/ai_direction/`
+  (gitignore'lı, sunucuya manuel kopyalanır).
+- **Ortam uyarısı**: `tensorflow-intel==2.15.1` **tek başına** kurulu olmalı
+  (tensorflow shim ile çifte kurulum `tf.keras`/`tf.random`'ı kırar). pandas
+  yüklüyken TF 2.21 DLL hatası verir — 2.15.1 (numpy-1 ABI) kullanılır.
+  CI'da TF yoktur; `test_ai_tracking.py` TF gerektirmez, `test_ai.py` ise
+  yalnızca TF varsa çalışır.
+- **Davranış**: TF yoksa/yüklenemezse `predictor=None` olur; sistem degrade
+  modda çalışmaya devam eder (`use_ai_model` yok sayılır, hata loglanır).
+- **Kapı**: `_ai_gate` — `use_ai_model=True` + `confidence >= ai_min_confidence`
+  (varsayılan 0.55) ise AI yönü council kararıyla çelişmezse izin verir.
+- **Görünürlük**: `/api/v1/signals` yanıtında `ai_direction`/`ai_confidence`; Telegram
+  sinyal/pozisyon bildirimlerinde `AI: ...` satırı; dashboard Live Signals'da AI sütunu;
+  `/koruma` editöründen `use_ai_model`, `ai_min_confidence`, `ai_model_path` değiştirilir.
+- **Doğruluk izleme**: her BUY/SELL sinyali `predictions` tablosuna yazılır
+  (bar_ts ile); 12 bar sonrası kapanış yönüne göre hit/miss çözülür (veri
+  yetmezse pending kalır). Özet: `/api/v1/ai/stats` ve Telegram `/ai`.
+  `executed` bayrağı yalnızca AI kapısından geçenlerde 1'dir.
+- **Yeniden eğitim**: `python scripts/train_ai.py` ile modeli tazele; predictor
+  işlem ömrü boyunca cache'lidir (`auto_trader._ai_predictor_cache`), bu yüzden
+  yeni modeli yüklemek için sunucu restart gerekir.
+
 ## Doğrulama
 
 ```bash
