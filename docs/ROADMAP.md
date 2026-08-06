@@ -66,10 +66,11 @@
 
 ## Açık Konular (bilinen eksikler)
 
-- **Council–TTP oyu (497be93)**: council TTP modunda sinyalin kendisini
+- **Council–TTP oyu (497be93, eb82c5d)**: council TTP modunda sinyalin kendisini
   birincil oy alır (v23 zorunluluğu kalktı); trend/momentum/volatilite
-  oyları aynen uygulanır. `/api/v1/market/decisions` endpoint'i hâlâ v23
-  tabanlı karar gösterir (dashboard kartı TTP modunda tam gerçeği yansıtmaz).
+  oyları aynen uygulanır. `decide()` ttp modunda otomatik TTP analizi yapar —
+  `/api/v1/market/decision` ve `/api/v1/market/decisions` endpoint'leri de
+  gerçek kapının aynı kararını döndürür (dashboard kartı uyumlu).
 - **Canlı AI feedback birikimi sürüyor** (06.08: 2 kayıt, çözüm 08.08 12:00
   UTC sonrası): beklenen yakınsama ~0.61 genel / ~0.586 son 1 ay.
   `ai_auto_retrain` açma kriteri: `ai_retrain_min_samples=30` çözülmüş tahmin
