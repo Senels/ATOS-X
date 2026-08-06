@@ -36,7 +36,7 @@ DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
     "max_position_pct": 75.0,    # Tek sembol nominal pozisyon esigi (% equity, uyari)
     "max_side_pct": 150.0,       # Tek yonde toplam nominal pozisyon esigi (% equity, uyari)
     "max_drawdown_pct": 20.0,    # Peak equity'den düşüş esigi (%); asilinca yeni giris durur
-    "max_position_age_hours": 8, # Pozisyon max acik kalma suresi (saat; 0 = devre disi)
+    "max_position_age_hours": 48, # Pozisyon max acik kalma suresi (saat; 0 = devre disi)
     "max_consecutive_losses": 5, # Ardısık zarar siniri; asilinca girisler durur (0 = devre disi)
     "trailing_activate_pct": 3.0,  # Bu kar esiginde SL takibi baslar (%)
     "trailing_sl_pct": 1.5,        # Takip eden SL'nin fiyata uzakligi (%; 0 = devre disi)
@@ -44,6 +44,8 @@ DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
     "breakeven_activate_pct": 2.0, # Bu kar esiginde SL giris fiyatina tasinir (%; 0 = devre disi)
     "max_daily_loss_pct": 5.0,     # Gunluk toplam zarar siniri (% equity; asilinca girisler durur; 0 = devre disi)
     "min_equity": 5000.0,          # Equity bu taban degerin altina duserse girisler durur (USDT; 0 = devre disi)
+    "restore_age_limit": 7.0,      # Paper restart restore'da bu yasin uzerindeki OPEN kayitlar restart akisinda kapatilir (gun; 0 = devre disi)
+    "banned_symbols": [],          # Taramadan cikarilacak semboller (backtest kalite analizi sonucu; buyuk/kucuk harf duyarsiz)
     # Decision Council: canli girislerde coklu sinyal oylamasi filtresi
     "use_decision_council": True,   # True iken girisler council kararina ve min guvene tabi
     "council_min_confidence": 0.6,  # Council kararina gerekli minimum guven (0-1)
@@ -90,8 +92,8 @@ DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
         "sl_method": "atr",
         "sl_long_perc": 0.0606,
         "sl_short_perc": 0.0713,
-        "sl_long_atr_mul": 3.25,
-        "sl_short_atr_mul": 4.8125,
+        "sl_long_atr_mul": 2.0,
+        "sl_short_atr_mul": 3.0,
         "sl_trail_mode": "TP",
         "be_enabled": True,
         "tp_qty_pct": 0.6125,

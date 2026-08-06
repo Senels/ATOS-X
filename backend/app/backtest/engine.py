@@ -243,8 +243,9 @@ class BacktestEngine:
                             self._close(pos, pos["tp"], "take_profit", i, trades)
                             pos = None
 
-            # 2b) Time-stop: max acik kalma suresi asilinca kapat
-            if pos is not None and not managed and self.max_position_age_hours > 0:
+            # 2b) Time-stop: max acik kalma suresi asilinca kapat (canli ile
+            # ayni davranis; strateji-yonetimli modda da uygulanir)
+            if pos is not None and self.max_position_age_hours > 0:
                 if (i - pos["entry_bar"]) * hours_per_bar >= self.max_position_age_hours:
                     self._close(pos, c[i], "time_stop", i, trades)
                     pos = None

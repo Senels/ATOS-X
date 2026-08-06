@@ -845,6 +845,18 @@ def _telegram_command(text: str):
             f"Equity taban: ${auto_trader.min_equity:.0f} | Taban durma: {eq_line}",
             f"Risk olayi: {len(events)} (son: {evt_line})",
         ]
+        try:
+            aist = auto_trader.db.ai_stats()
+            if aist.get("total"):
+                ai_line = (f"AI: {aist['total']} kayit (cozumlenen {aist['resolved']}, "
+                           f"bekleyen {aist['pending']})"
+                           + (f" | acc %{aist['accuracy'] * 100:.0f}"
+                              if aist["resolved"] else " | cozum bekleniyor"))
+            else:
+                ai_line = "AI: kayit yok"
+        except Exception:
+            ai_line = "AI: okunamadi"
+        lines.append(ai_line)
         if old_syms:
             lines.append(f"Uzun pozisyonlar: {', '.join(old_syms)} (>{max_age_h * 0.8:.0f}h)")
         return "\n".join(lines)

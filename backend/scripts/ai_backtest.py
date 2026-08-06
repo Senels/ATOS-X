@@ -12,6 +12,7 @@ icin kullanilir (ornek: engellenen sinyallerin isabet orani gecenlerden
 dusukse filtre deger katiyor).
 """
 import argparse
+import json
 import sys
 import time
 from pathlib import Path
@@ -37,6 +38,13 @@ def main() -> int:
     ap.add_argument("--strategy", default=None,
                     help="aktif stratejiyi gecici olarak degistir (v23/ttp); "
                          "yoksa settings'teki ayar kullanilir")
+    ap.add_argument("--ttp", default="",
+                    help="TTP parametre override'lari (virgulle: key=value,key=value); "
+                         "ornek: tp_qty_pct=1.0,sl_trail_mode=OFF")
+    ap.add_argument("--max-age", type=float, default=None,
+                    help="max_position_age_hours override (saat; yoksa settings degeri)")
+    ap.add_argument("--out", default="",
+                    help="Sembol bazli sonuclari JSON olarak yaz (bos = yok)")
     args = ap.parse_args()
 
     pred = m.load_predictor(args.model)
@@ -48,6 +56,16 @@ def main() -> int:
     settings = strat_settings.get_settings()
     if args.strategy:
         settings["active_strategy"] = args.strategy
+    if args.ttp:
+        overrides = dict(pair.split("=", 1) for pair in args.ttp.split(",") if "=" in pair)
+        coerced = {}
+        for k, v in overrides.items():
+            try:
+                coerced[k] = float(v)
+            except ValueError:
+                coerced[k] = v
+        settings["ttp"] = {**settings.get("ttp", {}), **coerced}
+        print(f"[TTP] Override: {coerced}")
     print(f"[AI] Strateji: {settings.get('active_strategy')} | "
           f"Sembol: {args.symbols} | EsiK: {args.threshold} | Model: {args.model}")
     bot = get_strategy(settings)
@@ -58,7 +76,14 @@ def main() -> int:
         "fee_rate": settings["fee_rate"],
         "slippage": 0.0001,
         "max_leverage": settings["max_leverage"],
+        "max_position_age_hours": float(args.max_age if args.max_age is not None
+                                        else settings.get("max_position_age_hours", 0.0)),
+        "vol_sizing_enabled": bool(settings.get("vol_sizing_enabled", False)),
+        "vol_mult_hi": float(settings.get("vol_mult_hi", 1.5)),
+        "vol_mult_lo": float(settings.get("vol_mult_lo", 0.6)),
+        "vol_mult_factor": float(settings.get("vol_mult_factor", 0.5)),
     }
+    horizon = int(getattr(pred, "horizon", settings.get("ai_horizon", 12)))
 
     t0 = time.time()
     rows, errors = [], 0
@@ -70,7 +95,8 @@ def main() -> int:
                 continue
             result = analyze(df) if analyze else bot.analyze(df)
             res = simulate(pred, df, result["orders"], args.interval,
-                           threshold=args.threshold, engine_kwargs=engine_kwargs)
+                           threshold=args.threshold, engine_kwargs=engine_kwargs,
+                           horizon=horizon)
             if res["baseline"].get("total_trades", 0) == 0 \
                     and res["with_ai"].get("total_trades", 0) == 0:
                 continue
@@ -113,6 +139,20 @@ def main() -> int:
     cols = ["symbol", "signals", "blocked", "passed", "base_trades", "ai_trades",
             "base_net", "ai_net", "blocked_acc", "passed_acc"]
     print(df[cols].head(12).to_string(index=False, float_format=lambda v: f"{v:.2f}"))
+
+    if args.out:
+        payload = {
+            "strategy": settings.get("active_strategy"),
+            "threshold": args.threshold,
+            "model": args.model,
+            "interval": args.interval,
+            "horizon": horizon,
+            "engine": engine_kwargs,
+            "results": rows,
+        }
+        with open(args.out, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, ensure_ascii=False)
+        print(f"\nKaydedildi: {args.out}")
     return 0
 
 

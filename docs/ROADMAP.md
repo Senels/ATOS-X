@@ -16,7 +16,8 @@
 | 10 | Trading | emir yönetimi, TP/SL/trailing, portföy senkronu | ✅ |
 | 11 | TTPTSL Motor | optimize_ttp.py durum makinesi → TtpTsl (analyze_full/manage) + engine managed yol + canlı pozisyon yönetimi | ✅ |
 | 12 | AI Katmanı | TensorFlow yön tahmini (`app/ai/`), görünürlük (signals API/Telegram/dashboard/koruma editor), doğruluk izleme (`predictions` tablosu, bar-bazlı 12 bar sonrası çözümleme, `/api/v1/ai/stats`, `/ai` komutu) | ✅ |
-| 13 | Model Kalitesi + Risk | horizon/özellik deneyleri (h24 + 24 özellik kazandı, `ai_horizon=24` parametrik zincir), volatilite rejimi pozisyon boyutlandırma (`atr_ratio`, A/B doğrulandı) | ✅ |
+| 13 | Model Kalitesi + Risk | horizon/özellik deneyleri (h24 + 23 özellik kazandı, `ai_horizon=24` parametrik zincir), volatilite rejimi pozisyon boyutlandırma (`atr_ratio`, A/B doğrulandı) | ✅ |
+| 14 | Geçiş Politikası + Kalibrasyon | restore yaş politikası, TTP exit A/B, AI eşik + sembol kalite taraması | 🔄 |
 
 > Not: Sprint 11, `optimize_ttp.py run_backtest`'in tam state machine'ini
 > (sl_trail_mode, tp_qty_pct kısmi TP, breakeven, reversal, trailing TP)
@@ -67,8 +68,8 @@
 
 > Not: Sprint 13 (Model Kalitesi + Risk): horizon deneyleri (eval_ai 79 sembol) —
 > h6 0.591 / h12 0.611 / h24 0.610; son 1 ayda h24 üstün (0.603 vs 0.584). Yeni
-> özellikler (`vol_regime`, `ema100_r`, `vol_mom`, `bb_pos`; 20→24) h12'de genel
-> 0.622 (+1.1). Kazanan: 24 özellik + h24 (genel 0.625, son 1 ay 0.621) →
+> özellikler (`vol_regime`, `ema100_r`, `vol_mom`, `bb_pos`; 19→23) h12'de genel
+> 0.622 (+1.1). Kazanan: 23 özellik + h24 (genel 0.625, son 1 ay 0.621) →
 > `ai_direction` bu konfigürasyonla yeniden eğitildi (eval 0.623). Zincir
 > parametrik: `ai_horizon=24`/`ai_atr_mult` (settings), meta'da horizon,
 > feedback çözümleme model horizon'undan (12→24 bar), auto-retrain
@@ -77,6 +78,17 @@
 > `vol_mult_factor=0.5`); canlı sinyal üretimi + engine + backtest API + A/B
 > (200 sembol: net -4,567→-4,065, maxDD iyileşti, kötüleşme yok). Plan:
 > `.opencode/plans/sprint13_model_risk_plan.md`.
+
+> Not: Sprint 14 (Geçiş Politikası + Kalibrasyon): restore yaş politikası
+> (`restore_age_limit=7` gün; eski OPEN kayıtlar restart akışında
+> `restore_stale_close` ile kapanır — 06.08 geçiş şoku dersi), zaman-stop
+> kalibrasyonu (motor managed modda da time-stop uygular; 8s → 48s +8,074
+> vs +1,736), exit kalibrasyonu (SL muli 2.0/3.0 → +10,715; TP RR kazançsız),
+> AI eşik 0.55 korundu (0.50/0.60 kötü), 550 sembol kalite taraması
+> (`banned_symbols` mekanizması eklendi, liste boş), `/durum` AI satırı.
+> Plan: `.opencode/plans/sprint14_policy_calibration_plan.md`. Ölçümler
+> docs/OPS.md'de. **Canlıya restart ile geçer** (max_position_age_hours 48,
+> SL muli 2.0/3.0).
 
 ## Açık Konular (bilinen eksikler)
 

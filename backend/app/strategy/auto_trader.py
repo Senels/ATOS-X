@@ -1,6 +1,6 @@
 ﻿import asyncio
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 
 from loguru import logger
@@ -85,6 +85,7 @@ class AutoTrader:
         self._conc_alerts = {"symbols": set(), "sides": set()}
         self._conc_blocks = set()
         self._last_block_state = set()
+        self._stale_restore_queue: list = []
         self._ai_predictor_cache = None
         self._retrain_running = False
         self._last_retrain_check = 0.0
@@ -378,6 +379,7 @@ class AutoTrader:
         logger.info(f"{len(self.trading_symbols)} coin taranacak")
         await self.reconcile_positions()
         self._restore_paper_positions()
+        await self._close_stale_restores()
         await self._check_concentration()
         await self._notify_startup_state()
         asyncio.create_task(self._refresh_ranking())
@@ -408,6 +410,7 @@ class AutoTrader:
                 ranked = [s for s in self.priority if s in all_prices] if self.priority else None
                 candidates = ranked[: self._scan_limit()] if ranked \
                     else self.trading_symbols[: self._scan_limit()]
+                candidates = self._filter_banned(candidates, s)
 
                 klines_map = await self._fetch_klines_batch(candidates)
                 try:
@@ -1156,11 +1159,40 @@ class AutoTrader:
         except Exception as e:
             logger.warning(f"Bakiye senkronu atlandi: {e}")
 
+    @staticmethod
+    def _filter_banned(candidates, settings=None):
+        """`banned_symbols` listesindeki sembolleri tarama adaylarindan cikarir."""
+        s = settings if settings is not None else strat_settings.get_settings()
+        banned = {str(x).upper() for x in s.get("banned_symbols", [])}
+        return [x for x in candidates if str(x).upper() not in banned]
+
+    def _entry_age_days(self, t: dict) -> float:
+        """DB kaydinin giris yasini gun cinsinden doner (entry_ts oncekli)."""
+        raw = t.get("entry_ts") or t.get("entry_time")
+        if not raw:
+            return 0.0
+        if isinstance(raw, (int, float)):
+            try:
+                dt = datetime.utcfromtimestamp(float(raw))
+            except (ValueError, OSError):
+                return 0.0
+        else:
+            try:
+                dt = datetime.fromisoformat(str(raw))
+            except ValueError:
+                return 0.0
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+        return max(0.0, (datetime.utcnow() - dt).total_seconds() / 86400.0)
+
     def _restore_paper_positions(self):
         """Paper modunda restart sonrasi acik pozisyonlari DB'den geri yukler.
 
         Borsa emri yoktur (paper); SL/TP burada saklanmaz — ilk TTP manage /
         check dongusunde strateji `entry_ts`'ten itibaren yeniden hesaplar.
+        `restore_age_limit` gununden eski kayitlar `_stale_restore_queue`'ya
+        eklenir ve `_close_stale_restores` ile restart akisinda kapatilir
+        (birikmis, yonetimsiz kayiplarin tek gune yuklenen gecis sokunu onler).
         """
         if not self.paper:
             return
@@ -1169,6 +1201,7 @@ class AutoTrader:
         except Exception as e:
             logger.warning(f"Paper pozisyon restore hatasi: {e}")
             return
+        age_limit = float(strat_settings.get_settings().get("restore_age_limit", 7.0))
         restored = 0
         for t in open_trades:
             symbol = t["symbol"]
@@ -1186,11 +1219,32 @@ class AutoTrader:
                 "entry_ts": str(t["entry_ts"]) if t["entry_ts"] else None,
                 "ttp_tp_hit": t["ttp_tp_hit"],
             }
+            if age_limit > 0 and self._entry_age_days(t) > age_limit:
+                self._stale_restore_queue.append(symbol)
             restored += 1
         if restored:
             logger.info(
                 f"Paper restart restore: {restored} pozisyon DB'den geri yuklendi"
             )
+        if self._stale_restore_queue:
+            logger.warning(
+                f"Restore yas politikasi: {len(self._stale_restore_queue)} eski kayit "
+                f"(>{age_limit:g} gun) restart akisinda kapatilacak"
+            )
+
+    async def _close_stale_restores(self):
+        """Restore'da yas politikasina takilan kayitlari kapatir.
+
+        Fiyat `live_prices`'tan alinir; yoksa giris fiyatiyla kapanir (PnL ~0).
+        Kapanis `restore_stale_close` nedeniyle DB'ye islenir (day_pnl dahil).
+        """
+        stale, self._stale_restore_queue = self._stale_restore_queue, []
+        for symbol in stale:
+            pos = self.active_positions.get(symbol)
+            if not pos:
+                continue
+            price = self.live_prices.get(symbol) or float(pos["entry_price"])
+            await self.close_position(symbol, price, "restore_stale_close")
 
     async def reconcile_positions(self):
         """Restart sonrasi acik pozisyonlari borsadan geri yukler ve drift temizler.

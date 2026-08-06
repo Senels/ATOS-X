@@ -181,6 +181,25 @@ def test_backtest_time_stop_closes():
     assert any(t["reason"] == "time_stop" for t in m["trades"])
 
 
+def test_backtest_time_stop_closes_managed_mode():
+    """Strateji-yonetimli (TTP) modda da time-stop canli ile ayni calisir."""
+    df, orders = _frame([
+        [100.0, 101.0, 99.0, 100.0],
+        [100.5, 101.0, 100.0, 100.8],
+        [100.8, 101.5, 100.5, 101.0],
+        [101.0, 101.5, 100.8, 101.0],
+        [101.0, 101.2, 100.5, 100.6],
+    ], signals=[1, 0, 0, 0, 0], sls=[95.0, 95.0, 95.0, 95.0, 95.0],
+       tps=[110.0, 110.0, 110.0, 110.0, 110.0])
+    orders["exit"] = ["", "", "", "", ""]
+    orders["exit_qty_pct"] = [0.0, 0.0, 0.0, 0.0, 0.0]
+    orders["exit_price"] = [None] * 5
+    engine = BacktestEngine(initial_equity=10000, risk_per_trade=0.02,
+                            max_position_age_hours=2)
+    m = engine.run(df, orders, "4h")
+    assert any(t["reason"] == "time_stop" for t in m["trades"])
+
+
 def test_backtest_consecutive_losses_block_entry():
     df, orders = _frame([
         [100.0, 101.0, 99.0, 100.0],

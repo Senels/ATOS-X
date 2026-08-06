@@ -74,6 +74,7 @@ def main():
         "fee_rate": settings["fee_rate"],
         "slippage": 0.0001,
         "max_leverage": settings["max_leverage"],
+        "max_position_age_hours": float(settings.get("max_position_age_hours", 0.0)),
         "vol_sizing_enabled": bool(vol_enabled),
         "vol_mult_hi": float(settings.get("vol_mult_hi", 1.5)),
         "vol_mult_lo": float(settings.get("vol_mult_lo", 0.6)),

@@ -794,6 +794,28 @@ MIN_NOTIONAL=5.0
   win rate değişmiyor, kayıp asimetrisi azalıyor). Settings: `vol_sizing_enabled
   =True` canlıda aktif (restart ile).
 
+- **Zaman-stop ve exit kalibrasyonu (Sprint 14, 06.08)**: backtest motoru
+  zaman-stop'u artık managed modda da uyguluyor (canlı ile tutarlı; önceden
+  sadece non-managed'deydi — canlı 8 saat uygularken backtest uygulamıyordu).
+  Bu, TTP ölçümlerinin devrilmesine yol açtı → kalibrasyon yeniden yapıldı.
+  **Zaman-stop A/B** (06.08, 178 sembol, AI filtreli): yaşsız +15,387 (%49.2)
+  → age8 (canlı/restart öncesi ayar) +1,736 (%51.9) — 8 saat = 2 bar, h24
+  modeliyle (96s horizon) çelişkili ve en kötü ayar; age24 +5,505 (%63.7),
+  age48 +8,074 (%66.4, 112 sembol iyi/64 kötü) → **`max_position_age_hours=48`
+  seçildi** (restart ile canlıya geçer). **Exit A/B** (age48 zemininde): TP RR
+  2.0/2.0 +7,425, 2.5/1.5 +6,997 — TP'yi yakınlaştırmak kazandırmıyor (TP
+  çıkışları zaten nadir: 4h taramada exit dağılımı '') 994 / reversal 3 / sl 3;
+  tp RR 3.1 çok uzak); SL ATR muli 3.25/4.8125 → 2.0/3.0: net +8,074 →
+  **+10,715** (%60.7, 121 iyi/56 kötü) → **`sl_long_atr_mul=2.0`,
+  `sl_short_atr_mul=3.0` uygulandı** (settings + settings.json).
+- **AI eşik A/B (Sprint 14, 06.08)**: 0.50 → net +984 ama sembol bazında
+  50 iyi/76 kötü, win %49.2→%43.7; 0.60 → -1,577. **0.55 korundu**.
+- **Sembol kalitesi (Sprint 14, 06.08)**: 491 sembol taramasında 27 sembol
+  net < -100 USDT (en kötü: NATGASUSDT -254, BLURUSDT -252, FFUSDT -251,
+  STEEMUSDT -228) — ancak örneklem 1-4 trade, istatistiksel kanıt zayıf.
+  `banned_symbols` mekanizması eklendi (settings + tarama aday elemesi,
+  büyük/küçük harf duyarsız); liste **boş başlar**, ölçüm bazlı doldurulur.
+
 ## Doğrulama
 
 ```bash

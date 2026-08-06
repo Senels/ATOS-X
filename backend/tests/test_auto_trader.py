@@ -168,6 +168,79 @@ def test_paper_restore_skips_known_symbols(tmp_path, monkeypatch):
     assert "ETHUSDT" in tr.active_positions
 
 
+def test_paper_restore_stale_queued_for_close(tmp_path, monkeypatch):
+    db = Database(str(tmp_path / "at.db"))
+    monkeypatch.setattr(at_mod, "Database", lambda *a, **k: db)
+    old_ts = (datetime.utcnow() - timedelta(days=10)).strftime("%Y-%m-%d %H:%M:%S+00:00")
+    fresh_ts = (datetime.utcnow() - timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S+00:00")
+    db.save_trade("STALEUSDT", "BUY", 1.0, 100.0, entry_ts=old_ts)
+    db.save_trade("FRESHUSDT", "SELL", 2.0, 50.0, entry_ts=fresh_ts)
+    tr = at_mod.AutoTrader(FakeBinance(), paper=True)
+    tr._restore_paper_positions()
+    assert "STALEUSDT" in tr.active_positions  # yonetime alindi (kapansin diye)
+    assert tr._stale_restore_queue == ["STALEUSDT"]
+    assert "FRESHUSDT" not in tr._stale_restore_queue
+    assert "FRESHUSDT" in tr.active_positions
+
+
+async def test_paper_restore_stale_close_records(tmp_path, monkeypatch):
+    db = Database(str(tmp_path / "at.db"))
+    monkeypatch.setattr(at_mod, "Database", lambda *a, **k: db)
+    old_ts = (datetime.utcnow() - timedelta(days=10)).strftime("%Y-%m-%d %H:%M:%S+00:00")
+    db.save_trade("STALEUSDT", "BUY", 100.0, 10.0, entry_ts=old_ts)
+    tr = at_mod.AutoTrader(FakeBinance(), paper=True)
+    tr._restore_paper_positions()
+    assert tr._stale_restore_queue == ["STALEUSDT"]
+    equity_before = tr.equity
+    await tr._close_stale_restores()
+    assert "STALEUSDT" not in tr.active_positions
+    assert tr._stale_restore_queue == []
+    row = db.get_closed_trades(limit=5)
+    assert any(r["symbol"] == "STALEUSDT" and r["reason"] == "restore_stale_close"
+               for r in row)
+    # fiyat bulunamadi -> giris fiyatiyla kapandi: equity yalnizca cikis ucreti kadar duser
+    assert tr.equity == pytest.approx(equity_before - 100.0 * 10.0 * tr.engine.fee_rate)
+
+
+def test_paper_restore_age_limit_disabled(tmp_path, monkeypatch):
+    db = Database(str(tmp_path / "at.db"))
+    monkeypatch.setattr(at_mod, "Database", lambda *a, **k: db)
+    old_ts = (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S+00:00")
+    db.save_trade("OLDUSDT", "BUY", 1.0, 100.0, entry_ts=old_ts)
+    _orig = strat_settings.get_settings
+    monkeypatch.setattr(strat_settings, "get_settings",
+                        lambda: {**_orig(), "restore_age_limit": 0.0})
+    tr = at_mod.AutoTrader(FakeBinance(), paper=True)
+    tr._restore_paper_positions()
+    assert "OLDUSDT" in tr.active_positions
+    assert tr._stale_restore_queue == []
+
+
+def test_paper_restore_entry_age_days_fallback(tmp_path, monkeypatch):
+    db = Database(str(tmp_path / "at.db"))
+    monkeypatch.setattr(at_mod, "Database", lambda *a, **k: db)
+    db.save_trade("NOTSUSDT", "BUY", 1.0, 100.0, entry_ts=None)  # entry_time CURRENT_TIMESTAMP (bugun)
+    tr = at_mod.AutoTrader(FakeBinance(), paper=True)
+    tr._restore_paper_positions()
+    assert "NOTSUSDT" in tr.active_positions
+    assert tr._stale_restore_queue == []  # giris yasi ~0 gun, sinir asilmadi
+
+
+def test_filter_banned_symbols_excludes_case_insensitive():
+    tr = at_mod.AutoTrader(FakeBinance(), paper=True)
+    out = tr._filter_banned(
+        ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+        {"banned_symbols": ["btcusdt", "SOLUSDT"]},
+    )
+    assert out == ["ETHUSDT"]
+
+
+def test_filter_banned_symbols_empty_list_keeps_all():
+    tr = at_mod.AutoTrader(FakeBinance(), paper=True)
+    out = tr._filter_banned(["BTCUSDT", "ETHUSDT"], {"banned_symbols": []})
+    assert out == ["BTCUSDT", "ETHUSDT"]
+
+
 async def test_open_close_persists(trader):
     tr, fb, db = trader
     await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
