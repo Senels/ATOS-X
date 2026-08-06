@@ -6,9 +6,12 @@ ve baslangicta geri yuklenir (load). `optimized_settings.json` varsa optimize
 edilmis parametreler varsayilan olarak uygulanir.
 """
 import json
+import logging
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict
+
+logger = logging.getLogger("app.strategy.settings")
 
 DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
     # Aktif strateji secimi: v23 (TradeBotV23) | ttp (TTPTSL)
@@ -173,10 +176,11 @@ def load() -> Dict[str, Any]:
     global _state
     if _STRATEGY_FILE.exists():
         try:
-            with _STRATEGY_FILE.open("r", encoding="utf-8") as f:
+            with _STRATEGY_FILE.open("r", encoding="utf-8-sig") as f:
                 persisted = json.load(f)
             _state = _merge(_defaults(), persisted)
-        except Exception:
+        except Exception as e:
+            logger.warning("settings.json yuklenemedi, varsayilanlar kullaniliyor: %s", e)
             _state = _defaults()
     else:
         _state = _defaults()
@@ -199,7 +203,7 @@ def load_optimized() -> Dict[str, Any]:
     if not _OPTIMIZED_FILE.exists():
         return {}
     try:
-        with _OPTIMIZED_FILE.open("r", encoding="utf-8") as f:
+        with _OPTIMIZED_FILE.open("r", encoding="utf-8-sig") as f:
             return json.load(f)
     except Exception:
         return {}

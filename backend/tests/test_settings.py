@@ -37,6 +37,23 @@ def test_persist_load_roundtrip(tmp_path, monkeypatch):
     assert state["confirmations"]["macd"] is True
 
 
+def test_load_tolerates_bom(tmp_path, monkeypatch):
+    """BOM'lu (utf-8-sig) settings.json yuklenmeli; sessizce default'a dusmemeli."""
+    import json
+
+    target = tmp_path / "settings.json"
+    payload = json.dumps({"active_strategy": "ttp", "scan_limit": 77})
+    target.write_bytes(b"\xef\xbb\xbf" + payload.encode("utf-8"))
+    monkeypatch.setattr(s, "_STRATEGY_FILE", target)
+    monkeypatch.setattr(s, "_OPTIMIZED_FILE", tmp_path / "optimized.json")
+
+    _reset()
+    s._state = s.default_settings()
+    state = s.load()
+    assert state["active_strategy"] == "ttp"
+    assert state["scan_limit"] == 77
+
+
 def test_optimized_file_preferred(tmp_path, monkeypatch):
     import json
 
