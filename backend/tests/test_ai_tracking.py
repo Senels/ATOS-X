@@ -337,3 +337,15 @@ def test_command_ai_stats_no_resolved(monkeypatch):
     monkeypatch.setattr(main_mod, "auto_trader", fake)
     reply = main_mod._telegram_command("/ai")
     assert "Henuz cozumlenmis tahmin yok" in reply
+
+
+# -- Dashboard AI Feedback karti --------------------------------------------
+def test_dashboard_has_ai_feedback_card():
+    client = TestClient(main_mod.app)
+    resp = client.get("/dashboard/html")
+    assert resp.status_code == 200
+    assert "AI Feedback" in resp.text
+    assert "loadAIStats" in resp.text
+    assert 'id="aiStatsBody"' in resp.text
+    assert "/api/v1/ai/stats" in resp.text
+    client.close()

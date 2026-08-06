@@ -78,6 +78,13 @@ tr:hover { background:rgba(59,130,246,0.05); }
 <div class="card"><h3>🌡️ Market Regime</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Trend</th><th>Volatility</th><th>ATR%</th><th>ATR%ile</th></tr></thead><tbody id="regimeBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
 <div class="card"><h3>🏆 Coin Scores</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Score</th><th>Momentum%</th><th>Trend</th><th>ATR%</th></tr></thead><tbody id="scoreBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
 <div class="card"><h3>⚖️ Decision Council</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Verdict</th><th>Confidence</th><th>Votes</th><th>Reason</th></tr></thead><tbody id="decisionBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
+<div class="card"><h3>🤖 AI Feedback <span id="aiRetrainBadge" style="font-weight:400;font-size:12px;"></span></h3><div class="stats-row" style="margin-bottom:0;">
+<div class="stat-box"><div class="label">Tahmin</div><div class="value" id="aiTotal">0</div></div>
+<div class="stat-box"><div class="label">Bekleyen</div><div class="value yellow" id="aiPending">0</div></div>
+<div class="stat-box"><div class="label">Isabet</div><div class="value green" id="aiAcc">-</div></div>
+<div class="stat-box"><div class="label">Ort. Guven</div><div class="value" id="aiConf">-</div></div>
+<div class="stat-box"><div class="label">Model</div><div class="value" id="aiModel" style="font-size:15px;">-</div></div>
+</div><div class="table-wrap"><table><thead><tr><th>Yon</th><th>Isabet</th><th>Toplam</th><th>Dogruluk</th><th>Ort. Guven</th></tr></thead><tbody id="aiStatsBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Veri birikiyor...</td></tr></tbody></table></div></div>
 <div class="card"><h3>🗃️ Data Freshness <button class="btn" style="padding:4px 10px;font-size:11px;margin-left:8px;" onclick="backfillStale()">↻ Backfill</button><span id="dataFreshSummary" style="color:#64748b;font-weight:400;font-size:12px;"></span></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Bars</th><th>Last Bar</th><th>Age (h)</th><th>State</th></tr></thead><tbody id="dataFreshBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
 <div class="card"><h3>⚠️ Risk Exposure</h3><div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
 <div><span class="label" style="font-size:11px;color:#94a3b8;text-transform:uppercase;">LONG</span><div class="value" id="longExposure" style="font-size:22px;font-weight:bold;">-</div></div>
@@ -219,6 +226,7 @@ loadSignals();
 loadRegimes();
 loadScores();
 loadDecisions();
+loadAIStats();
 loadDataStatus();
 loadPortfolio();
 initSignalsInterval();
@@ -343,8 +351,7 @@ body.innerHTML += '<tr><td><strong>'+x.symbol+'</strong></td><td style="color:'+
 let lastDecisionsLoad = 0;
 async function loadDecisions() {
 if (Date.now() - lastDecisionsLoad < 60000) return;
-lastDecisionsLoad = Date.now();
-try {
+lastDecisionsLoad = Date.now();try {
 const r = await fetch('/api/v1/market/decisions?limit=10&interval=' + encodeURIComponent(signalsInterval));
 const d = await r.json();
 const body = document.getElementById('decisionBody');
@@ -357,6 +364,42 @@ const confPct = Math.round((x.confidence || 0) * 100);
 body.innerHTML += '<tr><td><strong>'+x.symbol+'</strong></td><td><span class="'+cls+'">'+x.verdict+'</span></td><td>'+confPct+'%</td><td>'+(x.votes||[]).map(function(v){return v.source;}).join(', ')+'</td><td style="opacity:.8;">'+x.reason+'</td></tr>';
 });
 } else { body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Karar yok</td></tr>'; }
+} catch(e) { console.error(e); }
+}
+let lastAIStatsLoad = 0;
+async function loadAIStats() {
+if (Date.now() - lastAIStatsLoad < 60000) return;
+lastAIStatsLoad = Date.now();
+try {
+const r = await fetch('/api/v1/ai/stats');
+const d = await r.json();
+document.getElementById('aiTotal').textContent = d.total != null ? d.total : '-';
+const pendEl = document.getElementById('aiPending');
+pendEl.textContent = d.pending != null ? d.pending : '-';
+pendEl.style.color = d.pending > 0 ? '#f59e0b' : '#22c55e';
+const accEl = document.getElementById('aiAcc');
+accEl.textContent = d.resolved ? Math.round(d.accuracy * 100) + '%' : '-';
+accEl.style.color = !d.resolved ? '#94a3b8' : (d.accuracy >= 0.6 ? '#22c55e' : (d.accuracy >= 0.5 ? '#f59e0b' : '#ef4444'));
+document.getElementById('aiConf').textContent = d.avg_confidence != null ? Math.round(d.avg_confidence * 100) + '%' : '-';
+document.getElementById('aiModel').textContent = d.model_name || '-';
+const rb = document.getElementById('aiRetrainBadge');
+if (d.auto_retrain) {
+rb.innerHTML = '<span class="badge-protected">OTOMATIK EGITIM ACIK</span>';
+} else {
+rb.innerHTML = d.last_trained_at != null ? '<span style="color:#64748b;">Son egitim: ' + new Date(d.last_trained_at * 1000).toLocaleString() + '</span>' : '';
+}
+const body = document.getElementById('aiStatsBody');
+const dirs = Object.keys(d.by_direction || {});
+if (dirs.length) {
+body.innerHTML = '';
+dirs.forEach(function(dir) {
+const b = d.by_direction[dir];
+const accPct = b.total ? Math.round(b.accuracy * 100) + '%' : '-';
+const accCol = b.total ? (b.accuracy >= 0.6 ? '#22c55e' : (b.accuracy >= 0.5 ? '#f59e0b' : '#ef4444')) : '#94a3b8';
+const confPct = b.total && b.avg_confidence != null ? Math.round(b.avg_confidence * 100) + '%' : '-';
+body.innerHTML += '<tr><td><strong>'+dir+'</strong></td><td>'+b.hits+'</td><td>'+b.total+'</td><td style="color:'+accCol+';font-weight:bold;">'+accPct+'</td><td>'+confPct+'</td></tr>';
+});
+} else { body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Cozulmus tahmin yok — 12 bar sonrasi otomatik cozulur</td></tr>'; }
 } catch(e) { console.error(e); }
 }
 async function loadPortfolio() {

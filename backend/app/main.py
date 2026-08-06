@@ -1947,10 +1947,12 @@ async def ai_stats(limit_hours: int = 0):
         from app.ai.retrain import last_trained_at
         s = strat_settings.get_settings()
         stats["auto_retrain"] = bool(s.get("ai_auto_retrain", False))
+        stats["model_name"] = str(s.get("ai_model_path", "ai_direction"))
         stats["last_trained_at"] = last_trained_at(
             str(s.get("ai_model_path", "ai_direction")))
     except Exception:
         stats["auto_retrain"] = False
+        stats["model_name"] = None
         stats["last_trained_at"] = None
     return stats
 
