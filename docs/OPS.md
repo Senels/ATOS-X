@@ -693,14 +693,17 @@ MIN_NOTIONAL=5.0
   [--threshold 0.55]` — strateji sinyallerine AI kapısını geriye dönük uygular
   (motor `BacktestEngine.run(..., ai_blocks=)`; `app/ai/backtest_sim.py`).
   Rapor: engellenen vs geçen sinyallerin isabet oranı + temiz vs AI filtreli
-  trade/win rate/net. Ölçüm (06.08, TTP): 60 sembol/432 sinyal — AI %80'ini
+  trade/win rate/net. Ölçümler (06.08, TTP): 60 sembol/432 sinyal — AI %80'ini
   engelledi; engellenenler %38 vs geçenler %70 isabet; net +1,328 → +10,285 USDT,
-  win rate %32.6 → %54.0. **200 sembol/1305 sinyal** (daha güçlü örneklem): temiz
-  -3,782 USDT (zarar) → AI filtreli +20,143 USDT, win rate %32.8 → %48.6,
-  engellenen %42 vs geçen %65 isabet. Eşik duyarlılığı (200 sembol): 0.50 →
-  463 geçen, +19,793; **0.55 → 280 geçen, +20,143**; 0.60 → 179 geçen, +18,462,
-  %72 isabet → **`ai_min_confidence=0.55` doğru denge** (0.60 daha seçici ama
-  trade fırsatını azaltıyor). → **AI kapısı değer katıyor, `use_ai_model=True` doğru karar**.
+  win rate %32.6 → %54.0. **200 sembol/1305 sinyal**: temiz -3,782 USDT (zarar)
+  → AI filtreli +20,143 USDT, win rate %32.8 → %48.6. **TAM ARŞİV 550 sembol/
+  3614 sinyal (491 başarılı)**: AI %78 engelledi; engellenen %43 vs geçen %65
+  isabet; temiz 3.650 trade → AI 823 trade; win rate %35.0 → %45.1; net +25,531 →
+  **+40,222 USDT** (AI filtresi neti %58 artırıyor, riski ~4,4 kat azaltıyor).
+  Eşik duyarlılığı (200 sembol): 0.50 → 463 geçen, +19,793; **0.55 → 280 geçen,
+  +20,143**; 0.60 → 179 geçen, +18,462, %72 isabet → **`ai_min_confidence=0.55`
+  doğru denge** (0.60 daha seçici ama trade fırsatını azaltıyor). → **AI kapısı
+  değer katıyor, `use_ai_model=True` doğru karar**.
 - **Otomatik yeniden eğitim** (`ai_auto_retrain`): kapalıyken (`False`, varsayılan)
   yalnızca manuel `python scripts/train_ai.py` ile eğitilir + restart ile yüklenir.
   Açıkken scan döngüsü 15 dakikada bir tetikleyicileri değerlendirir: (1) zaman —
