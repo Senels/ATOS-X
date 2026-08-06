@@ -85,10 +85,12 @@
 > kalibrasyonu (motor managed modda da time-stop uygular; 8s → 48s +8,074
 > vs +1,736), exit kalibrasyonu (SL muli 2.0/3.0 → +10,715; TP RR kazançsız),
 > AI eşik 0.55 korundu (0.50/0.60 kötü), 550 sembol kalite taraması
-> (`banned_symbols` mekanizması eklendi, liste boş), `/durum` AI satırı.
-> Plan: `.opencode/plans/sprint14_policy_calibration_plan.md`. Ölçümler
-> docs/OPS.md'de. **Canlıya restart ile geçer** (max_position_age_hours 48,
-> SL muli 2.0/3.0).
+> (`banned_symbols` mekanizması eklendi, liste boş), `/durum` AI satırı,
+> DB hayalet temizliği (`close_trade_by_symbol` tüm OPEN satırları kapatır;
+> canlı DB 46→9). Plan:
+> `.opencode/plans/sprint14_policy_calibration_plan.md`. Ölçümler
+> docs/OPS.md'de. **Canlıya taşındı (06.08 21:55, PID 24316)**:
+> max_position_age_hours=48 + SL muli 2.0/3.0 aktif.
 
 ## Açık Konular (bilinen eksikler)
 
