@@ -79,8 +79,8 @@
   pazar sessizken günlerce sinyal üretilmeyebilir → feedback yavaş birikir.
 - **scan_limit=100**: 550+ sembolün %18'i taranır; CPU bütçesine göre
   artırılabilir (TTP kurulumları listede olmayan sembollerde kaçabilir).
-- **v23 AI eşiği**: v23 simülasyonunda AI %89 engelledi (16 trade kaldı);
-  v23 canlıya dönerse `ai_min_confidence≈0.50` denenmelidir.
+- **v23 AI eşiği doğrulandı (06.08)**: 0.50/0.45 → 26 geçen/+220 USDT, 0.55 →
+  16 geçen/**+299 USDT** → `ai_min_confidence=0.55` v23 için de doğru eşik.
 
 ## Veri
 

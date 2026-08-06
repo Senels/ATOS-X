@@ -709,6 +709,10 @@ MIN_NOTIONAL=5.0
   %43.4 → %56.2 → v23'te de filtrenin yönü aynı (zarardan kâra) ama TTP'den
   zayıf: v23 sinyalleri zaten council kaynaklı, örneklem küçük (16 geçen).
   `--strategy v23|ttp` ile strateji seçilir (yoksa settings'teki aktif strateji).
+  **v23 eşik duyarlılığı (06.08)**: 0.50 ve 0.45 aynı sonucu verdi (26 geçen,
+  +220 USDT, win %53.8 — güven dağılımında 0.45-0.50 bandında sinyal yok);
+  **0.55 → 16 geçen, +299 USDT, win %56.2** → v23 için de `0.55` doğru eşik
+  (daha seçici = daha yüksek net; eşik düşürmek neti azaltıyor).
 - **Otomatik yeniden eğitim** (`ai_auto_retrain`): kapalıyken (`False`, varsayılan)
   yalnızca manuel `python scripts/train_ai.py` ile eğitilir + restart ile yüklenir.
   Açıkken scan döngüsü 15 dakikada bir tetikleyicileri değerlendirir: (1) zaman —
