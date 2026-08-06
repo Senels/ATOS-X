@@ -98,7 +98,14 @@ class BacktestEngine:
                     if move_pct < self.trailing_min_move_pct:
                         new_sl = pos["sl"]
                 pos["sl"] = new_sl
-    def run(self, df: pd.DataFrame, orders: pd.DataFrame, interval: str = "4h") -> Dict[str, Any]:
+    def run(self, df: pd.DataFrame, orders: pd.DataFrame, interval: str = "4h",
+            ai_blocks: Optional[np.ndarray] = None) -> Dict[str, Any]:
+        """Bar tabanli backtest.
+
+        `ai_blocks`: opsiyonel bool dizisi — True ise o bardaki sinyal
+        yok sayilir (AI kapisi simulasyonu). Sinyal dizisiyle ayni hizada
+        olmalidir; giris `ai_blocks[i - 1]` ile engellenir.
+        """
         if len(df) < 2:
             return {"error": "Yetersiz veri"}
         o = df["open"].to_numpy(float)
@@ -144,7 +151,8 @@ class BacktestEngine:
                     pos = None
 
                 if pos is None and np.isfinite(slp) and self._can_enter() \
-                        and self._strength_ok(strength_arr[i - 1]):
+                        and self._strength_ok(strength_arr[i - 1]) \
+                        and (ai_blocks is None or not ai_blocks[i - 1]):
                     px = o[i] * (1 + self.slippage * side)
                     if side == 1:
                         if px <= slp:

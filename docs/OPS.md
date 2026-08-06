@@ -689,6 +689,13 @@ MIN_NOTIONAL=5.0
   accuracy hesaplar. Beklenti (06.08): genel ~0.61, BUY ~0.60, SELL ~0.62, son 1 ay
   ~0.59. Canlı `/api/v1/ai/stats` döngüsü bu değerlere yakınsamalı; acc < ~0.55 ise
   yeniden eğitim düşünülür. CI'da çalışmaz (TF yok).
+- **Backtest AI simülasyonu**: `python scripts/ai_backtest.py [--symbols 60]
+  [--threshold 0.55]` — strateji sinyallerine AI kapısını geriye dönük uygular
+  (motor `BacktestEngine.run(..., ai_blocks=)`; `app/ai/backtest_sim.py`).
+  Rapor: engellenen vs geçen sinyallerin isabet oranı + temiz vs AI filtreli
+  trade/win rate/net. Ölçüm (06.08, TTP, 60 sembol, 432 sinyal): AI %80'ini
+  engelledi; engellenenler %38 vs geçenler %70 isabet; net +1,328 → +10,285 USDT,
+  win rate %32.6 → %54.0 → **AI kapısı değer katıyor, `use_ai_model=True` doğru karar**.
 - **Otomatik yeniden eğitim** (`ai_auto_retrain`): kapalıyken (`False`, varsayılan)
   yalnızca manuel `python scripts/train_ai.py` ile eğitilir + restart ile yüklenir.
   Açıkken scan döngüsü 15 dakikada bir tetikleyicileri değerlendirir: (1) zaman —
