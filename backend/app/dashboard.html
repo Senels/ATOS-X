@@ -4,10 +4,11 @@
 <title>ATOS X Dashboard</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
-body { background:#0f172a; color:#f1f5f9; font-family:'Segoe UI',Arial,sans-serif; padding:16px; }
+body { background:#0f172a; color:#f1f5f9; font-family:'Segoe UI',Arial,sans-serif; padding:0 16px 40px; }
 .container { max-width:1400px; margin:0 auto; }
-.header { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid #1e293b; }
-.header h1 { font-size:28px; background:linear-gradient(135deg,#f59e0b,#3b82f6); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+/* ===== Sticky header ===== */
+.header { position:sticky; top:0; z-index:50; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; padding:14px 0; background:rgba(15,23,42,0.92); backdrop-filter:blur(8px); border-bottom:1px solid #1e293b; }
+.header h1 { font-size:26px; background:linear-gradient(135deg,#f59e0b,#3b82f6); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
 .header-right { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .btn { background:#3b82f6; border:none; color:white; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:13px; transition:0.2s; }
 .btn:hover { background:#2563eb; transform:scale(1.02); }
@@ -17,6 +18,18 @@ body { background:#0f172a; color:#f1f5f9; font-family:'Segoe UI',Arial,sans-seri
 .btn-green:hover { background:#16a34a; }
 .settings-link { color:#f59e0b; text-decoration:none; font-size:13px; padding:6px 12px; border:1px solid #f59e0b; border-radius:6px; transition:0.2s; }
 .settings-link:hover { background:#f59e0b; color:#0f172a; }
+/* ===== Kategori tab bar ===== */
+.tabbar { position:sticky; top:64px; z-index:40; display:flex; gap:6px; flex-wrap:wrap; padding:10px 0 4px; background:rgba(15,23,42,0.92); backdrop-filter:blur(8px); margin-bottom:16px; }
+.tab { background:#1e293b; color:#94a3b8; border:1px solid #334155; padding:8px 18px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600; transition:0.2s; display:flex; align-items:center; gap:6px; }
+.tab:hover { color:#f1f5f9; border-color:#3b82f6; }
+.tab.active { background:linear-gradient(135deg,#3b82f6,#2563eb); color:white; border-color:#3b82f6; }
+.tab-badge { background:#0f172a; color:#94a3b8; font-size:11px; padding:1px 7px; border-radius:10px; font-weight:700; }
+.tab.active .tab-badge { background:rgba(255,255,255,0.2); color:white; }
+.tab-badge.warn { background:#ef4444; color:white; }
+.tabpanel { display:none; animation:fadeIn 0.25s ease; }
+.tabpanel.active { display:block; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+/* ===== Kartlar ===== */
 .stats-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-bottom:16px; }
 .stat-box { background:#0f172a; padding:12px 16px; border-radius:8px; border:1px solid #1e293b; text-align:center; }
 .stat-box .label { font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; }
@@ -25,7 +38,9 @@ body { background:#0f172a; color:#f1f5f9; font-family:'Segoe UI',Arial,sans-seri
 .stat-box .value.red { color:#ef4444; }
 .stat-box .value.yellow { color:#f59e0b; }
 .card { background:#1e293b; padding:16px; border-radius:12px; border:1px solid #334155; margin-bottom:16px; }
-.card h3 { margin-bottom:12px; font-size:16px; color:#94a3b8; }
+.card h3 { margin-bottom:12px; font-size:16px; color:#94a3b8; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.card h3 .hint { color:#64748b; font-size:11px; font-weight:400; }
+.section-title { font-size:15px; color:#f59e0b; margin:4px 0 12px; text-transform:uppercase; letter-spacing:1px; display:flex; align-items:center; gap:8px; }
 .table-wrap { overflow-x:auto; }
 table { width:100%; font-size:13px; border-collapse:collapse; }
 th,td { padding:8px 10px; text-align:left; border-bottom:1px solid #1e293b; }
@@ -43,6 +58,7 @@ tr:hover { background:rgba(59,130,246,0.05); }
 .badge-unprotected { background:#dc2626; color:white; padding:2px 10px; border-radius:12px; font-size:12px; }
 .chip { background:#334155; color:#e2e8f0; padding:4px 10px; border-radius:12px; font-size:12px; }
 .refresh-info { font-size:12px; color:#64748b; margin-top:8px; text-align:right; }
+.halt-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
 </style>
 </head>
 <body>
@@ -57,6 +73,18 @@ tr:hover { background:rgba(59,130,246,0.05); }
 <button class="btn btn-red" onclick="emergencyStop()">🛑 Stop</button>
 </div>
 </div>
+
+<div class="tabbar" role="tablist">
+<button class="tab active" data-tab="overview" onclick="showTab('overview')">📊 Genel Bakış</button>
+<button class="tab" data-tab="positions" onclick="showTab('positions')">💼 Pozisyonlar <span class="tab-badge" id="tabPosBadge">0</span></button>
+<button class="tab" data-tab="signals" onclick="showTab('signals')">📡 Sinyaller &amp; AI</button>
+<button class="tab" data-tab="market" onclick="showTab('market')">🌍 Piyasa İstihbaratı</button>
+<button class="tab" data-tab="fabrika" onclick="showTab('fabrika')">🧪 Fabrika</button>
+<button class="tab" data-tab="risk" onclick="showTab('risk')">🛡️ Risk &amp; Veri <span class="tab-badge" id="tabHaltBadge" style="display:none">HALT</span></button>
+</div>
+
+<!-- ================= GENEL BAKIŞ ================= -->
+<section id="tab-overview" class="tabpanel active">
 <div class="stats-row">
 <div class="stat-box"><div class="label">Coins</div><div class="value" id="totalCoins">-</div></div>
 <div class="stat-box"><div class="label">Positions</div><div class="value" id="positions">0</div></div>
@@ -65,7 +93,7 @@ tr:hover { background:rgba(59,130,246,0.05); }
 <div class="stat-box"><div class="label">Equity</div><div class="value green" id="equity">$10k</div></div>
 <div class="stat-box"><div class="label">Status</div><div class="value green" id="statusText">Active</div></div>
 </div>
-<div class="card"><h3>💼 Portfolio <span id="portSync" style="color:#64748b;font-weight:400;font-size:12px;"></span></h3><div class="stats-row" style="margin-bottom:0;">
+<div class="card"><h3>💼 Portfolio <span class="hint" id="portSync"></span></h3><div class="stats-row" style="margin-bottom:0;">
 <div class="stat-box"><div class="label">Equity</div><div class="value green" id="portEquity">-</div></div>
 <div class="stat-box"><div class="label">Available</div><div class="value" id="portAvailable">-</div></div>
 <div class="stat-box"><div class="label">uPnL</div><div class="value" id="portUpnl">-</div></div>
@@ -73,41 +101,208 @@ tr:hover { background:rgba(59,130,246,0.05); }
 <div class="stat-box"><div class="label">Day PnL</div><div class="value" id="portDayPnl">-</div></div>
 <div class="stat-box"><div class="label">Exposure</div><div class="value" id="portNotional">-</div></div>
 </div></div>
-<div class="card"><h3>🎯 Priority Watchlist</h3><div id="watchlistBody" style="display:flex;flex-wrap:wrap;gap:6px;">-</div></div>
-<div class="card"><h3>📡 Live Signals <select id="signalsInterval" onchange="signalsIntervalChange()" style="margin-left:8px;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:3px 6px;font-size:12px;"><option value="15m">15m</option><option value="30m">30m</option><option value="1h">1h</option><option value="2h">2h</option><option value="4h">4h</option><option value="6h">6h</option><option value="8h">8h</option><option value="12h">12h</option><option value="1d">1d</option></select><select id="signalsFilter" onchange="signalsFilterChange()" style="margin-left:8px;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:3px 6px;font-size:12px;"><option value="ALL">Tumu</option><option value="BUY">BUY</option><option value="SELL">SELL</option><option value="HOLD">HOLD</option></select></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Signal</th><th>AI</th><th>Price</th><th>SL</th><th>TP</th><th>Guc</th><th>Reason</th></tr></thead><tbody id="signalsBody"><tr><td colspan="8" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
-<div class="card"><h3>🌡️ Market Regime</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Trend</th><th>Volatility</th><th>ATR%</th><th>ATR%ile</th></tr></thead><tbody id="regimeBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
-<div class="card"><h3>🏆 Coin Scores</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Score</th><th>Momentum%</th><th>Trend</th><th>ATR%</th></tr></thead><tbody id="scoreBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
-<div class="card"><h3>⚖️ Decision Council</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Verdict</th><th>Confidence</th><th>Votes</th><th>Reason</th></tr></thead><tbody id="decisionBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
-<div class="card"><h3>🤖 AI Feedback <span id="aiRetrainBadge" style="font-weight:400;font-size:12px;"></span></h3><div class="stats-row" style="margin-bottom:0;">
-<div class="stat-box"><div class="label">Tahmin</div><div class="value" id="aiTotal">0</div></div>
-<div class="stat-box"><div class="label">Bekleyen</div><div class="value yellow" id="aiPending">0</div></div>
-<div class="stat-box"><div class="label">Isabet</div><div class="value green" id="aiAcc">-</div></div>
-<div class="stat-box"><div class="label">Ort. Guven</div><div class="value" id="aiConf">-</div></div>
-<div class="stat-box"><div class="label">Model</div><div class="value" id="aiModel" style="font-size:15px;">-</div></div>
-</div><div class="table-wrap"><table><thead><tr><th>Yon</th><th>Isabet</th><th>Toplam</th><th>Dogruluk</th><th>Ort. Guven</th></tr></thead><tbody id="aiStatsBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Veri birikiyor...</td></tr></tbody></table></div></div>
-<div class="card"><h3>🗃️ Data Freshness <button class="btn" style="padding:4px 10px;font-size:11px;margin-left:8px;" onclick="backfillStale()">↻ Backfill</button><span id="dataFreshSummary" style="color:#64748b;font-weight:400;font-size:12px;"></span></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Bars</th><th>Last Bar</th><th>Age (h)</th><th>State</th></tr></thead><tbody id="dataFreshBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
+<div class="card"><h3>📈 Equity Curve</h3><canvas id="equityChart" width="1200" height="280" style="width:100%;height:280px;"></canvas></div>
+<div class="card"><h3>📊 Performans</h3><div class="table-wrap"><table><thead><tr><th>Dönem</th><th>Trade</th><th>W/L</th><th>Win %</th><th>PnL</th><th>PF</th></tr></thead><tbody id="perfBody"><tr><td colspan="6" style="text-align:center;color:#64748b;padding:20px;">Yükleniyor...</td></tr></tbody></table></div></div>
 <div class="card"><h3>⚠️ Risk Exposure</h3><div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
 <div><span class="label" style="font-size:11px;color:#94a3b8;text-transform:uppercase;">LONG</span><div class="value" id="longExposure" style="font-size:22px;font-weight:bold;">-</div></div>
 <div><span class="label" style="font-size:11px;color:#94a3b8;text-transform:uppercase;">SHORT</span><div class="value" id="shortExposure" style="font-size:22px;font-weight:bold;">-</div></div>
 <div><span class="label" style="font-size:11px;color:#94a3b8;text-transform:uppercase;">Drawdown</span><div class="value" id="drawdownVal" style="font-size:22px;font-weight:bold;">-</div></div>
 <div><span class="label" style="font-size:11px;color:#94a3b8;text-transform:uppercase;">Entry Blocks</span><div id="blockChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">-</div></div>
+<div class="halt-row">
 <div id="haltBadge" style="display:none;"><span class="badge-unprotected">RISK HALT</span></div>
 <div id="lossHaltBadge" style="display:none;"><span class="badge-unprotected">LOSS HALT</span></div>
 <div id="dailyHaltBadge" style="display:none;"><span class="badge-unprotected">DAILY HALT</span></div>
 <div id="equityFloorBadge" style="display:none;"><span class="badge-unprotected">EQUITY FLOOR</span></div>
 <div id="tradingOffBadge" style="display:none;"><span class="badge-unprotected">TRADING OFF</span></div>
 <div id="entriesHaltBadge" style="display:none;"><span class="badge-unprotected">GIRIS KAPALI</span></div>
+</div>
 </div></div>
-<div class="card"><h3>🛡️ Risk Events</h3><div id="riskEvents"><div style="color:#64748b;padding:10px;">-</div></div></div>
-<div class="card"><h3>📈 Equity Curve</h3><canvas id="equityChart" width="1200" height="280" style="width:100%;height:280px;"></canvas></div>
-<div class="card"><h3>🚀 Performans</h3><div class="table-wrap"><table><thead><tr><th>Donem</th><th>Islem</th><th>W/L</th><th>Win Rate</th><th>PnL</th><th>PF</th></tr></thead><tbody id="perfBody"><tr><td colspan="6" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
+</section>
+
+<!-- ================= POZİSYONLAR ================= -->
+<section id="tab-positions" class="tabpanel">
+<div class="section-title">💼 Pozisyonlar ve İşlemler</div>
+<div class="card"><h3>📊 Active Positions <span class="hint" id="posSummary"></span></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Qty</th><th>SL</th><th>TP</th><th>PnL</th><th>Protection</th><th>Time</th><th>Actions</th></tr></thead><tbody id="positionsBody"><tr><td colspan="10" style="text-align:center;color:#64748b;padding:20px;">No active positions</td></tr></tbody></table></div></div>
+<div class="card"><h3>🧮 Position Risk <span class="hint" id="riskPosSummary"></span></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Notional</th><th>Size %</th><th>SL Dist %</th><th>Risk $</th><th>uPnL</th><th>Protection</th><th>Age (h)</th></tr></thead><tbody id="riskPosBody"><tr><td colspan="8" style="text-align:center;color:#64748b;padding:20px;">No active positions</td></tr></tbody></table></div></div>
 <div class="card"><h3>💰 PnL by Symbol</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Trades</th><th>W/L</th><th>Net PnL</th></tr></thead><tbody id="pnlBody"><tr><td colspan="4" style="text-align:center;color:#64748b;padding:20px;">No closed trades yet</td></tr></tbody></table></div></div>
-<div class="card"><h3>📊 Active Positions <span id="posSummary" style="color:#64748b;font-weight:400;font-size:12px;"></span></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Qty</th><th>SL</th><th>TP</th><th>PnL</th><th>Protection</th><th>Time</th><th>Actions</th></tr></thead><tbody id="positionsBody"><tr><td colspan="10" style="text-align:center;color:#64748b;padding:20px;">No active positions</td></tr></tbody></table></div></div>
-<div class="card"><h3>🧮 Position Risk <span id="riskPosSummary" style="color:#64748b;font-weight:400;font-size:12px;"></span></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Notional</th><th>Size %</th><th>SL Dist %</th><th>Risk $</th><th>uPnL</th><th>Protection</th><th>Age (h)</th></tr></thead><tbody id="riskPosBody"><tr><td colspan="8" style="text-align:center;color:#64748b;padding:20px;">No active positions</td></tr></tbody></table></div></div>
 <div class="card"><h3>📋 Trade History</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Exit</th><th>PnL</th><th>Reason</th><th>Time</th></tr></thead><tbody id="tradesBody"><tr><td colspan="7" style="text-align:center;color:#64748b;padding:20px;">No trades yet</td></tr></tbody></table></div></div>
+</section>
+
+<!-- ================= SİNYALLER & AI ================= -->
+<section id="tab-signals" class="tabpanel">
+<div class="section-title">📡 Sinyaller, Kararlar ve AI Performansı</div>
+<div class="card"><h3>🤖 AI Feedback <span class="hint" id="aiRetrainBadge"></span></h3><div class="stats-row" style="margin-bottom:0;">
+<div class="stat-box"><div class="label">Tahmin</div><div class="value" id="aiTotal">0</div></div>
+<div class="stat-box"><div class="label">Bekleyen</div><div class="value yellow" id="aiPending">0</div></div>
+<div class="stat-box"><div class="label">Isabet</div><div class="value green" id="aiAcc">-</div></div>
+<div class="stat-box"><div class="label">Ort. Guven</div><div class="value" id="aiConf">-</div></div>
+<div class="stat-box"><div class="label">Model</div><div class="value" id="aiModel" style="font-size:15px;">-</div></div>
+</div><div class="table-wrap"><table><thead><tr><th>Yon</th><th>Isabet</th><th>Toplam</th><th>Dogruluk</th><th>Ort. Guven</th></tr></thead><tbody id="aiStatsBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Veri birikiyor...</td></tr></tbody></table></div></div>
+<div class="card"><h3>📡 Live Signals <select id="signalsInterval" onchange="signalsIntervalChange()" style="margin-left:8px;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:3px 6px;font-size:12px;"><option value="15m">15m</option><option value="30m">30m</option><option value="1h">1h</option><option value="2h">2h</option><option value="4h">4h</option><option value="6h">6h</option><option value="8h">8h</option><option value="12h">12h</option><option value="1d">1d</option></select><select id="signalsFilter" onchange="signalsFilterChange()" style="margin-left:8px;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:3px 6px;font-size:12px;"><option value="ALL">Tumu</option><option value="BUY">BUY</option><option value="SELL">SELL</option><option value="HOLD">HOLD</option></select></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Signal</th><th>AI</th><th>Price</th><th>SL</th><th>TP</th><th>Guc</th><th>Reason</th></tr></thead><tbody id="signalsBody"><tr><td colspan="8" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
+<div class="card"><h3>⚖️ Decision Council</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Verdict</th><th>Confidence</th><th>Votes</th><th>Reason</th></tr></thead><tbody id="decisionBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
+</section>
+
+<!-- ================= PİYASA İSTİHBARATI ================= -->
+<section id="tab-market" class="tabpanel">
+<div class="section-title">🌍 Piyasa İstihbaratı</div>
+<div class="card"><h3>🎯 Priority Watchlist</h3><div id="watchlistBody" style="display:flex;flex-wrap:wrap;gap:6px;">-</div></div>
+<div class="card"><h3>🌡️ Market Regime</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Trend</th><th>Volatility</th><th>ATR%</th><th>ATR%ile</th></tr></thead><tbody id="regimeBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
+<div class="card"><h3>🏆 Coin Scores</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Score</th><th>Momentum%</th><th>Trend</th><th>ATR%</th></tr></thead><tbody id="scoreBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
+</section>
+
+<!-- ================= RİSK & VERİ ================= -->
+<section id="tab-risk" class="tabpanel">
+<div class="section-title">🛡️ Risk Olayları ve Veri Sağlığı</div>
+<div class="card"><h3>🛡️ Risk Events</h3><div id="riskEvents"><div style="color:#64748b;padding:10px;">-</div></div></div>
+<div class="card"><h3>🗃️ Data Freshness <button class="btn" style="padding:4px 10px;font-size:11px;margin-left:8px;" onclick="backfillStale()">↻ Backfill</button><span class="hint" id="dataFreshSummary"></span></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Bars</th><th>Last Bar</th><th>Age (h)</th><th>State</th></tr></thead><tbody id="dataFreshBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
+</section>
+
+<!-- ================= STRATEJİ FABRİKASI ================= -->
+<section id="tab-fabrika" class="tabpanel">
+<div class="section-title">🧪 Strateji Fabrikası — v23 Konfigürasyon + Geçmiş Testi</div>
+
+<div class="card"><h3>🔧 Fabrika Paneli <span class="hint" id="factoryState">yukleniyor...</span></h3>
+<div class="stats-row" style="margin-bottom:8px;">
+<div class="stat-box" style="flex:1;"><div class="label">Aktif Strateji</div>
+<select id="fActive" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;">
+<option value="v23">v23 (TradeBotV23)</option><option value="ttp">TTPTSL (TtpTsl)</option>
+</select></div>
+</div>
+<div class="label" style="font-size:11px;color:#38bdf8;text-transform:uppercase;margin:8px 0 6px;">🎯 Temel Sinyal</div>
+<div class="stats-row" style="margin-bottom:0;">
+<div class="stat-box" style="flex:1;"><div class="label">Leading İndikatör</div>
+<select id="fLeading" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;">
+<option>Range Filter</option><option>RQK</option><option>Supertrend</option><option>MACD</option><option>RSI</option><option>Stochastic</option><option>2 EMA Cross</option><option>3 EMA Cross</option><option>Ichimoku</option><option>SSL Channel</option><option>VWAP</option>
+</select></div>
+<div class="stat-box" style="flex:1;"><div class="label">Sinyal Expiry (bar)</div><input type="number" id="fExpiry" value="3" min="1" step="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">RR Oranı</div><input type="number" id="fRR" value="1.5" step="0.1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">SL Lookback</div><input type="number" id="fSlLookback" value="5" min="1" step="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">SL Timeframe (TF)</div><input type="text" id="fSlTf" value="" placeholder="bos = ayni tf" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">ATR Çarpanı</div><input type="number" id="fAtrMult" value="1.5" step="0.1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Range Filtre Len</div><input type="number" id="fRfLen" value="3" min="1" step="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Range Filtre Mult</div><input type="number" id="fRfMult" value="2.5" step="0.1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+</div>
+<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
+<label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="fAlternate" checked> Alternatif sinyal (aynı yöne tekrar yok)</label>
+<label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="fAtrFallback" checked> ATR fallback</label>
+</div>
+<div class="label" style="font-size:11px;color:#38bdf8;text-transform:uppercase;margin:8px 0 6px;">✅ Konfirmasyonlar (hepsi AND — strength = aktif/toplam)</div>
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;" id="fConfRow">
+<label style="font-size:12px;color:#e2e8f0;display:flex;align-items:center;gap:5px;"><input type="checkbox" class="f-conf" data-k="ema" checked> EMA200</label>
+<label style="font-size:12px;color:#e2e8f0;display:flex;align-items:center;gap:5px;"><input type="checkbox" class="f-conf" data-k="2ma" checked> 2 MA Cross</label>
+<label style="font-size:12px;color:#e2e8f0;display:flex;align-items:center;gap:5px;"><input type="checkbox" class="f-conf" data-k="3ma" checked> 3 MA Stack</label>
+<label style="font-size:12px;color:#e2e8f0;display:flex;align-items:center;gap:5px;"><input type="checkbox" class="f-conf" data-k="rf" checked> Range Filtre</label>
+<label style="font-size:12px;color:#e2e8f0;display:flex;align-items:center;gap:5px;"><input type="checkbox" class="f-conf" data-k="rqk" checked> RQK</label>
+<label style="font-size:12px;color:#e2e8f0;display:flex;align-items:center;gap:5px;"><input type="checkbox" class="f-conf" data-k="st" checked> Supertrend</label>
+<label style="font-size:12px;color:#e2e8f0;display:flex;align-items:center;gap:5px;"><input type="checkbox" class="f-conf" data-k="ht" checked> HalfTrend</label>
+<label style="font-size:12px;color:#e2e8f0;display:flex;align-items:center;gap:5px;"><input type="checkbox" class="f-conf" data-k="rsi" checked> RSI</label>
+<label style="font-size:12px;color:#e2e8f0;display:flex;align-items:center;gap:5px;"><input type="checkbox" class="f-conf" data-k="macd" checked> MACD</label>
+<label style="font-size:12px;color:#e2e8f0;display:flex;align-items:center;gap:5px;"><input type="checkbox" class="f-conf" data-k="stoch" checked> Stochastic</label>
+<label style="font-size:12px;color:#e2e8f0;display:flex;align-items:center;gap:5px;"><input type="checkbox" class="f-conf" data-k="ichi" checked> Ichimoku</label>
+<label style="font-size:12px;color:#e2e8f0;display:flex;align-items:center;gap:5px;"><input type="checkbox" class="f-conf" data-k="ce" checked> Chandelier</label>
+</div>
+<div class="label" style="font-size:11px;color:#38bdf8;text-transform:uppercase;margin:8px 0 6px;">⚠️ Risk Yönetimi</div>
+<div class="stats-row" style="margin-bottom:0;">
+<div class="stat-box" style="flex:1;"><div class="label">Risk / Trade (%)</div><input type="number" id="fRiskPct" value="2" step="0.1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Fee Rate</div><input type="number" id="fFee" value="0.0005" step="0.0001" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Max Leverage</div><input type="number" id="fLev" value="10" step="0.5" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Max Açık Pozisyon</div><input type="number" id="fMaxOpen" value="3" min="1" step="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Max Pozisyon %</div><input type="number" id="fMaxPosPct" value="75" step="5" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Max Yön %</div><input type="number" id="fMaxSidePct" value="150" step="5" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Max Drawdown %</div><input type="number" id="fMaxDD" value="20" step="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Ardışık Zarar Limiti</div><input type="number" id="fConsec" value="5" min="0" step="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Günlük Zarar %</div><input type="number" id="fDailyLoss" value="5" step="0.5" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Min Equity ($)</div><input type="number" id="fMinEquity" value="5000" step="100" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Trailing Başlangıç %</div><input type="number" id="fTrailAct" value="3" step="0.1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Trailing SL %</div><input type="number" id="fTrailSl" value="1.5" step="0.1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Trailing Min Hareket %</div><input type="number" id="fTrailMin" value="0.1" step="0.05" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Breakeven %</div><input type="number" id="fBeAct" value="2" step="0.1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Pozisyon Yaşı (saat)</div><input type="number" id="fMaxAge" value="48" step="1" min="0" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Restore Yaş Limiti (gün)</div><input type="number" id="fRestoreAge" value="7" step="1" min="0" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:2;"><div class="label">Yasaklı Semboller (virgülle)</div><input type="text" id="fBanned" value="" placeholder="NATGASUSDT,BLURUSDT" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+</div>
+<div class="label" style="font-size:11px;color:#38bdf8;text-transform:uppercase;margin:8px 0 6px;">🚪 Giriş Kapıları</div>
+<div class="stats-row" style="margin-bottom:0;">
+<div class="stat-box" style="flex:1;"><div class="label">Min Sinyal Gücü</div><input type="number" id="fMinSig" value="0.6" step="0.05" min="0" max="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">AI Kapısı Min Güven</div><input type="number" id="fAiMinConf" value="0.55" step="0.05" min="0" max="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Council Min Güven</div><input type="number" id="fCouncilConf" value="0.6" step="0.05" min="0" max="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
+<label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="fUseAI" checked> AI kapısı aktif</label>
+<label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="fUseCouncil" checked> Decision Council aktif</label>
+</div>
+</div>
+<div class="label" style="font-size:11px;color:#38bdf8;text-transform:uppercase;margin:8px 0 6px;">📊 Volatilite Boyutlandırma</div>
+<div class="stats-row" style="margin-bottom:0;">
+<div class="stat-box" style="flex:1;"><div class="label">Vol Eşik (ATR çoklu)</div><input type="number" id="fVolHi" value="1.5" step="0.1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Düşük Rejim Eşiği</div><input type="number" id="fVolLo" value="0.6" step="0.1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Risk Çarpanı</div><input type="number" id="fVolFactor" value="0.5" step="0.05" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="fVolSize" checked> Vol boyutlandırma aktif</label>
+</div>
+<div class="label" style="font-size:11px;color:#38bdf8;text-transform:uppercase;margin:8px 0 6px;">⚙️ Motor & Veri</div>
+<div class="stats-row" style="margin-bottom:0;">
+<div class="stat-box" style="flex:1;"><div class="label">Scan Limit</div><input type="number" id="fScanLimit" value="50" min="1" step="10" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Backfill Aralığı (saat)</div><input type="number" id="fBackfillH" value="24" step="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Veri Tazelik (saat)</div><input type="number" id="fFreshH" value="12" step="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="fUseRanking" checked> Score ranking aktif</label>
+</div>
+<div class="label" style="font-size:11px;color:#38bdf8;text-transform:uppercase;margin:8px 0 6px;">🤖 AI Eğitim</div>
+<div class="stats-row" style="margin-bottom:0;">
+<div class="stat-box" style="flex:1;"><div class="label">Horizon (bar)</div><input type="number" id="fAiHorizon" value="24" min="1" step="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">ATR Çarpanı (etiket)</div><input type="number" id="fAiAtrMult" value="1" step="0.1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Retrain Aralığı (saat)</div><input type="number" id="fRetrainInt" value="24" step="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Retrain Min Acc</div><input type="number" id="fRetrainAcc" value="0.55" step="0.05" min="0" max="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Retrain Min Örnek</div><input type="number" id="fRetrainSamples" value="30" min="1" step="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Retrain Sembol</div><input type="number" id="fRetrainSymbols" value="400" min="10" step="10" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Retrain Epoch</div><input type="number" id="fRetrainEpochs" value="30" min="1" step="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="fAutoRetrain"> Otomatik retrain aktif</label>
+</div>
+<div class="label" style="font-size:11px;color:#38bdf8;text-transform:uppercase;margin:8px 0 6px;">🧩 TTPTSL Parametreleri (aktif strateji=ttp ise)</div>
+<textarea id="fTtpJson" rows="5" spellcheck="false" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:6px;font-size:12px;font-family:Consolas,monospace;"></textarea>
+<div style="display:flex;gap:8px;margin-top:10px;">
+<button class="btn" onclick="factoryDefaults()">↺ Varsayılanları Getir</button>
+<button class="btn" style="background:#2563eb;" onclick="factoryApply()">💾 Canlıya Uygula</button>
+</div>
+</div>
+
+<div class="card"><h3>📜 Geçmiş Testi (Backtest)</h3>
+<div class="stats-row" style="margin-bottom:10px;">
+<div class="stat-box" style="flex:1.4;"><div class="label">Semboller (virgülle)</div><input type="text" id="fSymbols" value="BTCUSDT" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Interval</div>
+<select id="fInterval" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;">
+<option>15m</option><option>30m</option><option>1h</option><option>2h</option><option selected>4h</option><option>6h</option><option>8h</option><option>12h</option><option>1d</option>
+</select></div>
+<div class="stat-box" style="flex:1;"><div class="label">Bar Sayısı</div><input type="number" id="fLimit" value="400" min="100" step="100" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Kaynak</div>
+<select id="fSource" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;">
+<option value="csv" selected>CSV Arşiv</option><option value="binance">Binance Canlı</option>
+</select></div>
+</div>
+<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+<label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="fAiFilter"> 🤖 AI Denetimi (sinyalleri filtrele)</label>
+<label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;">Eşik <input type="number" id="fAiThreshold" value="0.55" step="0.05" min="0" max="1" style="width:70px;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:3px 6px;font-size:12px;"></label>
+<label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="fAbMode"> ⚖️ A/B Karşılaştır (filtresiz vs AI)</label>
+</div>
+<button class="btn" style="background:#16a34a;" onclick="factoryRun()">▶ Koş</button> <span class="hint" id="factoryRunMsg"></span>
+</div>
+
+<div class="card" id="factoryResultsCard" style="display:none;"><h3>📊 Sonuçlar <span class="hint" id="factoryResultMeta"></span></h3>
+<div class="stats-row" style="margin-bottom:10px;" id="factorySummaryRow"></div>
+<div class="table-wrap"><table><thead id="factoryThead"></thead><tbody id="factoryBody"></tbody></table></div>
+<div id="factoryAbBox" style="margin-top:10px;"></div>
+<div class="card" style="margin-top:10px;"><h3>📈 Equity Eğrisi</h3><canvas id="factoryEquityChart" width="1200" height="220" style="width:100%;height:220px;"></canvas></div>
+</div>
+</section>
+
 <div class="refresh-info" id="lastUpdate">Last update: -</div>
 </div>
 <script>
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.toggle('active', t.getAttribute('data-tab') === name); });
+  document.querySelectorAll('.tabpanel').forEach(function(p) { p.classList.toggle('active', p.id === 'tab-' + name); });
+  if (name === 'fabrika' && !window._factoryLoaded) { window._factoryLoaded = true; factoryLoad(); }
+  try { localStorage.setItem('atos_tab', name); } catch(e) {}
+}
+(function() { try { var saved = localStorage.getItem('atos_tab'); if (saved && document.getElementById('tab-' + saved)) showTab(saved); } catch(e) {} })();
 const _atosFetch = window.fetch.bind(window);
 window.fetch = function(url, opts) {
   opts = opts || {};
@@ -132,6 +327,7 @@ const d = await r.json();
 if (d.error) { document.getElementById('statusBadge').innerHTML = '<span class="status-dot status-offline"></span>ERROR'; return; }
 document.getElementById('totalCoins').textContent = d.symbols || 0;
 document.getElementById('positions').textContent = d.active_positions || 0;
+document.getElementById('tabPosBadge').textContent = d.active_positions || 0;
 document.getElementById('protected').textContent = d.protected_positions || 0;
 document.getElementById('totalTrades').textContent = d.total_trades || 0;
 document.getElementById('equity').textContent = '$' + (d.equity || 10000).toLocaleString();
@@ -166,6 +362,10 @@ document.getElementById('dailyHaltBadge').style.display = d.daily_loss_halted ? 
 document.getElementById('equityFloorBadge').style.display = d.equity_halted ? 'inline' : 'none';
 document.getElementById('tradingOffBadge').style.display = d.trading === false ? 'inline' : 'none';
 document.getElementById('entriesHaltBadge').style.display = d.halt_entries ? 'inline' : 'none';
+const anyHalt = d.risk_halted || d.loss_halted || d.daily_loss_halted || d.equity_halted || d.trading === false || d.halt_entries;
+const haltBadgeEl = document.getElementById('tabHaltBadge');
+haltBadgeEl.style.display = anyHalt ? 'inline' : 'none';
+haltBadgeEl.classList.toggle('warn', !!anyHalt);
 const re = document.getElementById('riskEvents');
 if (d.risk_events && d.risk_events.length) {
 re.innerHTML = d.risk_events.map(function(e){
@@ -214,7 +414,8 @@ tradeBody.innerHTML = '';
 td.trades.slice(0,20).forEach(function(t) {
 const trailT = t.trailing ? ' <span class="badge-sell">TRAIL</span>' : '';
 const beT = t.breakeven ? ' <span class="badge-sell">BE</span>' : '';
-tradeBody.innerHTML += '<tr><td><strong>'+(t.symbol||'-')+'</strong></td><td><span class="badge-'+(t.side==='BUY'?'buy':'sell')+'">'+(t.side||'-')+'</span></td><td>$'+(t.entry?t.entry.toFixed(2):'-')+'</td><td>$'+(t.exit?t.exit.toFixed(2):'-')+'</td><td style="color:'+(t.pnl>0?'#22c55e':'#ef4444')+'">'+(t.pnl?'$'+t.pnl.toFixed(2):'-')+'</td><td>'+(t.reason||'-')+trailT+beT+'</td><td>'+(t.time?new Date(t.time).toLocaleString():'-')+'</td></tr>';
+const tPct = (t.entry && t.exit) ? ((t.side === 'BUY' ? (t.exit - t.entry) : (t.entry - t.exit)) / t.entry * 100) : null;
+tradeBody.innerHTML += '<tr><td><strong>'+(t.symbol||'-')+'</strong></td><td><span class="badge-'+(t.side==='BUY'?'buy':'sell')+'">'+(t.side||'-')+'</span></td><td>$'+(t.entry?t.entry.toFixed(2):'-')+'</td><td>$'+(t.exit?t.exit.toFixed(2):'-')+'</td><td style="color:'+(t.pnl>0?'#22c55e':'#ef4444')+'">'+(t.pnl?'$'+t.pnl.toFixed(2):'-')+(tPct != null ? ' <span style="opacity:.7;font-size:11px;">('+(tPct>0?'+':'')+tPct.toFixed(2)+'%)</span>' : '')+'</td><td>'+(t.reason||'-')+trailT+beT+'</td><td>'+(t.time?new Date(t.time).toLocaleString():'-')+'</td></tr>';
 });
 }
 document.getElementById('lastUpdate').textContent = 'Last update: ' + new Date().toLocaleString();
@@ -410,13 +611,15 @@ document.getElementById('portEquity').textContent = '$' + (d.equity || 0).toLoca
 const av = d.available;
 document.getElementById('portAvailable').textContent = av != null ? '$' + av.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) : '-';
 const upnl = d.unrealized_pnl;
+const upnlPct = d.unrealized_pnl_pct;
 const upnlEl = document.getElementById('portUpnl');
-upnlEl.textContent = upnl != null ? '$' + upnl.toFixed(2) : '-';
+upnlEl.textContent = upnl != null ? '$' + upnl.toFixed(2) + (upnlPct != null ? ' (' + (upnlPct > 0 ? '+' : '') + upnlPct.toFixed(2) + '%)' : '') : '-';
 upnlEl.style.color = upnl != null && upnl > 0 ? '#22c55e' : (upnl != null && upnl < 0 ? '#ef4444' : '#94a3b8');
 document.getElementById('portDrawdown').textContent = d.drawdown_pct != null ? d.drawdown_pct + '%' : '-';
 const dp = d.day_pnl;
+const dpPct = d.day_pnl_pct;
 const dpEl = document.getElementById('portDayPnl');
-dpEl.textContent = dp != null ? '$' + dp.toFixed(2) : '-';
+dpEl.textContent = dp != null ? '$' + dp.toFixed(2) + (dpPct != null ? ' (' + (dpPct > 0 ? '+' : '') + dpPct.toFixed(2) + '%)' : '') : '-';
 dpEl.style.color = dp > 0 ? '#22c55e' : (dp < 0 ? '#ef4444' : '#94a3b8');
 document.getElementById('portNotional').textContent = d.total_notional != null ? '$' + d.total_notional.toLocaleString() : '-';
 document.getElementById('portSync').textContent = d.mode === 'live' ? (d.synced ? '• borsa senkron' : '• senkron yok') : '• paper';
@@ -465,7 +668,7 @@ for (const [symbol, p] of Object.entries(d.positions)) {
 const prot = p.protected ? '<span class="badge-protected">KORUMALI</span>' : '<span class="badge-unprotected">KORUMASIZ</span>';
 const trail = p.trailing ? ' <span class="badge-sell">TRAILING</span>' : '';
 const be = p.breakeven ? ' <span class="badge-sell">BREAKEVEN</span>' : '';
-const upnlCell = (p.upnl != null) ? '<td style="color:'+(p.upnl>0?'#22c55e':p.upnl<0?'#ef4444':'#94a3b8')+'">'+(p.upnl>0?'+':'')+p.upnl.toFixed(2)+'</td>' : '<td>-</td>';
+const upnlCell = (p.upnl != null) ? '<td style="color:'+(p.upnl>0?'#22c55e':p.upnl<0?'#ef4444':'#94a3b8')+'">'+(p.upnl>0?'+':'')+p.upnl.toFixed(2)+(p.upnl_pct != null ? ' <span style="opacity:.7;font-size:11px;">('+(p.upnl_pct>0?'+':'')+p.upnl_pct.toFixed(2)+'%)</span>' : '')+'</td>' : '<td>-</td>';
 const slCell = (p.sl_distance_pct != null) ? p.sl_distance_pct.toFixed(2)+'%' : '-';
 const riskCell = (p.risk_amount != null) ? '$'+p.risk_amount.toFixed(2) : '-';
 const ageCell = (p.age_hours != null) ? p.age_hours.toFixed(1) : '-';
@@ -528,7 +731,7 @@ keys.forEach(function(k) {
 const label = k[0], s = d[k[1]];
 if (!s) return;
 const pnlCol = s.pnl >= 0 ? '#22c55e' : '#ef4444';
-const pnlStr = (s.pnl >= 0 ? '+' : '') + s.pnl.toFixed(2);
+const pnlStr = (s.pnl >= 0 ? '+' : '') + s.pnl.toFixed(2) + (s.pnl_pct != null ? ' (' + (s.pnl_pct >= 0 ? '+' : '') + s.pnl_pct.toFixed(2) + '%)' : '');
 const pf = s.pf === 'inf' ? 'inf' : s.pf;
 body.innerHTML += '<tr><td><strong>'+label+'</strong></td><td>'+s.trades+'</td><td>'+s.wins+'/'+s.losses+'</td><td>'+s.win_rate+'%</td><td style="color:'+pnlCol+';font-weight:bold;">$'+pnlStr+'</td><td>'+pf+'</td></tr>';
 });
@@ -540,6 +743,299 @@ const r = await fetch('/api/v1/emergency_stop', { method: 'POST' });
 const d = await r.json();
 alert('🛑 ' + d.message);
 refresh();
+}
+}
+/* ================= STRATEJİ FABRİKASI ================= */
+function factoryState(msg) { const el = document.getElementById('factoryState'); if (el) el.textContent = msg; }
+function factoryFill(s) {
+s = s || {};
+const set = (id, v) => { const el = document.getElementById(id); if (el && v != null) el.value = v; };
+const setChk = (id, v) => { const el = document.getElementById(id); if (el && v != null) el.checked = !!v; };
+set('fActive', s.active_strategy);
+set('fLeading', s.leading_indicator);
+set('fExpiry', s.signal_expiry != null ? s.signal_expiry : 3);
+set('fRR', s.rr_ratio != null ? s.rr_ratio : 1.5);
+set('fSlLookback', s.sl_lookback != null ? s.sl_lookback : 5);
+set('fSlTf', s.sl_timeframe != null ? s.sl_timeframe : '');
+set('fAtrMult', s.atr_mult != null ? s.atr_mult : 1.5);
+set('fRfLen', s.rangefilt_length != null ? s.rangefilt_length : 3);
+set('fRfMult', s.range_filt_mult != null ? s.range_filt_mult : 2.5);
+set('fMinSig', s.min_signal_strength != null ? s.min_signal_strength : 0.6);
+set('fMaxAge', s.max_position_age_hours != null ? s.max_position_age_hours : 48);
+set('fRiskPct', s.risk_per_trade != null ? s.risk_per_trade * 100 : 2);
+set('fFee', s.fee_rate != null ? s.fee_rate : 0.0005);
+set('fLev', s.max_leverage != null ? s.max_leverage : 10);
+set('fMaxOpen', s.max_open_positions != null ? s.max_open_positions : 3);
+set('fMaxPosPct', s.max_position_pct != null ? s.max_position_pct : 75);
+set('fMaxSidePct', s.max_side_pct != null ? s.max_side_pct : 150);
+set('fMaxDD', s.max_drawdown_pct != null ? s.max_drawdown_pct : 20);
+set('fConsec', s.max_consecutive_losses != null ? s.max_consecutive_losses : 5);
+set('fDailyLoss', s.max_daily_loss_pct != null ? s.max_daily_loss_pct : 5);
+set('fMinEquity', s.min_equity != null ? s.min_equity : 5000);
+set('fTrailAct', s.trailing_activate_pct != null ? s.trailing_activate_pct : 3);
+set('fTrailSl', s.trailing_sl_pct != null ? s.trailing_sl_pct : 1.5);
+set('fTrailMin', s.trailing_min_move_pct != null ? s.trailing_min_move_pct : 0.1);
+set('fBeAct', s.breakeven_activate_pct != null ? s.breakeven_activate_pct : 2);
+set('fRestoreAge', s.restore_age_limit != null ? s.restore_age_limit : 7);
+set('fBanned', Array.isArray(s.banned_symbols) ? s.banned_symbols.join(',') : '');
+set('fAiMinConf', s.ai_min_confidence != null ? s.ai_min_confidence : 0.55);
+set('fCouncilConf', s.council_min_confidence != null ? s.council_min_confidence : 0.6);
+set('fVolHi', s.vol_mult_hi != null ? s.vol_mult_hi : 1.5);
+set('fVolLo', s.vol_mult_lo != null ? s.vol_mult_lo : 0.6);
+set('fVolFactor', s.vol_mult_factor != null ? s.vol_mult_factor : 0.5);
+set('fScanLimit', s.scan_limit != null ? s.scan_limit : 50);
+set('fBackfillH', s.data_backfill_hours != null ? s.data_backfill_hours : 24);
+set('fFreshH', s.data_freshness_hours != null ? s.data_freshness_hours : 12);
+set('fAiHorizon', s.ai_horizon != null ? s.ai_horizon : 24);
+set('fAiAtrMult', s.ai_atr_mult != null ? s.ai_atr_mult : 1);
+set('fRetrainInt', s.ai_retrain_interval_hours != null ? s.ai_retrain_interval_hours : 24);
+set('fRetrainAcc', s.ai_retrain_min_acc != null ? s.ai_retrain_min_acc : 0.55);
+set('fRetrainSamples', s.ai_retrain_min_samples != null ? s.ai_retrain_min_samples : 30);
+set('fRetrainSymbols', s.ai_retrain_symbols != null ? s.ai_retrain_symbols : 400);
+set('fRetrainEpochs', s.ai_retrain_epochs != null ? s.ai_retrain_epochs : 30);
+set('fTtpJson', s.ttp ? JSON.stringify(s.ttp, null, 2) : '');
+setChk('fAlternate', s.alternate_signal);
+setChk('fAtrFallback', s.atr_fallback);
+setChk('fUseAI', s.use_ai_model);
+setChk('fUseCouncil', s.use_decision_council);
+setChk('fVolSize', s.vol_sizing_enabled);
+setChk('fUseRanking', s.use_score_ranking);
+setChk('fAutoRetrain', s.ai_auto_retrain);
+const confs = s.confirmations || {};
+document.querySelectorAll('.f-conf').forEach(function(cb) { if (confs[cb.getAttribute('data-k')] != null) cb.checked = !!confs[cb.getAttribute('data-k')]; });
+}
+async function factoryLoad() {
+try {
+const r = await fetch('/api/v1/strategy/settings');
+const d = await r.json();
+factoryFill(d.settings);
+factoryState('canlı ayarlar yüklendi');
+} catch(e) { factoryState('yükleme hatası'); console.error(e); }
+}
+async function factoryDefaults() {
+try {
+const r = await fetch('/api/v1/strategy/defaults');
+const d = await r.json();
+factoryFill(d.settings);
+factoryState('varsayılanlar yüklendi (canlıya uygulanmadı)');
+} catch(e) { factoryState('hata: ' + e.message); }
+}
+function factoryCollect() {
+const conf = {};
+document.querySelectorAll('.f-conf').forEach(function(cb) { conf[cb.getAttribute('data-k')] = cb.checked; });
+const v = id => document.getElementById(id).value;
+const n = (id, d) => { const x = parseFloat(v(id)); return isNaN(x) ? d : x; };
+let banned = [];
+v('fBanned').split(',').forEach(function(x) { x = x.trim().toUpperCase(); if (x) banned.push(x); });
+let ttpPatch = null;
+try { const j = v('fTtpJson').trim(); if (j) ttpPatch = JSON.parse(j); } catch(e) {}
+return {
+active_strategy: v('fActive'),
+leading_indicator: v('fLeading'),
+signal_expiry: parseInt(v('fExpiry')) || 3,
+alternate_signal: document.getElementById('fAlternate').checked,
+rr_ratio: n('fRR', 1.5),
+sl_lookback: parseInt(v('fSlLookback')) || 5,
+sl_timeframe: v('fSlTf').trim(),
+atr_fallback: document.getElementById('fAtrFallback').checked,
+atr_mult: n('fAtrMult', 1.5),
+rangefilt_length: parseInt(v('fRfLen')) || 3,
+range_filt_mult: n('fRfMult', 2.5),
+min_signal_strength: n('fMinSig', 0.6),
+max_position_age_hours: n('fMaxAge', 48),
+risk_per_trade: n('fRiskPct', 2) / 100,
+fee_rate: n('fFee', 0.0005),
+max_leverage: n('fLev', 10),
+max_open_positions: parseInt(v('fMaxOpen')) || 3,
+max_position_pct: n('fMaxPosPct', 75),
+max_side_pct: n('fMaxSidePct', 150),
+max_drawdown_pct: n('fMaxDD', 20),
+max_consecutive_losses: parseInt(v('fConsec')) || 0,
+max_daily_loss_pct: n('fDailyLoss', 5),
+min_equity: n('fMinEquity', 5000),
+trailing_activate_pct: n('fTrailAct', 3),
+trailing_sl_pct: n('fTrailSl', 1.5),
+trailing_min_move_pct: n('fTrailMin', 0.1),
+breakeven_activate_pct: n('fBeAct', 2),
+restore_age_limit: n('fRestoreAge', 7),
+banned_symbols: banned,
+use_ai_model: document.getElementById('fUseAI').checked,
+ai_min_confidence: n('fAiMinConf', 0.55),
+use_decision_council: document.getElementById('fUseCouncil').checked,
+council_min_confidence: n('fCouncilConf', 0.6),
+vol_sizing_enabled: document.getElementById('fVolSize').checked,
+vol_mult_hi: n('fVolHi', 1.5),
+vol_mult_lo: n('fVolLo', 0.6),
+vol_mult_factor: n('fVolFactor', 0.5),
+scan_limit: parseInt(v('fScanLimit')) || 50,
+use_score_ranking: document.getElementById('fUseRanking').checked,
+data_backfill_hours: n('fBackfillH', 24),
+data_freshness_hours: n('fFreshH', 12),
+ai_horizon: parseInt(v('fAiHorizon')) || 24,
+ai_atr_mult: n('fAiAtrMult', 1),
+ai_auto_retrain: document.getElementById('fAutoRetrain').checked,
+ai_retrain_interval_hours: n('fRetrainInt', 24),
+ai_retrain_min_acc: n('fRetrainAcc', 0.55),
+ai_retrain_min_samples: parseInt(v('fRetrainSamples')) || 30,
+ai_retrain_symbols: parseInt(v('fRetrainSymbols')) || 400,
+ai_retrain_epochs: parseInt(v('fRetrainEpochs')) || 30,
+confirmations: conf,
+ttp: ttpPatch,
+};
+}
+async function factoryApply() {
+const s = factoryCollect();
+try {
+const r = await fetch('/api/v1/strategy/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(s)});
+const d = await r.json();
+if (d.status === 'ok') { factoryState('✔ canlıya uygulandı (kalıcı, settings.json)'); }
+else { factoryState('hata: ' + (d.error || 'bilinmeyen')); }
+} catch(e) { factoryState('hata: ' + e.message); }
+}
+function factoryOverrideQs(s) {
+const qs = new URLSearchParams({
+leading_indicator: s.leading_indicator,
+signal_expiry: s.signal_expiry,
+alternate_signal: s.alternate_signal,
+rr_ratio: s.rr_ratio,
+sl_lookback: s.sl_lookback,
+atr_fallback: s.atr_fallback,
+atr_mult: s.atr_mult,
+sl_timeframe: s.sl_timeframe,
+confirmations: Object.keys(s.confirmations).filter(function(k){ return s.confirmations[k]; }).join(','),
+max_position_age_hours: s.max_position_age_hours,
+min_signal_strength: s.min_signal_strength,
+risk_per_trade: s.risk_per_trade,
+fee_rate: s.fee_rate,
+leverage: s.max_leverage,
+max_drawdown_pct: s.max_drawdown_pct,
+max_consecutive_losses: s.max_consecutive_losses,
+max_daily_loss_pct: s.max_daily_loss_pct,
+min_equity: s.min_equity,
+trailing_activate_pct: s.trailing_activate_pct,
+trailing_sl_pct: s.trailing_sl_pct,
+trailing_min_move_pct: s.trailing_min_move_pct,
+breakeven_activate_pct: s.breakeven_activate_pct,
+});
+if (s.ttp) { try { qs.set('ttp', JSON.stringify(s.ttp)); } catch(e) {} }
+return qs;
+}
+async function factoryRun() {
+const msg = document.getElementById('factoryRunMsg');
+if (msg) msg.textContent = '⏳ çalışıyor...';
+const s = factoryCollect();
+const symbols = (document.getElementById('fSymbols').value || 'BTCUSDT').toUpperCase().replace(/ /g,'');
+const interval = document.getElementById('fInterval').value;
+const limit = parseInt(document.getElementById('fLimit').value) || 400;
+const source = document.getElementById('fSource').value;
+const aiFilter = document.getElementById('fAiFilter').checked;
+const abMode = document.getElementById('fAbMode').checked;
+const threshold = parseFloat(document.getElementById('fAiThreshold').value) || 0.55;
+const qs = factoryOverrideQs(s);
+qs.set('interval', interval); qs.set('limit', limit); qs.set('source', source);
+qs.set('ai_filter', aiFilter); qs.set('ai_threshold', threshold); qs.set('ab_mode', abMode);
+try {
+let d;
+if (symbols.indexOf(',') !== -1) {
+qs.set('symbols', symbols);
+d = await (await fetch('/api/v1/backtest/scan?' + qs.toString())).json();
+renderScan(d, symbols, interval, source);
+} else {
+qs.set('symbol', symbols);
+d = await (await fetch('/api/v1/backtest?' + qs.toString())).json();
+renderBacktest(d);
+}
+if (msg) msg.textContent = '';
+} catch(e) { if (msg) msg.textContent = 'hata: ' + e.message; console.error(e); }
+}
+function factoryMoney(v, pct) { return (v == null ? '-' : (v > 0 ? '+' : '') + '$' + v.toFixed(2)); }
+function factoryMini(label, val, color) { return '<div class="stat-box" style="flex:1;"><div class="label">'+label+'</div><div class="value" style="'+(color?'color:'+color+';':'')+'font-size:15px;">'+val+'</div></div>'; }
+function factoryDrawEquity(eq) {
+const cv = document.getElementById('factoryEquityChart');
+if (!cv || !eq || eq.length < 2) { if (cv) { const ctx = cv.getContext('2d'); ctx.fillStyle = '#64748b'; ctx.font = '13px Segoe UI'; ctx.fillText('Yetersiz veri', 24, 32); } return; }
+const ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+ctx.clearRect(0,0,W,H);
+const min = Math.min.apply(null, eq), max = Math.max.apply(null, eq);
+const span = (max - min) || 1, pad = 24;
+const x = i => pad + i * (W - 2*pad) / (eq.length - 1);
+const y = v => H - pad - (v - min) / span * (H - 2*pad);
+ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 2; ctx.beginPath();
+eq.forEach(function(v,i){ if (i === 0) ctx.moveTo(x(i), y(v)); else ctx.lineTo(x(i), y(v)); });
+ctx.stroke();
+ctx.strokeStyle = '#334155'; ctx.lineWidth = 1;
+ctx.beginPath(); ctx.moveTo(pad, y(min)); ctx.lineTo(W - pad, y(min)); ctx.stroke();
+ctx.fillStyle = '#94a3b8'; ctx.font = '11px Segoe UI';
+ctx.fillText('$' + min.toFixed(0), 4, H - pad + 12);
+ctx.fillText('$' + max.toFixed(0), 4, 12);
+ctx.fillText('$' + eq[eq.length-1].toFixed(0), W - pad - 80, 20);
+}
+function renderBacktest(d) {
+const card = document.getElementById('factoryResultsCard');
+if (!card) return;
+card.style.display = 'block';
+document.getElementById('factoryResultMeta').textContent = d.symbol + ' | ' + d.interval + ' | ' + d.source + (d.ai_applied ? ' | 🤖 AI: ' + d.ai_blocked + ' sinyal engellendi' : '');
+const m = d.ab ? d.ab.with_ai : d;
+document.getElementById('factorySummaryRow').innerHTML =
+factoryMini('Net PnL', factoryMoney(d.net_profit), d.net_profit >= 0 ? '#22c55e' : '#ef4444') +
+factoryMini('Trade', d.total_trades) +
+factoryMini('Win %', (d.win_rate != null ? d.win_rate + '%' : '-')) +
+factoryMini('PF', d.profit_factor == null ? '-' : (d.profit_factor === 'inf' ? 'inf' : d.profit_factor)) +
+factoryMini('Max DD', (d.max_drawdown_pct != null ? '-' + d.max_drawdown_pct + '%' : '-'), '#ef4444') +
+factoryMini('Getiri', (d.total_return_pct != null ? (d.total_return_pct > 0 ? '+' : '') + d.total_return_pct + '%' : '-'));
+document.getElementById('factoryThead').innerHTML = '<tr><th>Symbol</th><th>Sinyal</th><th>Trade</th><th>Net</th><th>Win%</th><th>MaxDD</th><th>PF</th></tr>';
+document.getElementById('factoryBody').innerHTML = '<tr><td><strong>'+d.symbol+'</strong></td><td>'+d.signal_bars+'</td><td>'+d.total_trades+'</td><td style="color:'+(d.net_profit>=0?'#22c55e':'#ef4444')+'">'+factoryMoney(d.net_profit)+'</td><td>'+d.win_rate+'%</td><td>'+d.max_drawdown_pct+'%</td><td>'+(d.profit_factor == null ? '-' : d.profit_factor)+'</td></tr>';
+const ab = document.getElementById('factoryAbBox');
+if (d.ab) {
+const b = d.ab.baseline, a = d.ab.with_ai;
+ab.innerHTML = '<h4 style="margin:8px 0;">⚖️ A/B: Filtresiz vs 🤖 AI Filtreli</h4><div class="stats-row">' +
+factoryMini('Net (temiz)', factoryMoney(b.net_profit), b.net_profit >= 0 ? '#22c55e' : '#ef4444') +
+factoryMini('Net (AI)', factoryMoney(a.net_profit), a.net_profit >= 0 ? '#22c55e' : '#ef4444') +
+factoryMini('Trade', b.total_trades + ' → ' + a.total_trades) +
+factoryMini('Win %', b.win_rate + '% → ' + a.win_rate + '%') +
+factoryMini('MaxDD', b.max_drawdown_pct + '% → ' + a.max_drawdown_pct + '%') +
+factoryMini('Engellenen', d.ai_blocked) +
+factoryMini('AI isabet (geçen)', (d.ab.signal_stats ? Math.round(d.ab.signal_stats.passed_accuracy * 100) + '%' : '-')) +
+'</div>';
+} else { ab.innerHTML = ''; }
+factoryDrawEquity(m.equity_curve);
+}
+function renderScan(d, symbols, interval, source) {
+const card = document.getElementById('factoryResultsCard');
+if (!card) return;
+card.style.display = 'block';
+document.getElementById('factoryResultMeta').textContent = d.symbols.length + ' sembol | ' + interval + ' | ' + source + (d.ai_applied ? ' | 🤖 AI: ' + d.summary.blocked + ' sinyal engellendi' : (d.ai_filter ? ' | AI modeli yok — filtresiz' : ''));
+const s = d.summary;
+if (d.ab_mode) {
+document.getElementById('factorySummaryRow').innerHTML =
+factoryMini('Sembol', s.symbols) +
+factoryMini('Toplam Net (temiz)', factoryMoney(s.base_net), s.base_net >= 0 ? '#22c55e' : '#ef4444') +
+factoryMini('Toplam Net (AI)', factoryMoney(s.ai_net), s.ai_net >= 0 ? '#22c55e' : '#ef4444') +
+factoryMini('Trade', s.base_trades + ' → ' + s.ai_trades) +
+factoryMini('Win %', s.base_win_rate.toFixed(1) + '% → ' + s.ai_win_rate.toFixed(1) + '%') +
+factoryMini('Sinyal isabet', 'Geçen ' + Math.round(s.passed_accuracy * 100) + '% / Engellenen ' + Math.round(s.blocked_accuracy * 100) + '%');
+document.getElementById('factoryThead').innerHTML = '<tr><th>Symbol</th><th>Sinyal</th><th>Base Tr</th><th>Base Net</th><th>AI Tr</th><th>AI Net</th><th>AI Win%</th><th>Engellenen</th><th>Hata</th></tr>';
+document.getElementById('factoryBody').innerHTML = d.results.map(function(r) {
+if (r.error) return '<tr><td><strong>'+r.symbol+'</strong></td><td colspan="8" style="color:#ef4444;">veri hatası: ' + r.error + '</td></tr>';
+return '<tr><td><strong>'+r.symbol+'</strong></td><td>'+r.signals+'</td><td>'+r.base_trades+'</td><td style="color:'+(r.base_net>=0?'#22c55e':'#ef4444')+'">'+factoryMoney(r.base_net)+'</td><td>'+r.ai_trades+'</td><td style="color:'+(r.ai_net>=0?'#22c55e':'#ef4444')+'">'+factoryMoney(r.ai_net)+'</td><td>'+r.ai_win_rate+'%</td><td>'+r.blocked+'</td><td>-</td></tr>';
+}).join('');
+document.getElementById('factoryAbBox').innerHTML = '';
+factoryDrawEquity(null);
+} else {
+document.getElementById('factorySummaryRow').innerHTML =
+factoryMini('Sembol', s.symbols) +
+factoryMini('Toplam Net', factoryMoney(s.base_net), s.base_net >= 0 ? '#22c55e' : '#ef4444') +
+factoryMini('Trade', s.base_trades) +
+factoryMini('Win %', s.base_win_rate.toFixed(1) + '%') +
+factoryMini('Sinyal', s.signals) +
+factoryMini('Engellenen', s.blocked);
+document.getElementById('factoryThead').innerHTML = '<tr><th>Symbol</th><th>Sinyal</th><th>Trade</th><th>Net</th><th>Win%</th><th>MaxDD</th><th>PF</th></tr>';
+document.getElementById('factoryBody').innerHTML = d.results.map(function(r) {
+if (r.error) return '<tr><td><strong>'+r.symbol+'</strong></td><td colspan="6" style="color:#ef4444;">veri hatası: ' + r.error + '</td></tr>';
+return '<tr><td><strong>'+r.symbol+'</strong></td><td>'+r.signals+'</td><td>'+r.trades+'</td><td style="color:'+(r.net>=0?'#22c55e':'#ef4444')+'">'+factoryMoney(r.net)+'</td><td>'+r.win_rate+'%</td><td>'+r.max_dd+'%</td><td>'+(r.pf == null ? '-' : r.pf)+'</td></tr>';
+}).join('');
+document.getElementById('factoryAbBox').innerHTML = '';
+factoryDrawEquity(null);
 }
 }
 refresh();

@@ -805,9 +805,10 @@ MIN_NOTIONAL=5.0
   seçildi** (restart ile canlıya geçer). **Exit A/B** (age48 zemininde): TP RR
   2.0/2.0 +7,425, 2.5/1.5 +6,997 — TP'yi yakınlaştırmak kazandırmıyor (TP
   çıkışları zaten nadir: 4h taramada exit dağılımı '') 994 / reversal 3 / sl 3;
-  tp RR 3.1 çok uzak); SL ATR muli 3.25/4.8125 → 2.0/3.0: net +8,074 →
+  tp RR 3.1 çok uzak); SL ATR mul 3.25/4.8125 → 2.0/3.0: net +8,074 →
   **+10,715** (%60.7, 121 iyi/56 kötü) → **`sl_long_atr_mul=2.0`,
-  `sl_short_atr_mul=3.0` uygulandı** (settings + settings.json).
+  `sl_short_atr_mul=3.0` uygulandı** (settings + settings.json, restart ile
+  canlıya geçti — 06.08 21:55).
 - **AI eşik A/B (Sprint 14, 06.08)**: 0.50 → net +984 ama sembol bazında
   50 iyi/76 kötü, win %49.2→%43.7; 0.60 → -1,577. **0.55 korundu**.
 - **Sembol kalitesi (Sprint 14, 06.08)**: 491 sembol taramasında 27 sembol

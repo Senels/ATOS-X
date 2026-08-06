@@ -17,7 +17,7 @@
 | 11 | TTPTSL Motor | optimize_ttp.py durum makinesi → TtpTsl (analyze_full/manage) + engine managed yol + canlı pozisyon yönetimi | ✅ |
 | 12 | AI Katmanı | TensorFlow yön tahmini (`app/ai/`), görünürlük (signals API/Telegram/dashboard/koruma editor), doğruluk izleme (`predictions` tablosu, bar-bazlı 12 bar sonrası çözümleme, `/api/v1/ai/stats`, `/ai` komutu) | ✅ |
 | 13 | Model Kalitesi + Risk | horizon/özellik deneyleri (h24 + 23 özellik kazandı, `ai_horizon=24` parametrik zincir), volatilite rejimi pozisyon boyutlandırma (`atr_ratio`, A/B doğrulandı) | ✅ |
-| 14 | Geçiş Politikası + Kalibrasyon | restore yaş politikası, TTP exit A/B, AI eşik + sembol kalite taraması | 🔄 |
+| 14 | Geçiş Politikası + Kalibrasyon | restore yaş politikası, TTP exit A/B, AI eşik + sembol kalite taraması | ✅ |
 
 > Not: Sprint 11, `optimize_ttp.py run_backtest`'in tam state machine'ini
 > (sl_trail_mode, tp_qty_pct kısmi TP, breakeven, reversal, trailing TP)
@@ -83,14 +83,15 @@
 > (`restore_age_limit=7` gün; eski OPEN kayıtlar restart akışında
 > `restore_stale_close` ile kapanır — 06.08 geçiş şoku dersi), zaman-stop
 > kalibrasyonu (motor managed modda da time-stop uygular; 8s → 48s +8,074
-> vs +1,736), exit kalibrasyonu (SL muli 2.0/3.0 → +10,715; TP RR kazançsız),
+> vs +1,736), exit kalibrasyonu (SL mul 2.0/3.0 → +10,715; TP RR kazançsız),
 > AI eşik 0.55 korundu (0.50/0.60 kötü), 550 sembol kalite taraması
 > (`banned_symbols` mekanizması eklendi, liste boş), `/durum` AI satırı,
 > DB hayalet temizliği (`close_trade_by_symbol` tüm OPEN satırları kapatır;
 > canlı DB 46→9). Plan:
 > `.opencode/plans/sprint14_policy_calibration_plan.md`. Ölçümler
 > docs/OPS.md'de. **Canlıya taşındı (06.08 21:55, PID 24316)**:
-> max_position_age_hours=48 + SL muli 2.0/3.0 aktif.
+> max_position_age_hours=48 + SL mul 2.0/3.0 aktif. Operatör isteğiyle
+> kapatılıp yeniden başlatıldı (son canlı PID 23128, 06.08 23:07).
 
 ## Açık Konular (bilinen eksikler)
 
@@ -113,7 +114,7 @@
 - **Settings API persist (6818d78)**: REST değişiklikleri artık kalıcı.
 - **Auto-retrain E2E (06.08)**: zaman tetikleyicisi → eğitim 64 sn → cache
   temizliği → yeni model restart'sız (HFTUSDT 0.7091→0.7158) + Telegram bildirimleri.
-- **Sprint 13 model kalitesi**: h24 + 24 özellik kazandı (eval genel 0.625,
+- **Sprint 13 model kalitesi**: h24 + 23 özellik kazandı (eval genel 0.625,
   son 1 ay 0.621; önceki 0.611/0.584) — `ai_direction` deploy edildi; horizon
   zinciri parametrik (settings/meta/çözümleme/retrain).
 - **Sprint 13 vol boyutlandırma**: `atr_ratio > 1.5` ise risk 0.5× (canlı +

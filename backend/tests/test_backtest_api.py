@@ -113,3 +113,77 @@ def test_compare(api_db):
 
     with pytest.raises(Exception):
         asyncio.run(bt.backtest_compare(a=999999, b=rid))
+
+
+def test_backtest_ai_filter_no_predictor(api_db, monkeypatch):
+    monkeypatch.setattr(bt, "_get_predictor", lambda: None)
+    res = asyncio.run(bt.run_backtest(
+        symbol="BTCUSDT", interval="4h", limit=100, source="csv",
+        ai_filter=True, ai_threshold=0.55,
+    ))
+    assert res["ai_filter"] is True
+    assert res["ai_applied"] is False
+    assert res["total_trades"] > 0
+
+
+def test_backtest_ab_mode_no_predictor(api_db, monkeypatch):
+    monkeypatch.setattr(bt, "_get_predictor", lambda: None)
+    res = asyncio.run(bt.run_backtest(
+        symbol="BTCUSDT", interval="4h", limit=100, source="csv",
+        ab_mode=True,
+    ))
+    assert res["ai_filter"] is True
+    assert res["ai_applied"] is False
+    assert res["ab"] is None
+    assert res["total_trades"] > 0
+
+
+def test_backtest_scan_multi(api_db):
+    res = asyncio.run(bt.run_backtest_scan(
+        symbols="BTCUSDT,ETHUSDT", interval="4h", limit=100, source="csv",
+    ))
+    assert len(res["results"]) == 2
+    assert res["summary"]["symbols"] == 2
+    assert res["results"][0]["signals"] >= 0
+
+
+def test_backtest_scan_ab(api_db, monkeypatch):
+    monkeypatch.setattr(bt, "_get_predictor", lambda: None)
+    res = asyncio.run(bt.run_backtest_scan(
+        symbols="BTCUSDT", interval="4h", limit=100, source="csv",
+        ab_mode=True,
+    ))
+    assert res["ab_mode"] is True
+    assert res["ai_applied"] is False
+    row = res["results"][0]
+    assert "base_net" in row and "ai_net" in row
+    assert row["base_net"] == row["net"]
+
+
+def test_backtest_scan_ai_filter(api_db, monkeypatch):
+    monkeypatch.setattr(bt, "_get_predictor", lambda: None)
+    res = asyncio.run(bt.run_backtest_scan(
+        symbols="BTCUSDT", interval="4h", limit=100, source="csv",
+        ai_filter=True,
+    ))
+    assert res["ai_filter"] is True
+    row = res["results"][0]
+    assert "base_net" in row and "net" in row
+
+
+def test_backtest_ttp_json_override(api_db):
+    res = asyncio.run(bt.run_backtest(
+        symbol="BTCUSDT", interval="4h", limit=100, source="csv",
+        ttp='{"sl_long_atr_mul": 2.5, "tp_long_rr": 2.0}',
+    ))
+    assert res["settings"]["ttp"]["sl_long_atr_mul"] == 2.5
+    assert res["settings"]["ttp"]["tp_long_rr"] == 2.0
+    assert res["settings"]["ttp"]["sl_trail_mode"] == "TP"
+
+
+def test_backtest_sl_timeframe_override(api_db):
+    res = asyncio.run(bt.run_backtest(
+        symbol="BTCUSDT", interval="4h", limit=100, source="csv",
+        sl_timeframe="2h",
+    ))
+    assert res["settings"]["sl_timeframe"] == "2h"

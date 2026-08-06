@@ -1857,6 +1857,7 @@ async def performance_summary():
         return {"ok": False, "error": "not_running"}
     hist = auto_trader.trade_history
     now = datetime.utcnow()
+    equity = auto_trader.equity or 0.0
 
     def _period_stats(trades, days):
         cutoff = now - timedelta(days=days)
@@ -1867,12 +1868,14 @@ async def performance_summary():
         gross_w = sum(p for p in pnls if p > 0)
         gross_l = abs(sum(p for p in pnls if p < 0))
         pf = gross_w / gross_l if gross_l > 0 else (float("inf") if gross_w > 0 else 0.0)
+        period_pnl = round(sum(pnls), 2)
         return {
             "trades": len(pnls),
             "wins": wins,
             "losses": losses,
             "win_rate": round(wins / len(pnls) * 100, 1) if pnls else 0.0,
-            "pnl": round(sum(pnls), 2),
+            "pnl": period_pnl,
+            "pnl_pct": round(period_pnl / equity * 100.0, 2) if equity else None,
             "pf": ("inf" if pf == float("inf") else round(pf, 2)),
         }
 
@@ -2092,16 +2095,22 @@ async def portfolio():
         })
     equity = auto_trader.equity or 0.0
     peak = auto_trader.peak_equity or equity
+    unrealized = bal.get("unrealized") if bal else round(total_unrealized, 2)
+    unrealized_pct = round(unrealized / equity * 100.0, 2) if equity and unrealized is not None else None
+    day_pnl = auto_trader.day_pnl
+    day_pnl_pct = round(day_pnl / equity * 100.0, 2) if equity and day_pnl is not None else None
     return {
         "mode": auto_trader.trading_mode,
         "synced": bool(bal),
         "balance": bal.get("balance"),
         "available": bal.get("available"),
-        "unrealized_pnl": bal.get("unrealized") if bal else round(total_unrealized, 2),
+        "unrealized_pnl": unrealized,
+        "unrealized_pnl_pct": unrealized_pct,
         "equity": round(equity, 2),
         "peak_equity": round(peak, 2),
         "drawdown_pct": auto_trader.drawdown_pct,
-        "day_pnl": auto_trader.day_pnl,
+        "day_pnl": day_pnl,
+        "day_pnl_pct": day_pnl_pct,
         "positions": positions,
         "count": len(positions),
         "total_notional": round(sum(p["notional"] for p in positions), 2),
