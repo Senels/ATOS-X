@@ -7,6 +7,11 @@ kararin hangi kaynaklardan geldigini aciklar.
 Oylama agirliklari: v23=1.0, trend=0.4, momentum=0.3 (net max 1.7).
 - net >= 0.8 -> BUY, net <= -0.8 -> SELL, aksi HOLD.
 - HIGH volatilite: her iki tarafa -0.3 ceza; EXTREME: hard veto (HOLD).
+
+`primary_signal` verilirse (TTP modu) v23 hesaplanmaz; birincil oy o
+sinyalin yonundedir (`source` adiyla oylar, varsayilan agirlik 1.0).
+Boylece TTP sinyalleri council tarafindan v23 zorunlulugu olmadan
+trend+momentum+volatilite ile degerlendirilir.
 """
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -24,14 +29,14 @@ _MAX_NET = 1.7
 _VOL_PENALTY_HIGH = -0.3
 
 
-def _vote(v23: str, trend: str, momentum_pct: float,
-          volatility: str) -> Tuple[str, float, List[Dict[str, Any]]]:
+def _vote(primary: str, trend: str, momentum_pct: float,
+          volatility: str, source: str = "v23") -> Tuple[str, float, List[Dict[str, Any]]]:
     votes: List[Dict[str, Any]] = []
     buy = sell = 0.0
 
-    if v23 in ("BUY", "SELL"):
-        votes.append({"source": "v23", "signal": v23, "weight": _WEIGHTS["v23"]})
-        if v23 == "BUY":
+    if primary in ("BUY", "SELL"):
+        votes.append({"source": source, "signal": primary, "weight": _WEIGHTS["v23"]})
+        if primary == "BUY":
             buy += _WEIGHTS["v23"]
         else:
             sell += _WEIGHTS["v23"]
@@ -72,18 +77,37 @@ def _vote(v23: str, trend: str, momentum_pct: float,
     return verdict, confidence, votes
 
 
-def decide(df: pd.DataFrame, settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """DataFrame'den karar: v23 + trend + momentum + volatilite oylamasi."""
+def decide(df: pd.DataFrame, settings: Optional[Dict[str, Any]] = None,
+           primary_signal: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """DataFrame'den karar: birincil sinyal + trend + momentum + volatilite oylamasi.
+
+    `primary_signal` verilirse (ornek `{"signal": "BUY", "source": "ttp"}`)
+    v23 hesaplanmaz; verilen sinyal birincil oy olur. Verilmezse v23
+    (TradeBotV23) birincil tetiktir (eski davranis).
+    """
     cfg = settings if settings is not None else strat_settings.get_settings()
-    bot = TradeBotV23(cfg)
-    sig = bot.generate_signal(df)
-    v23 = sig.get("signal", "HOLD")
+    if primary_signal:
+        primary = primary_signal.get("signal", "HOLD")
+        source = primary_signal.get("source", "strategy")
+        v23 = None
+        price = primary_signal.get("price")
+        sl = primary_signal.get("sl")
+        tp = primary_signal.get("tp")
+    else:
+        bot = TradeBotV23(cfg)
+        sig = bot.generate_signal(df)
+        primary = sig.get("signal", "HOLD")
+        source = "v23"
+        v23 = primary
+        price = sig.get("price")
+        sl = sig.get("sl")
+        tp = sig.get("tp")
     trend = trend_regime(df)["regime"]
     sc = coin_score(df)
     mom = sc.get("momentum_pct", 0.0)
     vol = volatility_regime(df)["regime"]
 
-    verdict, confidence, votes = _vote(v23, trend, mom, vol)
+    verdict, confidence, votes = _vote(primary, trend, mom, vol, source=source)
 
     if verdict != "HOLD":
         agreeing = [v["source"] for v in votes if v["signal"] == verdict]
@@ -98,9 +122,9 @@ def decide(df: pd.DataFrame, settings: Optional[Dict[str, Any]] = None) -> Dict[
         "confidence": confidence,
         "votes": votes,
         "reason": reason,
-        "components": {"v23": v23, "trend": trend,
+        "components": {"v23": v23, "strategy": source, "trend": trend,
                        "momentum_pct": mom, "volatility": vol},
-        "price": sig.get("price"),
-        "sl": sig.get("sl"),
-        "tp": sig.get("tp"),
+        "price": price,
+        "sl": sl,
+        "tp": tp,
     }

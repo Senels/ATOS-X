@@ -508,11 +508,17 @@ class AutoTrader:
 
         Kapi kapaliysa (use_decision_council=False) her sinyali gecirir. Acikken
         council karari sinyal yonunde degilse veya guven esigin altindaysa sinyali
-        reddeder. Donus: (allow, decision|None).
+        reddeder. TTP modunda (`active_strategy=ttp`) sinyalin kendisi birincil oy
+        olur (v23 zorunlulugu kalkar); v23 modunda v23 sinyali birincildir.
+        Donus: (allow, decision|None).
         """
         if not settings.get("use_decision_council", False):
             return True, None
-        decision = decide_council(klines, settings=settings)
+        if settings.get("active_strategy") == "ttp":
+            decision = decide_council(klines, settings=settings,
+                                      primary_signal={"signal": signal, "source": "ttp"})
+        else:
+            decision = decide_council(klines, settings=settings)
         if decision["verdict"] != signal or decision["confidence"] < float(
             settings.get("council_min_confidence", 0.6)
         ):

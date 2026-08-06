@@ -1707,7 +1707,7 @@ async def test_council_gate_mismatch_rejects(trader, monkeypatch):
     tr, fb, db = trader
     klines = pd.DataFrame({"open": [100.0], "high": [101.0], "low": [99.0],
                            "close": [100.0], "volume": [100.0]})
-    monkeypatch.setattr(at_mod, "decide_council", lambda df, settings=None: {
+    monkeypatch.setattr(at_mod, "decide_council", lambda df, settings=None, primary_signal=None: {
         "verdict": "HOLD", "confidence": 1.0})
     allow, decision = tr._council_gate("BUY", klines, {"use_decision_council": True})
     assert allow is False
@@ -1718,7 +1718,7 @@ async def test_council_gate_low_confidence_rejects(trader, monkeypatch):
     tr, fb, db = trader
     klines = pd.DataFrame({"open": [100.0], "high": [101.0], "low": [99.0],
                            "close": [100.0], "volume": [100.0]})
-    monkeypatch.setattr(at_mod, "decide_council", lambda df, settings=None: {
+    monkeypatch.setattr(at_mod, "decide_council", lambda df, settings=None, primary_signal=None: {
         "verdict": "BUY", "confidence": 0.5})
     allow, decision = tr._council_gate("BUY", klines,
                                        {"use_decision_council": True, "council_min_confidence": 0.6})
@@ -1729,7 +1729,7 @@ async def test_council_gate_agree_passes(trader, monkeypatch):
     tr, fb, db = trader
     klines = pd.DataFrame({"open": [100.0], "high": [101.0], "low": [99.0],
                            "close": [100.0], "volume": [100.0]})
-    monkeypatch.setattr(at_mod, "decide_council", lambda df, settings=None: {
+    monkeypatch.setattr(at_mod, "decide_council", lambda df, settings=None, primary_signal=None: {
         "verdict": "BUY", "confidence": 0.8})
     allow, decision = tr._council_gate("BUY", klines,
                                        {"use_decision_council": True, "council_min_confidence": 0.6})
@@ -1741,11 +1741,49 @@ async def test_council_gate_includes_min_confidence_setting(trader, monkeypatch)
     tr, fb, db = trader
     klines = pd.DataFrame({"open": [100.0], "high": [101.0], "low": [99.0],
                            "close": [100.0], "volume": [100.0]})
-    monkeypatch.setattr(at_mod, "decide_council", lambda df, settings=None: {
+    monkeypatch.setattr(at_mod, "decide_council", lambda df, settings=None, primary_signal=None: {
         "verdict": "BUY", "confidence": 0.7})
     allow, decision = tr._council_gate("BUY", klines,
                                        {"use_decision_council": True, "council_min_confidence": 0.8})
     assert allow is False
+
+
+async def test_council_gate_ttp_passes_primary_signal(trader, monkeypatch):
+    tr, fb, db = trader
+    klines = pd.DataFrame({"open": [100.0], "high": [101.0], "low": [99.0],
+                           "close": [100.0], "volume": [100.0]})
+    captured = {}
+
+    def fake_decide(df, settings=None, primary_signal=None):
+        captured["primary_signal"] = primary_signal
+        return {"verdict": "BUY", "confidence": 0.9}
+
+    monkeypatch.setattr(at_mod, "decide_council", fake_decide)
+    allow, decision = tr._council_gate(
+        "BUY", klines,
+        {"use_decision_council": True, "council_min_confidence": 0.6,
+         "active_strategy": "ttp"})
+    assert allow is True
+    assert captured["primary_signal"] == {"signal": "BUY", "source": "ttp"}
+
+
+async def test_council_gate_v23_mode_has_no_primary(trader, monkeypatch):
+    tr, fb, db = trader
+    klines = pd.DataFrame({"open": [100.0], "high": [101.0], "low": [99.0],
+                           "close": [100.0], "volume": [100.0]})
+    captured = {}
+
+    def fake_decide(df, settings=None, primary_signal=None):
+        captured["primary_signal"] = primary_signal
+        return {"verdict": "BUY", "confidence": 0.9}
+
+    monkeypatch.setattr(at_mod, "decide_council", fake_decide)
+    allow, decision = tr._council_gate(
+        "BUY", klines,
+        {"use_decision_council": True, "council_min_confidence": 0.6,
+         "active_strategy": "v23"})
+    assert allow is True
+    assert captured["primary_signal"] is None
 
 
 async def test_strength_gate_disabled_passes(trader):

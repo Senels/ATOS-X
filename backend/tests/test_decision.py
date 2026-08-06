@@ -63,5 +63,44 @@ def test_decide_returns_structure():
     assert d["verdict"] in ("BUY", "SELL", "HOLD")
     assert 0.0 <= d["confidence"] <= 1.0
     assert isinstance(d["votes"], list)
-    assert set(d["components"]) == {"v23", "trend", "momentum_pct", "volatility"}
+    assert set(d["components"]) == {"v23", "strategy", "trend", "momentum_pct", "volatility"}
     assert "reason" in d
+
+
+# -- TTP birincil oy ----------------------------------------------------------
+def test_vote_ttp_source_labels_votes():
+    verdict, conf, votes = decision._vote("BUY", "UP", 5.0, "NORMAL", source="ttp")
+    assert verdict == "BUY"
+    assert conf == 1.0
+    assert {v["source"] for v in votes} == {"ttp", "trend", "momentum"}
+
+
+def test_vote_ttp_disagreement_holds():
+    verdict, conf, votes = decision._vote("BUY", "DOWN", -5.0, "NORMAL", source="ttp")
+    assert verdict == "HOLD"
+    assert conf < 0.6
+
+
+def test_vote_ttp_one_side_agrees_passes():
+    verdict, conf, votes = decision._vote("BUY", "DOWN", 5.0, "NORMAL", source="ttp")
+    assert verdict == "BUY"
+    assert 0.5 <= conf < 1.0
+
+
+def test_decide_ttp_primary_uses_primary_signal(monkeypatch):
+    captured = {}
+
+    def fake_v23(df):
+        captured["v23_called"] = True
+        return {"signal": "SELL"}
+
+    monkeypatch.setattr(decision, "TradeBotV23", lambda cfg: type(
+        "Bot", (), {"generate_signal": fake_v23})())
+    df = _df(np.linspace(100, 200, 120))
+    d = decision.decide(df, settings={},
+                        primary_signal={"signal": "BUY", "source": "ttp"})
+    assert "v23_called" not in captured  # v23 hesaplanmadi
+    assert d["components"]["strategy"] == "ttp"
+    assert d["components"]["v23"] is None
+    assert any(v["source"] == "ttp" for v in d["votes"])
+    assert d["verdict"] in ("BUY", "SELL", "HOLD")
