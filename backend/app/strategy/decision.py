@@ -21,6 +21,7 @@ from app.strategy import settings as strat_settings
 from app.strategy.coin_intel import coin_score
 from app.strategy.market_intel import trend_regime, volatility_regime
 from app.strategy.tradebot_v23 import TradeBotV23
+from app.strategy.ttp import TtpTsl
 
 _TREND_MAP = {"UP": "BUY", "DOWN": "SELL", "RANGE": None}
 _WEIGHTS: Dict[str, float] = {"v23": 1.0, "trend": 0.4, "momentum": 0.3}
@@ -82,8 +83,9 @@ def decide(df: pd.DataFrame, settings: Optional[Dict[str, Any]] = None,
     """DataFrame'den karar: birincil sinyal + trend + momentum + volatilite oylamasi.
 
     `primary_signal` verilirse (ornek `{"signal": "BUY", "source": "ttp"}`)
-    v23 hesaplanmaz; verilen sinyal birincil oy olur. Verilmezse v23
-    (TradeBotV23) birincil tetiktir (eski davranis).
+    v23 hesaplanmaz; verilen sinyal birincil oy olur. Verilmezse `settings`
+    aktif stratejisine gore v23 (TradeBotV23) veya ttp (TtpTsl) birincil
+    tetiktir — boylece endpoint/dashboard kararlari gercek kapinin aynisi olur.
     """
     cfg = settings if settings is not None else strat_settings.get_settings()
     if primary_signal:
@@ -93,6 +95,25 @@ def decide(df: pd.DataFrame, settings: Optional[Dict[str, Any]] = None,
         price = primary_signal.get("price")
         sl = primary_signal.get("sl")
         tp = primary_signal.get("tp")
+    elif cfg.get("active_strategy") == "ttp":
+        res = TtpTsl(cfg).analyze_full(df)
+        orders = res.get("orders") if isinstance(res, dict) else None
+        row = orders.iloc[-1] if orders is not None and len(orders) else {}
+        sig_int = int(row.get("signal", 0))
+        primary = "BUY" if sig_int == 1 else ("SELL" if sig_int == -1 else "HOLD")
+        source = "ttp"
+        v23 = None
+        price = None
+        sl = tp = None
+        if not isinstance(row, dict):
+            for key in ("sl", "tp"):
+                val = row.get(key)
+                if val is not None and not pd.isna(val):
+                    if key == "sl":
+                        sl = float(val)
+                    else:
+                        tp = float(val)
+        price = float(df["close"].iloc[-1]) if len(df) else None
     else:
         bot = TradeBotV23(cfg)
         sig = bot.generate_signal(df)

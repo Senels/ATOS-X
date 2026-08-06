@@ -104,3 +104,51 @@ def test_decide_ttp_primary_uses_primary_signal(monkeypatch):
     assert d["components"]["v23"] is None
     assert any(v["source"] == "ttp" for v in d["votes"])
     assert d["verdict"] in ("BUY", "SELL", "HOLD")
+
+
+def test_decide_ttp_mode_uses_ttp_primary(monkeypatch):
+    captured = {}
+
+    def fake_v23(df):
+        captured["v23_called"] = True
+        return {"signal": "SELL"}
+
+    class FakeTtp:
+        def __init__(self, cfg):
+            pass
+
+        def analyze_full(self, df):
+            return {"orders": pd.DataFrame({
+                "signal": [0, 1], "sl": [np.nan, 99.0],
+                "tp": [np.nan, 110.0], "strength": [0.0, 1.0],
+                "in_position": [False, True], "exit": ["", ""],
+                "exit_qty_pct": [0.0, 0.0], "exit_price": [np.nan, np.nan],
+            })}
+
+    monkeypatch.setattr(decision, "TradeBotV23", lambda cfg: type(
+        "Bot", (), {"generate_signal": fake_v23})())
+    monkeypatch.setattr(decision, "TtpTsl", FakeTtp)
+    df = _df(np.linspace(100, 200, 120))
+    d = decision.decide(df, settings={"active_strategy": "ttp"})
+    assert "v23_called" not in captured  # v23 hesaplanmadi
+    assert d["components"]["strategy"] == "ttp"
+    assert d["components"]["v23"] is None
+    assert any(v["source"] == "ttp" for v in d["votes"])
+    assert d["price"] == 200.0  # son bar kapanisi
+
+
+def test_decide_v23_mode_keeps_legacy_behavior(monkeypatch):
+    captured = {}
+
+    def fake_v23(df):
+        captured["v23_called"] = True
+        return {"signal": "BUY", "price": 150.0, "sl": 140.0, "tp": 170.0}
+
+    monkeypatch.setattr(decision, "TradeBotV23", lambda cfg: type(
+        "Bot", (), {"generate_signal": staticmethod(fake_v23)})())
+    df = _df(np.linspace(100, 200, 120))
+    d = decision.decide(df, settings={"active_strategy": "v23"})
+    assert captured["v23_called"] is True
+    assert d["components"]["strategy"] == "v23"
+    assert d["components"]["v23"] == "BUY"
+    assert d["price"] == 150.0
