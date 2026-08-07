@@ -1,0 +1,28 @@
+name: ATOS-X AutoFix
+on: [workflow_dispatch]
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          cat > backend/app/core/database.py << 'PY'
+          from sqlalchemy import create_engine, event
+          from sqlalchemy.orm import sessionmaker, declarative_base
+          import os
+          DATABASE_URL=os.getenv("DATABASE_URL","sqlite:///./atosx.db")
+          engine=create_engine(DATABASE_URL, connect_args={"check_same_thread": False, "timeout": 30}, pool_pre_ping=True)
+          SessionLocal=sessionmaker(bind=engine, autocommit=False, autoflush=False)
+          Base=declarative_base()
+          @event.listens_for(engine, "connect")
+          def set_sqlite_pragma(dbapi_connection, connection_record):
+              cur=dbapi_connection.cursor()
+              cur.execute("PRAGMA journal_mode=WAL;")
+              cur.execute("PRAGMA busy_timeout=10000;")
+              cur.close()
+          PY
+          # ... diğer fixler buraya otomatik eklenecek
+          git config user.name "atosx-bot"
+          git config user.email "bot@atosx.local"
+          git add . && git commit -m "autofix: test takilmasi cozuldu" || echo "no changes"
+          git push
