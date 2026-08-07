@@ -90,6 +90,15 @@ def test_health():
     assert "uptime" in body
 
 
+def test_root_uses_settings_version():
+    with TestClient(app) as client:
+        resp = client.get("/")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["message"] == "🚀 ATOS X"
+    assert body["version"] == main_mod.settings.APP_VERSION
+
+
 def test_health_has_concentration():
     with TestClient(app) as client:
         resp = client.get("/health")

@@ -9,10 +9,11 @@ from binance.client import Client
 from dotenv import load_dotenv
 from loguru import logger
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-load_dotenv()
-
+from app.core.config import ENV_FILE
 from app.data.loader import is_stablecoin_symbol
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+load_dotenv(dotenv_path=str(ENV_FILE))
 
 
 class _FuturesOnlyClient(Client):

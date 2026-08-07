@@ -124,7 +124,7 @@ class Database:
         ''')
         conn.commit()
         conn.close()
-        logger.info("Veritabani hazir")
+        logger.debug(f"Veritabani hazir: {self.db_path}")
 
     def save_trade(self, symbol: str, side: str, entry_price: float, quantity: float,
                    entry_ts: str = None, ttp_tp_hit: int = 0):
