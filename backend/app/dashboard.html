@@ -1,326 +1,829 @@
 <!DOCTYPE html>
-<html>
+<html lang="tr">
 <head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ATOS X Dashboard</title>
 <style>
-* { margin:0; padding:0; box-sizing:border-box; }
-body { background:#0f172a; color:#f1f5f9; font-family:'Segoe UI',Arial,sans-serif; padding:0 16px 40px; }
-.container { max-width:1400px; margin:0 auto; }
-/* ===== Sticky header ===== */
-.header { position:sticky; top:0; z-index:50; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; padding:14px 0; background:rgba(15,23,42,0.92); backdrop-filter:blur(8px); border-bottom:1px solid #1e293b; }
-.header h1 { font-size:26px; background:linear-gradient(135deg,#f59e0b,#3b82f6); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+/* ── Design Tokens ─────────────────────────────────────────────── */
+:root {
+  --bg:        #0b1120;
+  --bg-card:   #111827;
+  --bg-input:  #0d1526;
+  --bg-hover:  #1a2640;
+  --border:    #1e2d45;
+  --border-2:  #253550;
+  --text:      #e2e8f0;
+  --text-2:    #94a3b8;
+  --text-3:    #64748b;
+  --accent:    #3b82f6;
+  --accent-d:  #2563eb;
+  --green:     #22c55e;
+  --green-d:   #16a34a;
+  --red:       #ef4444;
+  --red-d:     #dc2626;
+  --amber:     #f59e0b;
+  --purple:    #8b5cf6;
+  --cyan:      #38bdf8;
+  --radius:    10px;
+  --radius-sm: 6px;
+  --shadow:    0 2px 12px rgba(0,0,0,.45);
+}
+
+/* ── Reset & Base ───────────────────────────────────────────────── */
+*,*::before,*::after { margin:0; padding:0; box-sizing:border-box; }
+html { font-size:14px; }
+body {
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Segoe UI',system-ui,Arial,sans-serif;
+  line-height:1.5;
+  min-height:100vh;
+}
+a { color:var(--accent); text-decoration:none; }
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.container { max-width:1440px; margin:0 auto; padding:0 16px 48px; }
+
+/* ── Header ─────────────────────────────────────────────────────── */
+.header {
+  position:sticky; top:0; z-index:60;
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;
+  padding:12px 0;
+  background:rgba(11,17,32,.95);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+}
+.header-brand { display:flex; align-items:center; gap:10px; }
+.header-brand h1 {
+  font-size:22px; font-weight:800; letter-spacing:-.5px;
+  background:linear-gradient(135deg,var(--amber),var(--accent));
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+}
 .header-right { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-.btn { background:#3b82f6; border:none; color:white; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:13px; transition:0.2s; }
-.btn:hover { background:#2563eb; transform:scale(1.02); }
-.btn-red { background:#ef4444; }
-.btn-red:hover { background:#dc2626; }
-.btn-green { background:#22c55e; }
-.btn-green:hover { background:#16a34a; }
-.settings-link { color:#f59e0b; text-decoration:none; font-size:13px; padding:6px 12px; border:1px solid #f59e0b; border-radius:6px; transition:0.2s; }
-.settings-link:hover { background:#f59e0b; color:#0f172a; }
-/* ===== Kategori tab bar ===== */
-.tabbar { position:sticky; top:64px; z-index:40; display:flex; gap:6px; flex-wrap:wrap; padding:10px 0 4px; background:rgba(15,23,42,0.92); backdrop-filter:blur(8px); margin-bottom:16px; }
-.tab { background:#1e293b; color:#94a3b8; border:1px solid #334155; padding:8px 18px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600; transition:0.2s; display:flex; align-items:center; gap:6px; }
-.tab:hover { color:#f1f5f9; border-color:#3b82f6; }
-.tab.active { background:linear-gradient(135deg,#3b82f6,#2563eb); color:white; border-color:#3b82f6; }
-.tab-badge { background:#0f172a; color:#94a3b8; font-size:11px; padding:1px 7px; border-radius:10px; font-weight:700; }
-.tab.active .tab-badge { background:rgba(255,255,255,0.2); color:white; }
-.tab-badge.warn { background:#ef4444; color:white; }
-.tabpanel { display:none; animation:fadeIn 0.25s ease; }
+
+/* ── Buttons ─────────────────────────────────────────────────────── */
+.btn {
+  display:inline-flex; align-items:center; gap:5px;
+  background:var(--accent); border:none; color:#fff;
+  padding:7px 14px; border-radius:var(--radius-sm);
+  cursor:pointer; font-size:12.5px; font-weight:600;
+  transition:background .15s, transform .1s, box-shadow .15s;
+  white-space:nowrap;
+}
+.btn:hover  { background:var(--accent-d); box-shadow:0 0 0 2px rgba(59,130,246,.35); }
+.btn:active { transform:scale(.97); }
+.btn-red    { background:var(--red); }
+.btn-red:hover { background:var(--red-d); box-shadow:0 0 0 2px rgba(239,68,68,.35); }
+.btn-green  { background:var(--green); color:#0b1120; }
+.btn-green:hover { background:var(--green-d); box-shadow:0 0 0 2px rgba(34,197,94,.35); }
+.btn-ghost  { background:transparent; border:1px solid var(--border-2); color:var(--text-2); }
+.btn-ghost:hover { background:var(--bg-hover); color:var(--text); }
+.btn-sm     { padding:5px 11px; font-size:12px; }
+.settings-link {
+  display:inline-flex; align-items:center; gap:5px;
+  color:var(--amber); border:1px solid var(--amber);
+  padding:6px 12px; border-radius:var(--radius-sm); font-size:12.5px; font-weight:600;
+  transition:background .15s, color .15s;
+}
+.settings-link:hover { background:var(--amber); color:var(--bg); }
+
+/* ── Status / Mode badges in header ─────────────────────────────── */
+#statusBadge {
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:12px; font-weight:700; letter-spacing:.5px;
+  padding:4px 10px; border-radius:20px;
+  background:rgba(34,197,94,.1); border:1px solid rgba(34,197,94,.25);
+}
+.status-dot {
+  width:8px; height:8px; border-radius:50%; flex-shrink:0;
+}
+.status-online  { background:var(--green); animation:pulse-dot 2s infinite; }
+.status-offline { background:var(--red); }
+@keyframes pulse-dot {
+  0%,100% { box-shadow:0 0 0 0 rgba(34,197,94,.6); }
+  50%      { box-shadow:0 0 0 4px rgba(34,197,94,0); }
+}
+
+/* ── Tab Bar ─────────────────────────────────────────────────────── */
+.tabbar {
+  position:sticky; top:57px; z-index:50;
+  display:flex; gap:4px; flex-wrap:wrap;
+  padding:10px 0 8px;
+  background:rgba(11,17,32,.95);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+  margin-bottom:20px;
+}
+.tab {
+  display:inline-flex; align-items:center; gap:6px;
+  background:transparent; color:var(--text-3);
+  border:1px solid transparent;
+  padding:8px 16px; border-radius:var(--radius-sm);
+  cursor:pointer; font-size:13px; font-weight:600;
+  transition:all .15s;
+}
+.tab:hover { color:var(--text-2); background:var(--bg-hover); border-color:var(--border-2); }
+.tab.active {
+  background:var(--accent); color:#fff;
+  border-color:var(--accent);
+  box-shadow:0 2px 10px rgba(59,130,246,.3);
+}
+.tab-badge {
+  background:rgba(255,255,255,.15); color:inherit;
+  font-size:11px; font-weight:700; padding:1px 7px; border-radius:10px;
+}
+.tab.active .tab-badge { background:rgba(255,255,255,.25); }
+.tab-badge.warn { background:var(--red); color:#fff; animation:pulse-dot 1.5s infinite; }
+
+/* ── Tab Panels ──────────────────────────────────────────────────── */
+.tabpanel { display:none; animation:fadeUp .2s ease; }
 .tabpanel.active { display:block; }
-@keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
-/* ===== Kartlar ===== */
-.stats-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-bottom:16px; }
-.stat-box { background:#0f172a; padding:12px 16px; border-radius:8px; border:1px solid #1e293b; text-align:center; }
-.stat-box .label { font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; }
-.stat-box .value { font-size:22px; font-weight:bold; margin-top:4px; }
-.stat-box .value.green { color:#22c55e; }
-.stat-box .value.red { color:#ef4444; }
-.stat-box .value.yellow { color:#f59e0b; }
-.card { background:#1e293b; padding:16px; border-radius:12px; border:1px solid #334155; margin-bottom:16px; }
-.card h3 { margin-bottom:12px; font-size:16px; color:#94a3b8; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.card h3 .hint { color:#64748b; font-size:11px; font-weight:400; }
-.section-title { font-size:15px; color:#f59e0b; margin:4px 0 12px; text-transform:uppercase; letter-spacing:1px; display:flex; align-items:center; gap:8px; }
-.table-wrap { overflow-x:auto; }
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(8px); }
+  to   { opacity:1; transform:none; }
+}
+
+/* ── Section Title ───────────────────────────────────────────────── */
+.section-title {
+  display:flex; align-items:center; gap:8px;
+  font-size:11px; font-weight:700; letter-spacing:1.2px;
+  text-transform:uppercase; color:var(--amber);
+  margin:0 0 14px; padding-bottom:8px;
+  border-bottom:1px solid var(--border);
+}
+.section-group { margin-bottom:24px; }
+
+/* ── Cards ───────────────────────────────────────────────────────── */
+.card {
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:18px 20px;
+  margin-bottom:16px;
+  box-shadow:var(--shadow);
+}
+.card-header {
+  display:flex; align-items:center; justify-content:space-between;
+  flex-wrap:wrap; gap:8px;
+  margin-bottom:14px;
+  padding-bottom:10px;
+  border-bottom:1px solid var(--border);
+}
+.card-header h3 {
+  display:flex; align-items:center; gap:8px;
+  font-size:14px; font-weight:700; color:var(--text);
+}
+.card-header h3 .hint { color:var(--text-3); font-size:11px; font-weight:400; }
+/* Legacy support – old direct h3 inside .card */
+.card > h3 {
+  display:flex; align-items:center; gap:8px;
+  font-size:14px; font-weight:700; color:var(--text);
+  margin-bottom:14px; flex-wrap:wrap;
+}
+.card > h3 .hint { color:var(--text-3); font-size:11px; font-weight:400; }
+
+/* ── KPI / Stat Tiles ────────────────────────────────────────────── */
+.stats-row {
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));
+  gap:10px;
+  margin-bottom:16px;
+}
+.stat-box {
+  background:var(--bg);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:12px 14px;
+  text-align:center;
+  transition:border-color .15s;
+}
+.stat-box:hover { border-color:var(--border-2); }
+.stat-box .label {
+  font-size:10.5px; font-weight:600; letter-spacing:.7px;
+  text-transform:uppercase; color:var(--text-3);
+  margin-bottom:4px;
+}
+.stat-box .value {
+  font-size:20px; font-weight:700; color:var(--text);
+  line-height:1.2;
+}
+.stat-box .value.green  { color:var(--green); }
+.stat-box .value.red    { color:var(--red); }
+.stat-box .value.yellow { color:var(--amber); }
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.table-wrap { overflow-x:auto; border-radius:var(--radius-sm); }
 table { width:100%; font-size:13px; border-collapse:collapse; }
-th,td { padding:8px 10px; text-align:left; border-bottom:1px solid #1e293b; }
-th { color:#94a3b8; font-weight:500; font-size:11px; text-transform:uppercase; }
-tr:hover { background:rgba(59,130,246,0.05); }
-.status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
-.status-online { background:#22c55e; animation:pulse 2s infinite; }
-.status-offline { background:#ef4444; }
-@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
-.badge-buy { background:#22c55e; color:white; padding:2px 10px; border-radius:12px; font-size:12px; }
-.badge-sell { background:#ef4444; color:white; padding:2px 10px; border-radius:12px; font-size:12px; }
-.badge-hold { background:#f59e0b; color:#0f172a; padding:2px 10px; border-radius:12px; font-size:12px; }
-.badge-paper { background:#8b5cf6; color:white; padding:2px 10px; border-radius:12px; font-size:12px; }
-.badge-protected { background:#16a34a; color:white; padding:2px 10px; border-radius:12px; font-size:12px; }
-.badge-unprotected { background:#dc2626; color:white; padding:2px 10px; border-radius:12px; font-size:12px; }
-.chip { background:#334155; color:#e2e8f0; padding:4px 10px; border-radius:12px; font-size:12px; }
-.refresh-info { font-size:12px; color:#64748b; margin-top:8px; text-align:right; }
+thead tr { background:rgba(30,45,69,.6); }
+th {
+  padding:9px 12px; text-align:left;
+  font-size:10.5px; font-weight:700; letter-spacing:.7px;
+  text-transform:uppercase; color:var(--text-3);
+  white-space:nowrap;
+}
+td { padding:9px 12px; border-bottom:1px solid rgba(30,45,69,.6); vertical-align:middle; }
+tbody tr:hover { background:rgba(59,130,246,.06); }
+tbody tr:last-child td { border-bottom:none; }
+
+/* ── Badges ──────────────────────────────────────────────────────── */
+.badge-buy       { display:inline-block; background:rgba(34,197,94,.15); color:var(--green); border:1px solid rgba(34,197,94,.35); padding:2px 9px; border-radius:20px; font-size:11.5px; font-weight:700; }
+.badge-sell      { display:inline-block; background:rgba(239,68,68,.15); color:var(--red);   border:1px solid rgba(239,68,68,.35); padding:2px 9px; border-radius:20px; font-size:11.5px; font-weight:700; }
+.badge-hold      { display:inline-block; background:rgba(245,158,11,.15); color:var(--amber); border:1px solid rgba(245,158,11,.35); padding:2px 9px; border-radius:20px; font-size:11.5px; font-weight:700; }
+.badge-paper     { display:inline-block; background:rgba(139,92,246,.15); color:var(--purple); border:1px solid rgba(139,92,246,.35); padding:2px 9px; border-radius:20px; font-size:11.5px; font-weight:700; }
+.badge-protected { display:inline-block; background:rgba(34,197,94,.12); color:var(--green-d); border:1px solid rgba(34,197,94,.25); padding:2px 9px; border-radius:20px; font-size:11.5px; font-weight:600; }
+.badge-unprotected { display:inline-block; background:rgba(239,68,68,.12); color:var(--red-d); border:1px solid rgba(239,68,68,.25); padding:2px 9px; border-radius:20px; font-size:11.5px; font-weight:600; }
+.chip {
+  display:inline-flex; align-items:center;
+  background:var(--bg); border:1px solid var(--border-2);
+  color:var(--text-2); padding:3px 10px; border-radius:20px;
+  font-size:12px; font-weight:600;
+}
+
+/* ── Halt Banner ─────────────────────────────────────────────────── */
+.halt-banner {
+  background:rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.3);
+  border-radius:var(--radius-sm); padding:8px 14px;
+  display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+  margin-bottom:14px; font-size:12px;
+}
+.halt-banner strong { color:var(--red); font-size:12px; }
 .halt-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+
+/* ── Form Inputs ─────────────────────────────────────────────────── */
+.form-field { display:flex; flex-direction:column; gap:4px; }
+.form-field label { font-size:11px; font-weight:600; letter-spacing:.6px; text-transform:uppercase; color:var(--text-3); }
+input[type=text],input[type=number],input[type=password],select,textarea {
+  background:var(--bg-input); border:1px solid var(--border-2);
+  color:var(--text); border-radius:var(--radius-sm);
+  padding:7px 10px; font-size:12.5px; font-family:inherit;
+  transition:border-color .15s, box-shadow .15s;
+  width:100%;
+}
+input:focus,select:focus,textarea:focus {
+  outline:none; border-color:var(--accent);
+  box-shadow:0 0 0 3px rgba(59,130,246,.18);
+}
+textarea { font-family:'Consolas','Courier New',monospace; resize:vertical; }
+.check-label {
+  display:inline-flex; align-items:center; gap:7px;
+  font-size:12.5px; color:var(--text-2); cursor:pointer;
+  padding:3px 0;
+}
+.check-label input[type=checkbox] { width:15px; height:15px; cursor:pointer; accent-color:var(--accent); }
+
+/* ── Form Group / Section ────────────────────────────────────────── */
+.form-section { margin:16px 0 10px; }
+.form-section-title {
+  font-size:10.5px; font-weight:700; letter-spacing:1px; text-transform:uppercase;
+  color:var(--cyan); margin-bottom:10px; padding-bottom:6px;
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:6px;
+}
+.form-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(160px, 1fr));
+  gap:10px;
+}
+.form-grid-2 {
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(240px, 1fr));
+  gap:10px;
+}
+
+/* ── Progress Bar ────────────────────────────────────────────────── */
+.progress-wrap {
+  background:var(--bg); border:1px solid var(--border);
+  border-radius:20px; height:10px; overflow:hidden;
+}
+.progress-bar {
+  height:100%; background:linear-gradient(90deg,var(--accent),var(--cyan));
+  border-radius:20px; transition:width .4s ease;
+}
+.scan-box {
+  border:1px solid rgba(56,189,248,.3); border-radius:var(--radius);
+  padding:14px 16px; background:rgba(14,36,51,.6);
+  margin-top:14px; display:none;
+}
+
+/* ── Equity Chart ────────────────────────────────────────────────── */
+canvas { border-radius:var(--radius-sm); }
+
+/* ── Misc ────────────────────────────────────────────────────────── */
+.refresh-info { font-size:11.5px; color:var(--text-3); text-align:right; margin-top:10px; }
+.sl-ed, .tp-ed {
+  width:90px !important; background:var(--bg-input); border:1px solid var(--border-2);
+  color:var(--text); border-radius:var(--radius-sm); padding:5px 7px; font-size:12px;
+}
+strong { color:var(--text); }
+
+/* ── Responsive ──────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .header-brand h1 { font-size:18px; }
+  .tabbar { top:52px; }
+  .stats-row { grid-template-columns:repeat(2,1fr); }
+  .form-grid { grid-template-columns:1fr 1fr; }
+  .btn { padding:6px 11px; font-size:12px; }
+}
 </style>
 </head>
 <body>
 <div class="container">
-<div class="header">
-<h1>🚀 ATOS X</h1>
-<div class="header-right">
-<span id="statusBadge"><span class="status-dot status-online"></span>ONLINE</span>
-<span id="paperBadge" style="display:none"><span class="badge-paper">PAPER</span></span>
-<a href="/dashboard/settings" class="settings-link">⚙️ Settings</a>
-<button class="btn" onclick="refresh()">🔄 Refresh</button>
-<button class="btn btn-red" onclick="emergencyStop()">🛑 Stop</button>
-</div>
-</div>
 
-<div class="tabbar" role="tablist">
-<button class="tab active" data-tab="overview" onclick="showTab('overview')">📊 Genel Bakış</button>
-<button class="tab" data-tab="positions" onclick="showTab('positions')">💼 Pozisyonlar <span class="tab-badge" id="tabPosBadge">0</span></button>
-<button class="tab" data-tab="signals" onclick="showTab('signals')">📡 Sinyaller &amp; AI</button>
-<button class="tab" data-tab="market" onclick="showTab('market')">🌍 Piyasa İstihbaratı</button>
-<button class="tab" data-tab="fabrika" onclick="showTab('fabrika')">🧪 Fabrika</button>
-<button class="tab" data-tab="risk" onclick="showTab('risk')">🛡️ Risk &amp; Veri <span class="tab-badge" id="tabHaltBadge" style="display:none">HALT</span></button>
-</div>
+<!-- ══════════════════ HEADER ══════════════════ -->
+<header class="header">
+  <div class="header-brand">
+    <h1>🚀 ATOS X</h1>
+    <span id="statusBadge"><span class="status-dot status-online"></span>ONLINE</span>
+    <span id="paperBadge" style="display:none"><span class="badge-paper">PAPER</span></span>
+  </div>
+  <div class="header-right">
+    <a href="/dashboard/settings" class="settings-link">⚙️ Ayarlar</a>
+    <button class="btn btn-ghost btn-sm" onclick="refresh()">🔄 Yenile</button>
+    <button class="btn btn-red btn-sm" onclick="emergencyStop()">🛑 Durdur</button>
+  </div>
+</header>
 
-<!-- ================= GENEL BAKIŞ ================= -->
+<!-- ══════════════════ TAB BAR ══════════════════ -->
+<nav class="tabbar" role="tablist">
+  <button class="tab active" data-tab="overview"   onclick="showTab('overview')">📊 Genel Bakış</button>
+  <button class="tab"        data-tab="positions"  onclick="showTab('positions')">💼 Pozisyonlar <span class="tab-badge" id="tabPosBadge">0</span></button>
+  <button class="tab"        data-tab="signals"    onclick="showTab('signals')">📡 Sinyaller &amp; AI</button>
+  <button class="tab"        data-tab="market"     onclick="showTab('market')">🌍 Piyasa</button>
+  <button class="tab"        data-tab="fabrika"    onclick="showTab('fabrika')">🧪 Fabrika</button>
+  <button class="tab"        data-tab="risk"       onclick="showTab('risk')">🛡️ Risk &amp; Veri <span class="tab-badge" id="tabHaltBadge" style="display:none">HALT</span></button>
+</nav>
+
+<!-- ══════════════════ GENEL BAKIŞ ══════════════════ -->
 <section id="tab-overview" class="tabpanel active">
-<div class="stats-row">
-<div class="stat-box"><div class="label">Coins</div><div class="value" id="totalCoins">-</div></div>
-<div class="stat-box"><div class="label">Positions</div><div class="value" id="positions">0</div></div>
-<div class="stat-box"><div class="label">Protected</div><div class="value green" id="protected">0</div></div>
-<div class="stat-box"><div class="label">Trades</div><div class="value" id="totalTrades">0</div></div>
-<div class="stat-box"><div class="label">Equity</div><div class="value green" id="equity">$10k</div></div>
-<div class="stat-box"><div class="label">Status</div><div class="value green" id="statusText">Active</div></div>
-</div>
-<div class="card"><h3>💼 Portfolio <span class="hint" id="portSync"></span></h3><div class="stats-row" style="margin-bottom:0;">
-<div class="stat-box"><div class="label">Equity</div><div class="value green" id="portEquity">-</div></div>
-<div class="stat-box"><div class="label">Available</div><div class="value" id="portAvailable">-</div></div>
-<div class="stat-box"><div class="label">uPnL</div><div class="value" id="portUpnl">-</div></div>
-<div class="stat-box"><div class="label">Drawdown</div><div class="value" id="portDrawdown">-</div></div>
-<div class="stat-box"><div class="label">Day PnL</div><div class="value" id="portDayPnl">-</div></div>
-<div class="stat-box"><div class="label">Exposure</div><div class="value" id="portNotional">-</div></div>
-</div></div>
-<div class="card"><h3>📈 Equity Curve</h3><canvas id="equityChart" width="1200" height="280" style="width:100%;height:280px;"></canvas></div>
-<div class="card"><h3>📊 Performans</h3><div class="table-wrap"><table><thead><tr><th>Dönem</th><th>Trade</th><th>W/L</th><th>Win %</th><th>PnL</th><th>PF</th></tr></thead><tbody id="perfBody"><tr><td colspan="6" style="text-align:center;color:#64748b;padding:20px;">Yükleniyor...</td></tr></tbody></table></div></div>
-<div class="card"><h3>⚠️ Risk Exposure</h3><div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
-<div><span class="label" style="font-size:11px;color:#94a3b8;text-transform:uppercase;">LONG</span><div class="value" id="longExposure" style="font-size:22px;font-weight:bold;">-</div></div>
-<div><span class="label" style="font-size:11px;color:#94a3b8;text-transform:uppercase;">SHORT</span><div class="value" id="shortExposure" style="font-size:22px;font-weight:bold;">-</div></div>
-<div><span class="label" style="font-size:11px;color:#94a3b8;text-transform:uppercase;">Drawdown</span><div class="value" id="drawdownVal" style="font-size:22px;font-weight:bold;">-</div></div>
-<div><span class="label" style="font-size:11px;color:#94a3b8;text-transform:uppercase;">Entry Blocks</span><div id="blockChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">-</div></div>
-<div class="halt-row">
-<div id="haltBadge" style="display:none;"><span class="badge-unprotected">RISK HALT</span></div>
-<div id="lossHaltBadge" style="display:none;"><span class="badge-unprotected">LOSS HALT</span></div>
-<div id="dailyHaltBadge" style="display:none;"><span class="badge-unprotected">DAILY HALT</span></div>
-<div id="equityFloorBadge" style="display:none;"><span class="badge-unprotected">EQUITY FLOOR</span></div>
-<div id="tradingOffBadge" style="display:none;"><span class="badge-unprotected">TRADING OFF</span></div>
-<div id="entriesHaltBadge" style="display:none;"><span class="badge-unprotected">GIRIS KAPALI</span></div>
-</div>
-</div></div>
+
+  <!-- KPI Row -->
+  <div class="stats-row">
+    <div class="stat-box"><div class="label">Coins</div><div class="value" id="totalCoins">—</div></div>
+    <div class="stat-box"><div class="label">Pozisyon</div><div class="value" id="positions">0</div></div>
+    <div class="stat-box"><div class="label">Koruma</div><div class="value green" id="protected">0</div></div>
+    <div class="stat-box"><div class="label">İşlem</div><div class="value" id="totalTrades">0</div></div>
+    <div class="stat-box"><div class="label">Öz Kaynak</div><div class="value green" id="equity">$10k</div></div>
+    <div class="stat-box"><div class="label">Durum</div><div class="value green" id="statusText">Aktif</div></div>
+  </div>
+
+  <!-- Portfolio Card -->
+  <div class="card">
+    <h3>💼 Portföy <span class="hint" id="portSync"></span></h3>
+    <div class="stats-row" style="margin-bottom:0">
+      <div class="stat-box"><div class="label">Öz Kaynak</div><div class="value green" id="portEquity">—</div></div>
+      <div class="stat-box"><div class="label">Kullanılabilir</div><div class="value" id="portAvailable">—</div></div>
+      <div class="stat-box"><div class="label">Gerçekleşmemiş PnL</div><div class="value" id="portUpnl">—</div></div>
+      <div class="stat-box"><div class="label">Drawdown</div><div class="value" id="portDrawdown">—</div></div>
+      <div class="stat-box"><div class="label">Günlük PnL</div><div class="value" id="portDayPnl">—</div></div>
+      <div class="stat-box"><div class="label">Exposure</div><div class="value" id="portNotional">—</div></div>
+    </div>
+  </div>
+
+  <!-- Equity Chart -->
+  <div class="card">
+    <h3>📈 Öz Kaynak Eğrisi</h3>
+    <canvas id="equityChart" width="1200" height="260" style="width:100%;height:260px;"></canvas>
+  </div>
+
+  <!-- Performance -->
+  <div class="card">
+    <h3>📊 Performans</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Dönem</th><th>İşlem</th><th>K/Z</th><th>Kazanma %</th><th>PnL</th><th>PF</th></tr></thead>
+        <tbody id="perfBody"><tr><td colspan="6" style="text-align:center;color:var(--text-3);padding:24px">Yükleniyor…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Risk Exposure -->
+  <div class="card">
+    <h3>⚠️ Risk Maruziyeti</h3>
+    <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;">
+      <div class="stat-box" style="flex:0 0 auto;min-width:100px">
+        <div class="label">LONG</div><div class="value" id="longExposure">—</div>
+      </div>
+      <div class="stat-box" style="flex:0 0 auto;min-width:100px">
+        <div class="label">SHORT</div><div class="value" id="shortExposure">—</div>
+      </div>
+      <div class="stat-box" style="flex:0 0 auto;min-width:110px">
+        <div class="label">Drawdown</div><div class="value" id="drawdownVal">—</div>
+      </div>
+      <div style="flex:1 1 200px">
+        <div class="label" style="font-size:10.5px;letter-spacing:.7px;text-transform:uppercase;color:var(--text-3);margin-bottom:6px">Giriş Blokları</div>
+        <div id="blockChips" style="display:flex;flex-wrap:wrap;gap:6px;">—</div>
+      </div>
+    </div>
+    <div class="halt-row" style="margin-top:12px">
+      <div id="haltBadge"       style="display:none"><span class="badge-unprotected">⛔ RİSK HALT</span></div>
+      <div id="lossHaltBadge"   style="display:none"><span class="badge-unprotected">⛔ ZARAR HALT</span></div>
+      <div id="dailyHaltBadge"  style="display:none"><span class="badge-unprotected">⛔ GÜNLÜK HALT</span></div>
+      <div id="equityFloorBadge" style="display:none"><span class="badge-unprotected">⛔ EQUITY FLOOR</span></div>
+      <div id="tradingOffBadge" style="display:none"><span class="badge-unprotected">⛔ TRADING KAPALI</span></div>
+      <div id="entriesHaltBadge" style="display:none"><span class="badge-unprotected">⛔ GİRİŞ KAPALI</span></div>
+    </div>
+  </div>
+
 </section>
 
-<!-- ================= POZİSYONLAR ================= -->
+<!-- ══════════════════ POZİSYONLAR ══════════════════ -->
 <section id="tab-positions" class="tabpanel">
-<div class="section-title">💼 Pozisyonlar ve İşlemler</div>
-<div class="card"><h3>📊 Active Positions <span class="hint" id="posSummary"></span></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Qty</th><th>SL</th><th>TP</th><th>PnL</th><th>Protection</th><th>Time</th><th>Actions</th></tr></thead><tbody id="positionsBody"><tr><td colspan="10" style="text-align:center;color:#64748b;padding:20px;">No active positions</td></tr></tbody></table></div></div>
-<div class="card"><h3>🧮 Position Risk <span class="hint" id="riskPosSummary"></span></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Notional</th><th>Size %</th><th>SL Dist %</th><th>Risk $</th><th>uPnL</th><th>Protection</th><th>Age (h)</th></tr></thead><tbody id="riskPosBody"><tr><td colspan="8" style="text-align:center;color:#64748b;padding:20px;">No active positions</td></tr></tbody></table></div></div>
-<div class="card"><h3>💰 PnL by Symbol</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Trades</th><th>W/L</th><th>Net PnL</th></tr></thead><tbody id="pnlBody"><tr><td colspan="4" style="text-align:center;color:#64748b;padding:20px;">No closed trades yet</td></tr></tbody></table></div></div>
-<div class="card"><h3>📋 Trade History</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Exit</th><th>PnL</th><th>Reason</th><th>Time</th></tr></thead><tbody id="tradesBody"><tr><td colspan="7" style="text-align:center;color:#64748b;padding:20px;">No trades yet</td></tr></tbody></table></div></div>
+  <div class="section-title">💼 Pozisyonlar ve İşlem Geçmişi</div>
+
+  <div class="card">
+    <h3>📊 Aktif Pozisyonlar <span class="hint" id="posSummary"></span></h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Sembol</th><th>Yön</th><th>Giriş</th><th>Miktar</th><th>SL</th><th>TP</th><th>PnL</th><th>Koruma</th><th>Zaman</th><th>İşlemler</th></tr></thead>
+        <tbody id="positionsBody"><tr><td colspan="10" style="text-align:center;color:var(--text-3);padding:24px">Açık pozisyon yok</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>🧮 Pozisyon Riski <span class="hint" id="riskPosSummary"></span></h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Sembol</th><th>Nominal</th><th>Boyut %</th><th>SL Uzaklık %</th><th>Risk $</th><th>uPnL</th><th>Koruma</th><th>Yaş (s)</th></tr></thead>
+        <tbody id="riskPosBody"><tr><td colspan="8" style="text-align:center;color:var(--text-3);padding:24px">Açık pozisyon yok</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;flex-wrap:wrap;" class="two-col">
+    <div class="card" style="margin-bottom:0">
+      <h3>💰 Sembole Göre PnL</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Sembol</th><th>İşlem</th><th>K/Z</th><th>Net PnL</th></tr></thead>
+          <tbody id="pnlBody"><tr><td colspan="4" style="text-align:center;color:var(--text-3);padding:24px">Kapalı işlem yok</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:0">
+      <h3>📋 İşlem Geçmişi</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Sembol</th><th>Yön</th><th>Giriş</th><th>Çıkış</th><th>PnL</th><th>Neden</th><th>Zaman</th></tr></thead>
+          <tbody id="tradesBody"><tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:24px">İşlem yok</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <style>.two-col { margin-bottom:16px; } @media(max-width:760px){.two-col{grid-template-columns:1fr!important}}</style>
+
 </section>
 
-<!-- ================= SİNYALLER & AI ================= -->
+<!-- ══════════════════ SİNYALLER & AI ══════════════════ -->
 <section id="tab-signals" class="tabpanel">
-<div class="section-title">📡 Sinyaller, Kararlar ve AI Performansı</div>
-<div class="card"><h3>🤖 AI Feedback <span class="hint" id="aiRetrainBadge"></span></h3><div class="stats-row" style="margin-bottom:0;">
-<div class="stat-box"><div class="label">Tahmin</div><div class="value" id="aiTotal">0</div></div>
-<div class="stat-box"><div class="label">Bekleyen</div><div class="value yellow" id="aiPending">0</div></div>
-<div class="stat-box"><div class="label">Isabet</div><div class="value green" id="aiAcc">-</div></div>
-<div class="stat-box"><div class="label">Ort. Guven</div><div class="value" id="aiConf">-</div></div>
-<div class="stat-box"><div class="label">Model</div><div class="value" id="aiModel" style="font-size:15px;">-</div></div>
-</div><div class="table-wrap"><table><thead><tr><th>Yon</th><th>Isabet</th><th>Toplam</th><th>Dogruluk</th><th>Ort. Guven</th></tr></thead><tbody id="aiStatsBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Veri birikiyor...</td></tr></tbody></table></div></div>
-<div class="card"><h3>📡 Live Signals <select id="signalsInterval" onchange="signalsIntervalChange()" style="margin-left:8px;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:3px 6px;font-size:12px;"><option value="15m">15m</option><option value="30m">30m</option><option value="1h">1h</option><option value="2h">2h</option><option value="4h">4h</option><option value="6h">6h</option><option value="8h">8h</option><option value="12h">12h</option><option value="1d">1d</option></select><select id="signalsFilter" onchange="signalsFilterChange()" style="margin-left:8px;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:3px 6px;font-size:12px;"><option value="ALL">Tumu</option><option value="BUY">BUY</option><option value="SELL">SELL</option><option value="HOLD">HOLD</option></select></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Signal</th><th>AI</th><th>Price</th><th>SL</th><th>TP</th><th>Guc</th><th>Reason</th></tr></thead><tbody id="signalsBody"><tr><td colspan="8" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
-<div class="card"><h3>⚖️ Decision Council</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Verdict</th><th>Confidence</th><th>Votes</th><th>Reason</th></tr></thead><tbody id="decisionBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
+  <div class="section-title">📡 Sinyaller, Kararlar ve AI Performansı</div>
+
+  <div class="card">
+    <h3>🤖 AI Geri Bildirim <span class="hint" id="aiRetrainBadge"></span></h3>
+    <div class="stats-row">
+      <div class="stat-box"><div class="label">Tahmin</div><div class="value" id="aiTotal">0</div></div>
+      <div class="stat-box"><div class="label">Bekleyen</div><div class="value yellow" id="aiPending">0</div></div>
+      <div class="stat-box"><div class="label">İsabet</div><div class="value green" id="aiAcc">—</div></div>
+      <div class="stat-box"><div class="label">Ort. Güven</div><div class="value" id="aiConf">—</div></div>
+      <div class="stat-box"><div class="label">Model</div><div class="value" id="aiModel" style="font-size:14px">—</div></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Yön</th><th>İsabet</th><th>Toplam</th><th>Doğruluk</th><th>Ort. Güven</th></tr></thead>
+        <tbody id="aiStatsBody"><tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:24px">Veri birikiyor…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+      <h3 style="margin:0">📡 Canlı Sinyaller</h3>
+      <select id="signalsInterval" onchange="signalsIntervalChange()" style="background:var(--bg-input);border:1px solid var(--border-2);color:var(--text);border-radius:var(--radius-sm);padding:5px 8px;font-size:12px;">
+        <option value="15m">15m</option><option value="30m">30m</option>
+        <option value="1h">1h</option><option value="2h">2h</option>
+        <option value="4h">4h</option><option value="6h">6h</option>
+        <option value="8h">8h</option><option value="12h">12h</option>
+        <option value="1d">1d</option>
+      </select>
+      <select id="signalsFilter" onchange="signalsFilterChange()" style="background:var(--bg-input);border:1px solid var(--border-2);color:var(--text);border-radius:var(--radius-sm);padding:5px 8px;font-size:12px;">
+        <option value="ALL">Tümü</option><option value="BUY">BUY</option>
+        <option value="SELL">SELL</option><option value="HOLD">HOLD</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Sembol</th><th>Sinyal</th><th>AI</th><th>Fiyat</th><th>SL</th><th>TP</th><th>Güç</th><th>Neden</th></tr></thead>
+        <tbody id="signalsBody"><tr><td colspan="8" style="text-align:center;color:var(--text-3);padding:24px">Yükleniyor…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>⚖️ Karar Konseyi</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Sembol</th><th>Karar</th><th>Güven</th><th>Oylar</th><th>Neden</th></tr></thead>
+        <tbody id="decisionBody"><tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:24px">Yükleniyor…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
 </section>
 
-<!-- ================= PİYASA İSTİHBARATI ================= -->
+<!-- ══════════════════ PİYASA ══════════════════ -->
 <section id="tab-market" class="tabpanel">
-<div class="section-title">🌍 Piyasa İstihbaratı</div>
-<div class="card"><h3>🎯 Priority Watchlist</h3><div id="watchlistBody" style="display:flex;flex-wrap:wrap;gap:6px;">-</div></div>
-<div class="card"><h3>🌡️ Market Regime</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Trend</th><th>Volatility</th><th>ATR%</th><th>ATR%ile</th></tr></thead><tbody id="regimeBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
-<div class="card"><h3>🏆 Coin Scores</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Score</th><th>Momentum%</th><th>Trend</th><th>ATR%</th></tr></thead><tbody id="scoreBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
+  <div class="section-title">🌍 Piyasa İstihbaratı</div>
+
+  <div class="card">
+    <h3>🎯 Öncelikli İzleme Listesi</h3>
+    <div id="watchlistBody" style="display:flex;flex-wrap:wrap;gap:6px;min-height:32px">—</div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px" class="two-col" style="margin-bottom:16px">
+    <div class="card" style="margin-bottom:0">
+      <h3>🌡️ Piyasa Rejimi</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Sembol</th><th>Trend</th><th>Volatilite</th><th>ATR%</th><th>ATR%ile</th></tr></thead>
+          <tbody id="regimeBody"><tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:24px">Yükleniyor…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:0">
+      <h3>🏆 Coin Skorları</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Sembol</th><th>Skor</th><th>Momentum%</th><th>Trend</th><th>ATR%</th></tr></thead>
+          <tbody id="scoreBody"><tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:24px">Yükleniyor…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </section>
 
-<!-- ================= RİSK & VERİ ================= -->
+<!-- ══════════════════ RİSK & VERİ ══════════════════ -->
 <section id="tab-risk" class="tabpanel">
-<div class="section-title">🛡️ Risk Olayları ve Veri Sağlığı</div>
-<div class="card"><h3>🛡️ Risk Events</h3><div id="riskEvents"><div style="color:#64748b;padding:10px;">-</div></div></div>
-<div class="card"><h3>🗃️ Data Freshness <button class="btn" style="padding:4px 10px;font-size:11px;margin-left:8px;" onclick="backfillStale()">↻ Backfill</button><span class="hint" id="dataFreshSummary"></span></h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Bars</th><th>Last Bar</th><th>Age (h)</th><th>State</th></tr></thead><tbody id="dataFreshBody"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Yukleniyor...</td></tr></tbody></table></div></div>
+  <div class="section-title">🛡️ Risk Olayları ve Veri Sağlığı</div>
+
+  <div class="card">
+    <h3>🛡️ Risk Olayları</h3>
+    <div id="riskEvents"><div style="color:var(--text-3);padding:12px">—</div></div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+      <h3 style="margin:0">🗃️ Veri Tazeliği</h3>
+      <button class="btn btn-ghost btn-sm" onclick="backfillStale()">↻ Backfill</button>
+      <span style="font-size:12px;color:var(--text-3)" id="dataFreshSummary"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Sembol</th><th>Bar</th><th>Son Bar</th><th>Yaş (s)</th><th>Durum</th></tr></thead>
+        <tbody id="dataFreshBody"><tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:24px">Yükleniyor…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
 </section>
 
-<!-- ================= STRATEJİ FABRİKASI ================= -->
+<!-- ══════════════════ STRATEJİ FABRİKASI ══════════════════ -->
 <section id="tab-fabrika" class="tabpanel">
-<div class="section-title">🧪 Strateji Fabrikası — v23 Konfigürasyon + Geçmiş Testi</div>
+  <div class="section-title">🧪 Strateji Fabrikası — v23 Konfigürasyon + Geçmiş Testi</div>
 
-<div class="card"><h3>🔧 Fabrika Paneli <span class="hint" id="factoryState">yukleniyor...</span></h3>
-<div class="stats-row" style="margin-bottom:8px;">
-<div class="stat-box" style="flex:1;"><div class="label">Aktif Strateji</div>
-<select id="fActive" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;">
-<option value="v23">v23 (TradeBotV23)</option><option value="ttp">TTPTSL (TtpTsl)</option>
-</select></div>
-</div>
-<div class="label" style="font-size:11px;color:#38bdf8;text-transform:uppercase;margin:8px 0 6px;">🎯 Temel Sinyal</div>
-<div class="stats-row" style="margin-bottom:0;">
-<div class="stat-box" style="flex:1;"><div class="label">Leading İndikatör</div>
-<select id="fLeading" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;">
-<option>Range Filter</option><option>RQK</option><option>Supertrend</option><option>MACD</option><option>RSI</option><option>Stochastic</option><option>2 EMA Cross</option><option>3 EMA Cross</option><option>Ichimoku</option><option>SSL Channel</option><option>VWAP</option>
-</select></div>
-<div class="stat-box" style="flex:1;"><div class="label">Sinyal Expiry (bar)</div><input type="number" id="fExpiry" value="3" min="1" step="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">RR Oranı</div><input type="number" id="fRR" value="1.5" step="0.1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">SL Lookback</div><input type="number" id="fSlLookback" value="5" min="1" step="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">SL Timeframe (TF)</div><input type="text" id="fSlTf" value="" placeholder="bos = ayni tf" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">ATR Çarpanı</div><input type="number" id="fAtrMult" value="1.5" step="0.1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Range Filtre Len</div><input type="number" id="fRfLen" value="3" min="1" step="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Range Filtre Mult</div><input type="number" id="fRfMult" value="2.5" step="0.1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-</div>
-<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
-<label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="fAlternate" checked> Alternatif sinyal (aynı yöne tekrar yok)</label>
-<label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="fAtrFallback" checked> ATR fallback</label>
-</div>
-<div class="label" style="font-size:11px;color:#38bdf8;text-transform:uppercase;margin:8px 0 6px;">✅ Konfirmasyonlar (hepsi AND — strength = aktif/toplam)</div>
-<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;" id="fConfRow">
-<label style="font-size:12px;color:#e2e8f0;display:flex;align-items:center;gap:5px;"><input type="checkbox" class="f-conf" data-k="ema" checked> EMA200</label>
-<label style="font-size:12px;color:#e2e8f0;display:flex;align-items:center;gap:5px;"><input type="checkbox" class="f-conf" data-k="2ma" checked> 2 MA Cross</label>
-<label style="font-size:12px;color:#e2e8f0;display:flex;align-items:center;gap:5px;"><input type="checkbox" class="f-conf" data-k="3ma" checked> 3 MA Stack</label>
-<label style="font-size:12px;color:#e2e8f0;display:flex;align-items:center;gap:5px;"><input type="checkbox" class="f-conf" data-k="rf" checked> Range Filtre</label>
-<label style="font-size:12px;color:#e2e8f0;display:flex;align-items:center;gap:5px;"><input type="checkbox" class="f-conf" data-k="rqk" checked> RQK</label>
-<label style="font-size:12px;color:#e2e8f0;display:flex;align-items:center;gap:5px;"><input type="checkbox" class="f-conf" data-k="st" checked> Supertrend</label>
-<label style="font-size:12px;color:#e2e8f0;display:flex;align-items:center;gap:5px;"><input type="checkbox" class="f-conf" data-k="ht" checked> HalfTrend</label>
-<label style="font-size:12px;color:#e2e8f0;display:flex;align-items:center;gap:5px;"><input type="checkbox" class="f-conf" data-k="rsi" checked> RSI</label>
-<label style="font-size:12px;color:#e2e8f0;display:flex;align-items:center;gap:5px;"><input type="checkbox" class="f-conf" data-k="macd" checked> MACD</label>
-<label style="font-size:12px;color:#e2e8f0;display:flex;align-items:center;gap:5px;"><input type="checkbox" class="f-conf" data-k="stoch" checked> Stochastic</label>
-<label style="font-size:12px;color:#e2e8f0;display:flex;align-items:center;gap:5px;"><input type="checkbox" class="f-conf" data-k="ichi" checked> Ichimoku</label>
-<label style="font-size:12px;color:#e2e8f0;display:flex;align-items:center;gap:5px;"><input type="checkbox" class="f-conf" data-k="ce" checked> Chandelier</label>
-</div>
-<div class="label" style="font-size:11px;color:#38bdf8;text-transform:uppercase;margin:8px 0 6px;">⚠️ Risk Yönetimi</div>
-<div class="stats-row" style="margin-bottom:0;">
-<div class="stat-box" style="flex:1;"><div class="label">Risk / Trade (%)</div><input type="number" id="fRiskPct" value="2" step="0.1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Fee Rate</div><input type="number" id="fFee" value="0.0005" step="0.0001" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Max Leverage</div><input type="number" id="fLev" value="10" step="0.5" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Max Açık Pozisyon</div><input type="number" id="fMaxOpen" value="3" min="1" step="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Max Pozisyon %</div><input type="number" id="fMaxPosPct" value="75" step="5" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Max Yön %</div><input type="number" id="fMaxSidePct" value="150" step="5" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Max Drawdown %</div><input type="number" id="fMaxDD" value="20" step="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Ardışık Zarar Limiti</div><input type="number" id="fConsec" value="5" min="0" step="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Günlük Zarar %</div><input type="number" id="fDailyLoss" value="5" step="0.5" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Min Equity ($)</div><input type="number" id="fMinEquity" value="5000" step="100" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Trailing Başlangıç %</div><input type="number" id="fTrailAct" value="3" step="0.1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Trailing SL %</div><input type="number" id="fTrailSl" value="1.5" step="0.1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Trailing Min Hareket %</div><input type="number" id="fTrailMin" value="0.1" step="0.05" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Breakeven %</div><input type="number" id="fBeAct" value="2" step="0.1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Pozisyon Yaşı (saat)</div><input type="number" id="fMaxAge" value="48" step="1" min="0" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Restore Yaş Limiti (gün)</div><input type="number" id="fRestoreAge" value="7" step="1" min="0" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:2;"><div class="label">Yasaklı Semboller (virgülle)</div><input type="text" id="fBanned" value="" placeholder="NATGASUSDT,BLURUSDT" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-</div>
-<div class="label" style="font-size:11px;color:#38bdf8;text-transform:uppercase;margin:8px 0 6px;">🚪 Giriş Kapıları</div>
-<div class="stats-row" style="margin-bottom:0;">
-<div class="stat-box" style="flex:1;"><div class="label">Min Sinyal Gücü</div><input type="number" id="fMinSig" value="0.6" step="0.05" min="0" max="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">AI Kapısı Min Güven</div><input type="number" id="fAiMinConf" value="0.55" step="0.05" min="0" max="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Council Min Güven</div><input type="number" id="fCouncilConf" value="0.6" step="0.05" min="0" max="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
-<label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="fUseAI" checked> AI kapısı aktif</label>
-<label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="fUseCouncil" checked> Decision Council aktif</label>
-</div>
-</div>
-<div class="label" style="font-size:11px;color:#38bdf8;text-transform:uppercase;margin:8px 0 6px;">📊 Volatilite Boyutlandırma</div>
-<div class="stats-row" style="margin-bottom:0;">
-<div class="stat-box" style="flex:1;"><div class="label">Vol Eşik (ATR çoklu)</div><input type="number" id="fVolHi" value="1.5" step="0.1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Düşük Rejim Eşiği</div><input type="number" id="fVolLo" value="0.6" step="0.1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Risk Çarpanı</div><input type="number" id="fVolFactor" value="0.5" step="0.05" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="fVolSize" checked> Vol boyutlandırma aktif</label>
-</div>
-<div class="label" style="font-size:11px;color:#38bdf8;text-transform:uppercase;margin:8px 0 6px;">⚙️ Motor & Veri</div>
-<div class="stats-row" style="margin-bottom:0;">
-<div class="stat-box" style="flex:1;"><div class="label">Scan Limit</div><input type="number" id="fScanLimit" value="50" min="1" step="10" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Backfill Aralığı (saat)</div><input type="number" id="fBackfillH" value="24" step="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Veri Tazelik (saat)</div><input type="number" id="fFreshH" value="12" step="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="fUseRanking" checked> Score ranking aktif</label>
-</div>
-<div class="label" style="font-size:11px;color:#38bdf8;text-transform:uppercase;margin:8px 0 6px;">🤖 AI Eğitim</div>
-<div class="stats-row" style="margin-bottom:0;">
-<div class="stat-box" style="flex:1;"><div class="label">Horizon (bar)</div><input type="number" id="fAiHorizon" value="24" min="1" step="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">ATR Çarpanı (etiket)</div><input type="number" id="fAiAtrMult" value="1" step="0.1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Retrain Aralığı (saat)</div><input type="number" id="fRetrainInt" value="24" step="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Retrain Min Acc</div><input type="number" id="fRetrainAcc" value="0.55" step="0.05" min="0" max="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Retrain Min Örnek</div><input type="number" id="fRetrainSamples" value="30" min="1" step="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Retrain Sembol</div><input type="number" id="fRetrainSymbols" value="400" min="10" step="10" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Retrain Epoch</div><input type="number" id="fRetrainEpochs" value="30" min="1" step="1" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="fAutoRetrain"> Otomatik retrain aktif</label>
-</div>
-<div class="label" style="font-size:11px;color:#38bdf8;text-transform:uppercase;margin:8px 0 6px;">🧩 TTPTSL Parametreleri (aktif strateji=ttp ise)</div>
-<textarea id="fTtpJson" rows="5" spellcheck="false" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:6px;font-size:12px;font-family:Consolas,monospace;"></textarea>
-<div style="display:flex;gap:8px;margin-top:10px;">
-<button class="btn" onclick="factoryDefaults()">↺ Varsayılanları Getir</button>
-<button class="btn" style="background:#2563eb;" onclick="factoryApply()">💾 Canlıya Uygula</button>
-</div>
-</div>
+  <!-- ── Config Panel ── -->
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+      <h3 style="margin:0">🔧 Strateji Konfigürasyonu</h3>
+      <span style="font-size:12px;color:var(--text-3)" id="factoryState">yükleniyor…</span>
+    </div>
 
-<div class="card"><h3>🔐 Binance Gerçek Hesap Bağlantısı</h3>
-<div class="stats-row" style="margin-bottom:8px;">
-<div class="stat-box" style="flex:1;"><div class="label">API Key</div><input type="text" id="exApiKey" autocomplete="off" spellcheck="false" placeholder="Binance API key" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;font-family:Consolas,monospace;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Secret Key</div><input type="password" id="exSecret" autocomplete="off" placeholder="Binance secret" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;font-family:Consolas,monospace;"></div>
-</div>
-<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
-<label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="exTestnet"> Testnet (kapalıysa gerçek hesap)</label>
-<span class="hint" id="exStatus"></span>
-</div>
-<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-<button class="btn" style="background:#2563eb;" onclick="exchangeSave()">💾 Anahtarları Kaydet</button>
-<button class="btn" style="background:#16a34a;" onclick="exchangeTest()">🔌 Bağlantıyı Test Et</button>
-<span id="exResult" style="font-size:12px;color:#94a3b8;"></span>
-</div>
-</div>
+    <!-- Aktif Strateji -->
+    <div class="form-section">
+      <div class="form-section-title">🎯 Aktif Strateji</div>
+      <div class="form-grid">
+        <div class="form-field">
+          <label>Aktif Strateji</label>
+          <select id="fActive">
+            <option value="v23">v23 (TradeBotV23)</option>
+            <option value="ttp">TTPTSL (TtpTsl)</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Leading İndikatör</label>
+          <select id="fLeading">
+            <option>Range Filter</option><option>RQK</option><option>Supertrend</option>
+            <option>MACD</option><option>RSI</option><option>Stochastic</option>
+            <option>2 EMA Cross</option><option>3 EMA Cross</option>
+            <option>Ichimoku</option><option>SSL Channel</option><option>VWAP</option>
+          </select>
+        </div>
+        <div class="form-field"><label>Sinyal Expiry (bar)</label><input type="number" id="fExpiry" value="3" min="1" step="1"></div>
+        <div class="form-field"><label>RR Oranı</label><input type="number" id="fRR" value="1.5" step="0.1"></div>
+        <div class="form-field"><label>SL Lookback</label><input type="number" id="fSlLookback" value="5" min="1" step="1"></div>
+        <div class="form-field"><label>SL Timeframe (boş = aynı TF)</label><input type="text" id="fSlTf" value="" placeholder="örn. 1h"></div>
+        <div class="form-field"><label>ATR Çarpanı</label><input type="number" id="fAtrMult" value="1.5" step="0.1"></div>
+        <div class="form-field"><label>Range Filtre Uzunluk</label><input type="number" id="fRfLen" value="3" min="1" step="1"></div>
+        <div class="form-field"><label>Range Filtre Çarpan</label><input type="number" id="fRfMult" value="2.5" step="0.1"></div>
+      </div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px">
+        <label class="check-label"><input type="checkbox" id="fAlternate" checked> Alternatif sinyal (aynı yöne tekrar yok)</label>
+        <label class="check-label"><input type="checkbox" id="fAtrFallback" checked> ATR fallback</label>
+      </div>
+    </div>
 
-<div class="card"><h3>📜 Geçmiş Testi (Backtest)</h3>
-<div class="stats-row" style="margin-bottom:10px;">
-<div class="stat-box" style="flex:1.4;"><div class="label">Semboller (virgülle)</div><input type="text" id="fSymbols" value="BTCUSDT" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"><button class="btn" style="background:#0ea5e9;margin-top:5px;width:100%;" onclick="factoryRunMarket()">Tum Piyasa Taramasi (Binance, 1 Yil)</button></div>
-<div class="stat-box" style="flex:1;"><div class="label">Interval</div>
-<select id="fInterval" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;">
-<option>15m</option><option>30m</option><option>1h</option><option>2h</option><option selected>4h</option><option>6h</option><option>8h</option><option>12h</option><option>1d</option>
-</select></div>
-<div class="stat-box" style="flex:1;"><div class="label">Bar Sayısı</div><input type="number" id="fLimit" value="2190" min="100" step="100" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
-<div class="stat-box" style="flex:1;"><div class="label">Kaynak</div>
-<select id="fSource" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;">
-<option value="csv" selected>CSV Arşiv</option><option value="binance">Binance Canlı</option>
-</select></div>
-</div>
-<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
-<label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="fAiFilter" checked> 🤖 AI Denetimi (sinyalleri filtrele)</label>
-<label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;">Eşik <input type="number" id="fAiThreshold" value="0.55" step="0.05" min="0" max="1" style="width:70px;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:3px 6px;font-size:12px;"></label>
-<label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="fAbMode"> ⚖️ A/B Karşılaştır (filtresiz vs AI)</label>
-</div>
-<button class="btn" style="background:#16a34a;" onclick="factoryRun()">▶ Koş</button> <span class="hint" id="factoryRunMsg"></span>
-<div id="factoryScanBox" style="display:none;margin-top:12px;border:1px solid #0ea5e9;border-radius:8px;padding:12px;background:#0c2233;">
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-<b style="color:#7dd3fc;">🌐 Tüm Piyasa Taraması</b>
-<span class="hint" id="factoryScanMeta"></span>
-</div>
-<div style="height:10px;background:#0f172a;border-radius:5px;overflow:hidden;border:1px solid #334155;">
-<div id="factoryScanBar" style="height:100%;width:0%;background:linear-gradient(90deg,#0ea5e9,#22d3ee);transition:width .5s;"></div>
-</div>
-<div style="margin-top:6px;font-size:12px;color:#94a3b8;" id="factoryScanStatus">Hazırlanıyor...</div>
-</div>
-</div>
+    <!-- Konfirmasyonlar -->
+    <div class="form-section">
+      <div class="form-section-title">✅ Konfirmasyonlar <span style="font-weight:400;font-size:10px;opacity:.7">(hepsi AND — güç = aktif/toplam)</span></div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap" id="fConfRow">
+        <label class="check-label"><input type="checkbox" class="f-conf" data-k="ema"  checked> EMA200</label>
+        <label class="check-label"><input type="checkbox" class="f-conf" data-k="2ma"  checked> 2 MA Cross</label>
+        <label class="check-label"><input type="checkbox" class="f-conf" data-k="3ma"  checked> 3 MA Stack</label>
+        <label class="check-label"><input type="checkbox" class="f-conf" data-k="rf"   checked> Range Filtre</label>
+        <label class="check-label"><input type="checkbox" class="f-conf" data-k="rqk"  checked> RQK</label>
+        <label class="check-label"><input type="checkbox" class="f-conf" data-k="st"   checked> Supertrend</label>
+        <label class="check-label"><input type="checkbox" class="f-conf" data-k="ht"   checked> HalfTrend</label>
+        <label class="check-label"><input type="checkbox" class="f-conf" data-k="rsi"  checked> RSI</label>
+        <label class="check-label"><input type="checkbox" class="f-conf" data-k="macd" checked> MACD</label>
+        <label class="check-label"><input type="checkbox" class="f-conf" data-k="stoch" checked> Stochastic</label>
+        <label class="check-label"><input type="checkbox" class="f-conf" data-k="ichi" checked> Ichimoku</label>
+        <label class="check-label"><input type="checkbox" class="f-conf" data-k="ce"   checked> Chandelier</label>
+      </div>
+    </div>
 
-<div class="card" id="factoryResultsCard" style="display:none;"><h3>📊 Sonuçlar <span class="hint" id="factoryResultMeta"></span></h3>
-<div class="stats-row" style="margin-bottom:10px;" id="factorySummaryRow"></div>
-<div class="table-wrap"><table><thead id="factoryThead"></thead><tbody id="factoryBody"></tbody></table></div>
-<div id="factoryAbBox" style="margin-top:10px;"></div>
-<div class="card" style="margin-top:10px;"><h3>📈 Equity Eğrisi</h3><canvas id="factoryEquityChart" width="1200" height="220" style="width:100%;height:220px;"></canvas></div>
-</div>
+    <!-- Risk Yönetimi -->
+    <div class="form-section">
+      <div class="form-section-title">⚠️ Risk Yönetimi</div>
+      <div class="form-grid">
+        <div class="form-field"><label>Risk / İşlem (%)</label><input type="number" id="fRiskPct" value="2" step="0.1"></div>
+        <div class="form-field"><label>Fee Rate</label><input type="number" id="fFee" value="0.0005" step="0.0001"></div>
+        <div class="form-field"><label>Maks Kaldıraç</label><input type="number" id="fLev" value="10" step="0.5"></div>
+        <div class="form-field"><label>Maks Açık Pozisyon</label><input type="number" id="fMaxOpen" value="3" min="1" step="1"></div>
+        <div class="form-field"><label>Maks Pozisyon %</label><input type="number" id="fMaxPosPct" value="75" step="5"></div>
+        <div class="form-field"><label>Maks Yön %</label><input type="number" id="fMaxSidePct" value="150" step="5"></div>
+        <div class="form-field"><label>Maks Drawdown %</label><input type="number" id="fMaxDD" value="20" step="1"></div>
+        <div class="form-field"><label>Ardışık Zarar Limiti</label><input type="number" id="fConsec" value="5" min="0" step="1"></div>
+        <div class="form-field"><label>Günlük Zarar %</label><input type="number" id="fDailyLoss" value="5" step="0.5"></div>
+        <div class="form-field"><label>Min Equity ($)</label><input type="number" id="fMinEquity" value="5000" step="100"></div>
+        <div class="form-field"><label>Trailing Başlangıç %</label><input type="number" id="fTrailAct" value="3" step="0.1"></div>
+        <div class="form-field"><label>Trailing SL %</label><input type="number" id="fTrailSl" value="1.5" step="0.1"></div>
+        <div class="form-field"><label>Trailing Min Hareket %</label><input type="number" id="fTrailMin" value="0.1" step="0.05"></div>
+        <div class="form-field"><label>Breakeven %</label><input type="number" id="fBeAct" value="2" step="0.1"></div>
+        <div class="form-field"><label>Pozisyon Yaşı (saat)</label><input type="number" id="fMaxAge" value="48" step="1" min="0"></div>
+        <div class="form-field"><label>Restore Yaş Limiti (gün)</label><input type="number" id="fRestoreAge" value="7" step="1" min="0"></div>
+        <div class="form-field" style="grid-column:span 2"><label>Yasaklı Semboller (virgülle)</label><input type="text" id="fBanned" value="" placeholder="NATGASUSDT,BLURUSDT"></div>
+      </div>
+    </div>
+
+    <!-- Giriş Kapıları -->
+    <div class="form-section">
+      <div class="form-section-title">🚪 Giriş Kapıları</div>
+      <div class="form-grid">
+        <div class="form-field"><label>Min Sinyal Gücü</label><input type="number" id="fMinSig" value="0.6" step="0.05" min="0" max="1"></div>
+        <div class="form-field"><label>AI Kapısı Min Güven</label><input type="number" id="fAiMinConf" value="0.55" step="0.05" min="0" max="1"></div>
+        <div class="form-field"><label>Council Min Güven</label><input type="number" id="fCouncilConf" value="0.6" step="0.05" min="0" max="1"></div>
+      </div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px">
+        <label class="check-label"><input type="checkbox" id="fUseAI" checked> AI kapısı aktif</label>
+        <label class="check-label"><input type="checkbox" id="fUseCouncil" checked> Decision Council aktif</label>
+      </div>
+    </div>
+
+    <!-- Volatilite -->
+    <div class="form-section">
+      <div class="form-section-title">📊 Volatilite Boyutlandırma</div>
+      <div class="form-grid">
+        <div class="form-field"><label>Vol Eşik (ATR çoklu)</label><input type="number" id="fVolHi" value="1.5" step="0.1"></div>
+        <div class="form-field"><label>Düşük Rejim Eşiği</label><input type="number" id="fVolLo" value="0.6" step="0.1"></div>
+        <div class="form-field"><label>Risk Çarpanı</label><input type="number" id="fVolFactor" value="0.5" step="0.05"></div>
+      </div>
+      <label class="check-label" style="margin-top:10px"><input type="checkbox" id="fVolSize" checked> Vol boyutlandırma aktif</label>
+    </div>
+
+    <!-- Motor & Veri -->
+    <div class="form-section">
+      <div class="form-section-title">⚙️ Motor &amp; Veri</div>
+      <div class="form-grid">
+        <div class="form-field"><label>Scan Limiti</label><input type="number" id="fScanLimit" value="50" min="1" step="10"></div>
+        <div class="form-field"><label>Backfill Aralığı (saat)</label><input type="number" id="fBackfillH" value="24" step="1"></div>
+        <div class="form-field"><label>Veri Tazelik (saat)</label><input type="number" id="fFreshH" value="12" step="1"></div>
+      </div>
+      <label class="check-label" style="margin-top:10px"><input type="checkbox" id="fUseRanking" checked> Score ranking aktif</label>
+    </div>
+
+    <!-- AI Eğitim -->
+    <div class="form-section">
+      <div class="form-section-title">🤖 AI Eğitim</div>
+      <div class="form-grid">
+        <div class="form-field"><label>Horizon (bar)</label><input type="number" id="fAiHorizon" value="24" min="1" step="1"></div>
+        <div class="form-field"><label>ATR Çarpanı (etiket)</label><input type="number" id="fAiAtrMult" value="1" step="0.1"></div>
+        <div class="form-field"><label>Retrain Aralığı (saat)</label><input type="number" id="fRetrainInt" value="24" step="1"></div>
+        <div class="form-field"><label>Retrain Min Acc</label><input type="number" id="fRetrainAcc" value="0.55" step="0.05" min="0" max="1"></div>
+        <div class="form-field"><label>Retrain Min Örnek</label><input type="number" id="fRetrainSamples" value="30" min="1" step="1"></div>
+        <div class="form-field"><label>Retrain Sembol</label><input type="number" id="fRetrainSymbols" value="400" min="10" step="10"></div>
+        <div class="form-field"><label>Retrain Epoch</label><input type="number" id="fRetrainEpochs" value="30" min="1" step="1"></div>
+      </div>
+      <label class="check-label" style="margin-top:10px"><input type="checkbox" id="fAutoRetrain"> Otomatik retrain aktif</label>
+    </div>
+
+    <!-- TTPTSL -->
+    <div class="form-section">
+      <div class="form-section-title">🧩 TTPTSL Parametreleri <span style="font-weight:400;opacity:.7">(aktif strateji=ttp ise)</span></div>
+      <textarea id="fTtpJson" rows="5" spellcheck="false" placeholder="{}"></textarea>
+    </div>
+
+    <!-- Action Buttons -->
+    <div style="display:flex;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);flex-wrap:wrap">
+      <button class="btn btn-ghost" onclick="factoryDefaults()">↺ Varsayılanları Getir</button>
+      <button class="btn" onclick="factoryApply()">💾 Canlıya Uygula</button>
+    </div>
+  </div>
+
+  <!-- ── Exchange Credentials ── -->
+  <div class="card">
+    <h3>🔐 Binance Hesap Bağlantısı</h3>
+    <div class="form-grid-2" style="margin-bottom:12px">
+      <div class="form-field">
+        <label>API Key</label>
+        <input type="text" id="exApiKey" autocomplete="off" spellcheck="false" placeholder="Binance API key" style="font-family:Consolas,monospace">
+      </div>
+      <div class="form-field">
+        <label>Secret Key</label>
+        <input type="password" id="exSecret" autocomplete="off" placeholder="Binance secret" style="font-family:Consolas,monospace">
+      </div>
+    </div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+      <label class="check-label"><input type="checkbox" id="exTestnet"> Testnet (kapalıysa gerçek hesap)</label>
+      <span style="font-size:12px;color:var(--text-3)" id="exStatus"></span>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn" onclick="exchangeSave()">💾 Anahtarları Kaydet</button>
+      <button class="btn btn-green" onclick="exchangeTest()">🔌 Bağlantıyı Test Et</button>
+      <span id="exResult" style="font-size:12.5px;color:var(--text-2)"></span>
+    </div>
+  </div>
+
+  <!-- ── Backtest ── -->
+  <div class="card">
+    <h3>📜 Geçmiş Testi (Backtest)</h3>
+    <div class="form-grid" style="margin-bottom:12px">
+      <div class="form-field" style="grid-column:span 2"><label>Semboller (virgülle)</label><input type="text" id="fSymbols" value="BTCUSDT"></div>
+      <div class="form-field">
+        <label>Interval</label>
+        <select id="fInterval">
+          <option>15m</option><option>30m</option><option>1h</option><option>2h</option>
+          <option selected>4h</option><option>6h</option><option>8h</option>
+          <option>12h</option><option>1d</option>
+        </select>
+      </div>
+      <div class="form-field"><label>Bar Sayısı</label><input type="number" id="fLimit" value="2190" min="100" step="100"></div>
+      <div class="form-field">
+        <label>Kaynak</label>
+        <select id="fSource">
+          <option value="csv" selected>CSV Arşiv</option>
+          <option value="binance">Binance Canlı</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+      <label class="check-label"><input type="checkbox" id="fAiFilter" checked> 🤖 AI Denetimi (sinyalleri filtrele)</label>
+      <label class="check-label">Eşik <input type="number" id="fAiThreshold" value="0.55" step="0.05" min="0" max="1" style="width:70px;display:inline;margin-left:6px"></label>
+      <label class="check-label"><input type="checkbox" id="fAbMode"> ⚖️ A/B Karşılaştır (filtresiz vs AI)</label>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-green" onclick="factoryRun()">▶ Koş</button>
+      <span style="font-size:12.5px;color:var(--text-3)" id="factoryRunMsg"></span>
+    </div>
+
+    <div id="factoryScanBox" class="scan-box">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <b style="color:var(--cyan)">🌐 Tüm Piyasa Taraması</b>
+        <span style="font-size:12px;color:var(--text-3)" id="factoryScanMeta"></span>
+      </div>
+      <div class="progress-wrap">
+        <div id="factoryScanBar" class="progress-bar" style="width:0%"></div>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--text-3)" id="factoryScanStatus">Hazırlanıyor…</div>
+    </div>
+  </div>
+
+  <!-- ── Results ── -->
+  <div class="card" id="factoryResultsCard" style="display:none">
+    <h3>📊 Sonuçlar <span class="hint" id="factoryResultMeta"></span></h3>
+    <div class="stats-row" id="factorySummaryRow"></div>
+    <div class="table-wrap">
+      <table><thead id="factoryThead"></thead><tbody id="factoryBody"></tbody></table>
+    </div>
+    <div id="factoryAbBox" style="margin-top:12px"></div>
+    <div class="card" style="margin-top:14px;background:var(--bg)">
+      <h3>📈 Equity Eğrisi</h3>
+      <canvas id="factoryEquityChart" width="1200" height="220" style="width:100%;height:220px"></canvas>
+    </div>
+  </div>
+
 </section>
 
-<div class="refresh-info" id="lastUpdate">Last update: -</div>
+<div class="refresh-info" id="lastUpdate">Son güncelleme: —</div>
 </div>
+
 <script>
 function showTab(name) {
   document.querySelectorAll('.tab').forEach(function(t) { t.classList.toggle('active', t.getAttribute('data-tab') === name); });
