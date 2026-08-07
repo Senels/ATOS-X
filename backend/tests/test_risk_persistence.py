@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -75,7 +75,7 @@ def test_restore_peak_clamped_to_equity(make_trader):
 
 
 def test_restore_same_day_daily_state(make_trader):
-    today = datetime.utcnow().date().isoformat()
+    today = _utc_now().date().isoformat()
     tr, _ = make_trader(day_start_date=today, day_pnl=-120.0, daily_loss_halted=1)
     assert tr.day_start_date == today
     assert tr.day_pnl == pytest.approx(-120.0)
@@ -83,9 +83,9 @@ def test_restore_same_day_daily_state(make_trader):
 
 
 def test_restore_new_day_resets_daily(make_trader):
-    yesterday = (datetime.utcnow() - timedelta(days=1)).date().isoformat()
+    yesterday = (_utc_now() - timedelta(days=1)).date().isoformat()
     tr, _ = make_trader(day_start_date=yesterday, day_pnl=-500.0, daily_loss_halted=1)
-    assert tr.day_start_date == datetime.utcnow().date().isoformat()
+    assert tr.day_start_date == _utc_now().date().isoformat()
     assert tr.day_pnl == 0.0
     assert tr.daily_loss_halted is False
 
@@ -148,3 +148,6 @@ async def test_check_drawdown_persists(make_trader):
     assert tr.risk_halted is True
     assert int(state["risk_halted"]) == 1
     assert float(state["peak_equity"]) == pytest.approx(12000.0)
+def _utc_now():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+

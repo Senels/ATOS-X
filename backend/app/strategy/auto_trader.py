@@ -8,6 +8,7 @@ from loguru import logger
 from app.backtest.engine import BacktestEngine
 from app.core.config import get_settings
 from app.core.database import Database
+from app.core.time import utc_now
 from app.data import loader
 from app.data.collector import backfill as backfill_klines
 from app.strategy import get_strategy
@@ -89,7 +90,7 @@ class AutoTrader:
         self.loss_halted = False
         self.max_daily_loss_pct = float(s.get("max_daily_loss_pct", 5.0))
         self.day_pnl = 0.0
-        self.day_start_date = datetime.utcnow().date().isoformat()
+        self.day_start_date = utc_now().date().isoformat()
         self.daily_loss_halted = False
         self.min_equity = float(s.get("min_equity", 5000.0))
         self.equity_halted = False
@@ -136,7 +137,7 @@ class AutoTrader:
 
     def _log_risk_event(self, event_type: str, message: str, **extra):
         """Risk/blok olaylarini son-N halka tamponuna ve DB'ye kalici yazar."""
-        entry = {"time": datetime.utcnow().isoformat(), "type": event_type,
+        entry = {"time": utc_now().isoformat(), "type": event_type,
                  "message": message, **extra}
         self.risk_events.append(entry)
         if len(self.risk_events) > self.risk_events_max:
@@ -187,7 +188,7 @@ class AutoTrader:
             self.peak_equity = self.equity
         self.drawdown_pct = float(state.get("drawdown_pct", self.drawdown_pct))
         saved_day = state.get("day_start_date")
-        today = datetime.utcnow().date().isoformat()
+        today = utc_now().date().isoformat()
         if saved_day == today:
             self.day_start_date = saved_day
             self.day_pnl = float(state.get("day_pnl", 0.0))
@@ -293,7 +294,7 @@ class AutoTrader:
             last = df.index[-1].to_pydatetime()
             if last.tzinfo is not None:
                 last = last.replace(tzinfo=None)
-            age_h = (datetime.utcnow() - last).total_seconds() / 3600.0
+            age_h = (utc_now() - last).total_seconds() / 3600.0
             if age_h > fresh_h:
                 stale.append(symbol)
         if not stale:
@@ -961,7 +962,7 @@ class AutoTrader:
                     "sl": sl,
                     "tp": tp,
                     "entry_fee": float(sizing["entry_fee"]),
-                    "open_time": datetime.utcnow().isoformat(),
+                    "open_time": utc_now().isoformat(),
                     "entry_ts": str(entry_ts) if entry_ts else None,
                     "ttp_tp_hit": False,
                 }
@@ -1167,7 +1168,7 @@ class AutoTrader:
             "reason": reason,
             "trailing": bool(pos.get("trailing")),
             "breakeven": bool(pos.get("breakeven")),
-            "time": datetime.utcnow().isoformat(),
+            "time": utc_now().isoformat(),
         })
         if self.telegram:
             await self.telegram.send_trade(
@@ -1222,7 +1223,7 @@ class AutoTrader:
             return 0.0
         if isinstance(raw, (int, float)):
             try:
-                dt = datetime.utcfromtimestamp(float(raw))
+                dt = datetime.fromtimestamp(float(raw), tz=timezone.utc).replace(tzinfo=None)
             except (ValueError, OSError):
                 return 0.0
         else:
@@ -1232,7 +1233,7 @@ class AutoTrader:
                 return 0.0
             if dt.tzinfo is not None:
                 dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
-        return max(0.0, (datetime.utcnow() - dt).total_seconds() / 86400.0)
+        return max(0.0, (utc_now() - dt).total_seconds() / 86400.0)
 
     def _restore_paper_positions(self):
         """Paper modunda restart sonrasi acik pozisyonlari DB'den geri yukler.
@@ -1256,7 +1257,7 @@ class AutoTrader:
             symbol = t["symbol"]
             if symbol in self.active_positions:
                 continue
-            entry_time = t.get("entry_time") or t.get("entry_ts") or datetime.utcnow().isoformat()
+            entry_time = t.get("entry_time") or t.get("entry_ts") or utc_now().isoformat()
             self.active_positions[symbol] = {
                 "side": "BUY" if t["side"] == "BUY" else "SELL",
                 "entry_price": t["entry_price"],
@@ -1382,7 +1383,7 @@ class AutoTrader:
                 amt = float(p["positionAmt"])
                 db_trailing, db_breakeven = self.db.get_open_trade_protection(symbol)
                 db_entry_ts, db_ttp_tp_hit = self.db.get_open_trade_ttp_state(symbol)
-                restored_open = datetime.utcnow().isoformat()
+                restored_open = utc_now().isoformat()
                 if db_opened:
                     try:
                         restored_open = datetime.fromisoformat(db_opened).isoformat()
@@ -1459,7 +1460,7 @@ class AutoTrader:
 
     def _rollover_day(self):
         """Gun degisti ise gunluk PnL sayacini sifirlar ve halt'i kaldirir."""
-        today = datetime.utcnow().date().isoformat()
+        today = utc_now().date().isoformat()
         if self.day_start_date == today:
             return
         self.day_start_date = today
@@ -1748,7 +1749,7 @@ class AutoTrader:
         if strat_settings.get_settings().get("active_strategy") == "ttp":
             await self._ttp_manage_positions(prices)
             return
-        now = datetime.utcnow()
+        now = utc_now()
         for symbol, pos in list(self.active_positions.items()):
             if self.max_position_age_hours > 0:
                 try:
@@ -1924,7 +1925,7 @@ class AutoTrader:
             "reason": reason,
             "trailing": bool(pos.get("trailing")),
             "breakeven": bool(pos.get("breakeven")),
-            "time": datetime.utcnow().isoformat(),
+            "time": utc_now().isoformat(),
         })
         try:
             self.db.reduce_trade_quantity(symbol, pos["quantity"])

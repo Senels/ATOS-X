@@ -18,6 +18,7 @@ from app.api.optimization import router as optimize_router
 from app.core.config import ENV_FILE, get_settings
 from app.core.database import Database
 from app.core.security import APIKeyMiddleware
+from app.core.time import utc_now
 from app.data import loader
 from app.data.collector import _INTERVAL_MS
 from app.data.collector import backfill as backfill_klines
@@ -40,7 +41,7 @@ ws = BinanceWebSocket()
 telegram = TelegramNotifier()
 auto_trader = None
 daily_report_task = None
-system_status = {"status": "initializing", "start_time": datetime.utcnow()}
+system_status = {"status": "initializing", "start_time": utc_now()}
 _PRICE_ALERTS = {}  # symbol -> [{price, side, created}]
 _alarm_task = None
 _backup_task = None
@@ -484,7 +485,7 @@ def _telegram_command(text: str):
         if not auto_trader.active_positions:
             return "ATOS X: acik pozisyon yok"
         lines = ["ATOS X pozisyonlar:"]
-        now = datetime.utcnow()
+        now = utc_now()
         for sym, pos in auto_trader.active_positions.items():
             prot = "korumali" if (pos.get("sl_order_id") or pos.get("tp_order_id")) else "KORUMASIZ"
             if pos.get("trailing"):
@@ -821,7 +822,7 @@ def _telegram_command(text: str):
             prot_line += " | " + " ".join(extras)
         upnl = _positions_payload()['total_upnl']
         upnl_sign = "+" if upnl >= 0 else ""
-        now = datetime.utcnow()
+        now = utc_now()
         max_age_h = float(strat_settings.get_settings().get("max_position_age_hours", 0))
         old_syms = []
         if max_age_h > 0:
@@ -1309,7 +1310,7 @@ def _telegram_command(text: str):
             if any(a["price"] == target and a["side"] == side for a in _PRICE_ALERTS[sym]):
                 return f"ATOS X: {sym} icin ${target:g} ({side}) alarmi zaten mevcut"
             _PRICE_ALERTS[sym].append({
-                "price": target, "side": side, "created": datetime.utcnow().isoformat()
+                "price": target, "side": side, "created": utc_now().isoformat()
             })
             db = getattr(app.state, "db", None)
             if db is not None:
@@ -1338,7 +1339,7 @@ def _telegram_command(text: str):
         if auto_trader.drawdown_pct > 0:
             lines.append(f"Drawdown: %{auto_trader.drawdown_pct:.1f}")
         if pos:
-            now = datetime.utcnow()
+            now = utc_now()
             lines.append("---")
             for sym, p in pos.items():
                 side = p.get("side", "?")
@@ -1478,7 +1479,7 @@ def _data_freshness(limit: int = 100) -> dict:
     limit = max(1, min(limit, 300))
     symbols = (auto_trader.priority or auto_trader.trading_symbols)[:limit]
     fresh_h = float(strat_settings.get_settings().get("data_freshness_hours", 12.0))
-    now = datetime.utcnow()
+    now = utc_now()
     rows, fresh, stale, missing = [], 0, 0, 0
     for symbol in symbols:
         try:
@@ -1597,7 +1598,7 @@ async def health():
         "trading_mode": auto_trader.trading_mode if auto_trader else "paper",
         "halt_entries": auto_trader.halt_entries if auto_trader else False,
         "trading": auto_trader.running if auto_trader else False,
-        "uptime": int((datetime.utcnow() - system_status["start_time"]).total_seconds())
+        "uptime": int((utc_now() - system_status["start_time"]).total_seconds())
     }
 
 @app.get("/api/v1/signals")
@@ -1861,7 +1862,7 @@ async def performance_summary():
     if not auto_trader:
         return {"ok": False, "error": "not_running"}
     hist = auto_trader.trade_history
-    now = datetime.utcnow()
+    now = utc_now()
     equity = auto_trader.equity or 0.0
 
     def _period_stats(trades, days):
@@ -1895,7 +1896,7 @@ async def performance_summary():
 # ============ STRATEJİ AYARLARI ENDPOINT'LERİ ============
 @app.get("/api/v1/strategy/settings")
 async def get_strategy_settings():
-    return {"settings": strat_settings.get_settings(), "timestamp": datetime.utcnow().isoformat()}
+    return {"settings": strat_settings.get_settings(), "timestamp": utc_now().isoformat()}
 
 @app.post("/api/v1/strategy/settings")
 async def update_strategy_settings(request: Request):
@@ -2105,7 +2106,7 @@ async def risk_positions():
                 opened = datetime.fromisoformat(pos["open_time"].replace("Z", "+00:00"))
                 if opened.tzinfo:
                     opened = opened.replace(tzinfo=None)
-                age_h = (datetime.utcnow() - opened).total_seconds() / 3600.0
+                age_h = (utc_now() - opened).total_seconds() / 3600.0
             except Exception:
                 age_h = None
         out[symbol] = {
@@ -2257,7 +2258,7 @@ async def metrics():
             "halt_entries": auto_trader.halt_entries if auto_trader else False,
             "trading": auto_trader.running if auto_trader else False,
             "risk_events": auto_trader.risk_events[-10:] if auto_trader else [],
-            "uptime": int((datetime.utcnow() - system_status["start_time"]).total_seconds())
+            "uptime": int((utc_now() - system_status["start_time"]).total_seconds())
         }
     except Exception as e:
         return {"error": str(e)}

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pandas as pd
@@ -15,7 +15,9 @@ class _FakeTrader:
 
 
 def _df(hours_ago):
-    idx = pd.DatetimeIndex([datetime.utcnow() - pd.Timedelta(hours=hours_ago)]).tz_localize("UTC")
+    idx = pd.DatetimeIndex(
+        [datetime.now(timezone.utc).replace(tzinfo=None) - pd.Timedelta(hours=hours_ago)]
+    ).tz_localize("UTC")
     return pd.DataFrame({"open": [100.0], "high": [101.0], "low": [99.0],
                          "close": [100.0], "volume": [1.0]}, index=idx)
 
