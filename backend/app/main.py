@@ -12,6 +12,7 @@ from loguru import logger
 
 from app.api.backtest import router as backtest_router
 from app.api.exchange import router as exchange_router
+from app.api.metrics import router as metrics_router
 from app.api.optimization import router as optimize_router
 from app.core.config import get_settings
 from app.core.database import Database
@@ -1569,6 +1570,7 @@ app.add_middleware(APIKeyMiddleware, api_key=settings.API_KEY)
 app.include_router(backtest_router)
 app.include_router(optimize_router)
 app.include_router(exchange_router)
+app.include_router(metrics_router)
 
 @app.get("/")
 async def root():
