@@ -1,5 +1,5 @@
 import pytest
-from fastapi.testclient import TestClient
+from starlette.testclient import TestClient
 
 import app.strategy.auto_trader as at_mod
 from app import main as main_mod

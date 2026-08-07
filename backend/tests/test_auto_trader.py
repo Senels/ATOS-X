@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 import pandas as pd
 import pytest
@@ -7,11 +7,8 @@ import pytest
 import app.strategy.auto_trader as at_mod
 from app.backtest.engine import BacktestEngine
 from app.core.database import Database
+from app.core.time import utc_now
 from app.strategy import settings as strat_settings
-
-
-def _utc_now():
-    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class FakeTelegram:
@@ -181,8 +178,8 @@ def test_paper_restore_skips_known_symbols(tmp_path, monkeypatch):
 def test_paper_restore_stale_queued_for_close(tmp_path, monkeypatch):
     db = Database(str(tmp_path / "at.db"))
     monkeypatch.setattr(at_mod, "Database", lambda *a, **k: db)
-    old_ts = (_utc_now() - timedelta(days=10)).strftime("%Y-%m-%d %H:%M:%S+00:00")
-    fresh_ts = (_utc_now() - timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S+00:00")
+    old_ts = (utc_now() - timedelta(days=10)).strftime("%Y-%m-%d %H:%M:%S+00:00")
+    fresh_ts = (utc_now() - timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S+00:00")
     db.save_trade("STALEUSDT", "BUY", 1.0, 100.0, entry_ts=old_ts)
     db.save_trade("FRESHUSDT", "SELL", 2.0, 50.0, entry_ts=fresh_ts)
     tr = at_mod.AutoTrader(FakeBinance(), paper=True)
@@ -196,7 +193,7 @@ def test_paper_restore_stale_queued_for_close(tmp_path, monkeypatch):
 async def test_paper_restore_stale_close_records(tmp_path, monkeypatch):
     db = Database(str(tmp_path / "at.db"))
     monkeypatch.setattr(at_mod, "Database", lambda *a, **k: db)
-    old_ts = (_utc_now() - timedelta(days=10)).strftime("%Y-%m-%d %H:%M:%S+00:00")
+    old_ts = (utc_now() - timedelta(days=10)).strftime("%Y-%m-%d %H:%M:%S+00:00")
     db.save_trade("STALEUSDT", "BUY", 100.0, 10.0, entry_ts=old_ts)
     tr = at_mod.AutoTrader(FakeBinance(), paper=True)
     tr._restore_paper_positions()
@@ -215,7 +212,7 @@ async def test_paper_restore_stale_close_records(tmp_path, monkeypatch):
 def test_paper_restore_age_limit_disabled(tmp_path, monkeypatch):
     db = Database(str(tmp_path / "at.db"))
     monkeypatch.setattr(at_mod, "Database", lambda *a, **k: db)
-    old_ts = (_utc_now() - timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S+00:00")
+    old_ts = (utc_now() - timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S+00:00")
     db.save_trade("OLDUSDT", "BUY", 1.0, 100.0, entry_ts=old_ts)
     _orig = strat_settings.get_settings
     monkeypatch.setattr(strat_settings, "get_settings",
@@ -1233,7 +1230,7 @@ async def test_time_stop_closes_expired_position(trader):
     tr.max_position_age_hours = 8
     await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
     tr.active_positions["BTCUSDT"]["open_time"] = (
-        _utc_now() - timedelta(hours=10)
+        utc_now() - timedelta(hours=10)
     ).isoformat()
     await tr.check_positions({"BTCUSDT": 64000.0})
     assert "BTCUSDT" not in tr.active_positions
@@ -1245,7 +1242,7 @@ async def test_time_stop_disabled_when_zero(trader):
     tr.max_position_age_hours = 0
     await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
     tr.active_positions["BTCUSDT"]["open_time"] = (
-        _utc_now() - timedelta(hours=100)
+        utc_now() - timedelta(hours=100)
     ).isoformat()
     await tr.check_positions({"BTCUSDT": 64000.0})
     assert "BTCUSDT" in tr.active_positions
@@ -2055,7 +2052,7 @@ async def test_refresh_ranking_disabled_keeps_backtest_order(trader, monkeypatch
 async def test_ensure_data_freshness_backfills_stale(trader, monkeypatch):
     tr, fb, db = trader
     tr.priority = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
-    now = _utc_now()
+    now = utc_now()
 
     def fake_load(symbol, interval="4h", data_dir=None, limit=None):
         if symbol == "BTCUSDT":
@@ -2086,7 +2083,7 @@ async def test_ensure_data_freshness_backfills_stale(trader, monkeypatch):
 async def test_ensure_data_freshness_all_fresh(trader, monkeypatch):
     tr, fb, db = trader
     tr.priority = ["BTCUSDT"]
-    now = _utc_now()
+    now = utc_now()
     idx = pd.DatetimeIndex([now - timedelta(hours=1)]).tz_localize("UTC")
     df = pd.DataFrame({"open": [100.0], "high": [101.0], "low": [99.0],
                        "close": [100.0], "volume": [1.0]}, index=idx)

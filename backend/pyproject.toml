@@ -61,3 +61,6 @@ ignore_missing_imports = true
 asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = "-v -p no:pytest_ethereum"
+filterwarnings = [
+    "ignore:Using `httpx` with `starlette\\.testclient` is deprecated; install `httpx2` instead\\.:Warning",
+]

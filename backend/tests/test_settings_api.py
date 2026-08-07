@@ -1,4 +1,4 @@
-from fastapi.testclient import TestClient
+from starlette.testclient import TestClient
 
 import app.main as main_mod
 from app.main import app
