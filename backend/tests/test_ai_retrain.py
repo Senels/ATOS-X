@@ -115,6 +115,7 @@ def test_maybe_retrain_time_based_trigger(trader, monkeypatch):
     monkeypatch.setattr(asyncio, "create_task", lambda coro, **k: captured.append(coro))
     t._maybe_retrain_ai(now=time.time())
     assert len(captured) == 1
+    captured[0].close()
     assert t._retrain_running is True
 
 
@@ -133,6 +134,8 @@ def test_maybe_retrain_time_gate(trader, monkeypatch):
     assert len(captured) == 1
     t._maybe_retrain_ai(now=now + 901)   # 15 dk -> yeniden degerlendirir
     assert len(captured) == 2
+    for coro in captured:
+        coro.close()
 
 
 def test_maybe_retrain_accuracy_trigger(trader, monkeypatch):
@@ -147,6 +150,7 @@ def test_maybe_retrain_accuracy_trigger(trader, monkeypatch):
     monkeypatch.setattr(asyncio, "create_task", lambda coro, **k: captured.append(coro))
     t._maybe_retrain_ai(now=time.time())
     assert len(captured) == 1
+    captured[0].close()
 
 
 def test_run_retrain_success_invalidates_cache_and_notifies(trader, monkeypatch):
@@ -184,4 +188,3 @@ def test_run_retrain_failure_notifies(trader, monkeypatch):
     asyncio.run(t._run_retrain(_settings(), "ai_direction"))
     assert t._retrain_running is False
     assert any("BASARISIZ" in m for m in tg.sent)
-

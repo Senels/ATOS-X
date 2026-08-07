@@ -1,11 +1,13 @@
 ﻿import asyncio
 import os
 import time
+import warnings
+from functools import lru_cache
+from threading import Lock
 from typing import Optional
 
 import pandas as pd
 import urllib3
-from binance.client import Client
 from dotenv import load_dotenv
 from loguru import logger
 
@@ -14,16 +16,33 @@ from app.data.loader import is_stablecoin_symbol
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 load_dotenv(dotenv_path=str(ENV_FILE))
+_FUTURES_ONLY_CLIENT_LOCK = Lock()
+
+@lru_cache(maxsize=1)
+def _futures_only_client_class():
+    with _FUTURES_ONLY_CLIENT_LOCK:
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message="websockets.WebSocketClientProtocol is deprecated",
+                category=DeprecationWarning,
+            )
+            from binance.client import Client
+
+    class _ImportedFuturesOnlyClient(Client):
+        """Spot bagimliligini kaldirir: constructor spot ping'ini atlar.
+
+        Sistem sadece Binance USDM Futures kullanir.
+        """
+
+        def ping(self):
+            return {}
+
+    return _ImportedFuturesOnlyClient
 
 
-class _FuturesOnlyClient(Client):
-    """Spot bagimliligini kaldirir: constructor spot ping'ini atlar.
-
-    Sistem sadece Binance USDM Futures kullanir.
-    """
-
-    def ping(self):
-        return {}
+def _FuturesOnlyClient(*args, **kwargs):
+    return _futures_only_client_class()(*args, **kwargs)
 
 
 class BinanceClient:

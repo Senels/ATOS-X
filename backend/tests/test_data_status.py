@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pandas as pd
-from fastapi.testclient import TestClient
+from starlette.testclient import TestClient
 
 from app import main as main_mod
 from app.main import app

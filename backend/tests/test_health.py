@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from app import main as main_mod
 from app.main import app
-from fastapi.testclient import TestClient
+from starlette.testclient import TestClient
 
 
 class _FakeKlines:
