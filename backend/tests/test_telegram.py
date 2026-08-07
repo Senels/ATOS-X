@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import numpy as np
@@ -681,7 +681,9 @@ def test_command_stats_empty():
 
 
 def _fresh_csv_df():
-    idx = pd.DatetimeIndex([datetime.utcnow() - pd.Timedelta(hours=1)]).tz_localize("UTC")
+    idx = pd.DatetimeIndex(
+        [datetime.now(timezone.utc).replace(tzinfo=None) - pd.Timedelta(hours=1)]
+    ).tz_localize("UTC")
     return pd.DataFrame({"open": [100.0], "high": [101.0], "low": [99.0],
                          "close": [100.0], "volume": [1.0]}, index=idx)
 
