@@ -13,6 +13,8 @@ from loguru import logger
 from app.api.backtest import router as backtest_router
 from app.api.exchange import router as exchange_router
 from app.api.optimization import router as optimize_router
+from app.api.portfolio import router as portfolio_router
+from app.api.risk import router as risk_router
 from app.core.config import get_settings
 from app.core.database import Database
 from app.core.security import APIKeyMiddleware
@@ -63,7 +65,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         system_status["status"] = "degraded"
         logger.error("Binance baglantisi kurulamadi; AutoTrader yeniden denemeye devam edecek")
         await telegram.send("ATOS X: Binance baglantisi kurulamadi, degrade modda basladi")
-    app.state.db = Database()
+    app.state.db = Database(os.getenv("DB_PATH", "atos.db"))
 
     auto_trader = AutoTrader(app.state.binance, telegram=telegram)
     app.state.auto_trader = auto_trader
@@ -472,7 +474,14 @@ def _telegram_command(text: str):
                 "/yedek - DB yedegini aninda al\n"
                 "/yedekler - mevcut yedek listesi\n"
                 "/geriyukle <YEDEK> - yedekten geri yukler (motor duruken)\n"
-                "/yardim - bu liste")
+                "/yardim - bu liste\n"
+                "\n── Analitik (Sprint 20) ──\n"
+                "/sharpe - portfoy Sharpe/Sortino/Calmar metrikleri\n"
+                "/var - anlık VaR ve CVaR (tarihsel sim.)\n"
+                "/stres - varsayilan stres testi senaryolari\n"
+                "/mtf <SEMBOL> - multi-timeframe karar ozeti\n"
+                "/aylik - son 12 ay getiri ozeti (emojili)\n"
+                "/export - son 200 islemi CSV formatinda gosterir")
     if cmd.startswith("/blok"):
         blocks = sorted(auto_trader._conc_blocks) if auto_trader else []
         return f"ATOS X aktif engeller: {', '.join(blocks) if blocks else 'yok'}"
@@ -1416,6 +1425,166 @@ def _telegram_command(text: str):
         if res.get("previous"):
             msg += f"\nOnceki: {res['previous']}"
         return msg
+    # ── Sprint 20: Yeni analiz komutları ──────────────────────────────────────
+    if cmd.startswith("/sharpe"):
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        hist = auto_trader.trade_history
+        if not hist:
+            return "ATOS X: islem gecmisi yok"
+        try:
+            from app.strategy.analytics import portfolio_stats
+            stats = portfolio_stats(hist)
+            lines = [
+                "ATOS X Portfoy Metrikleri:",
+                f"Net PnL: {stats['net_pnl']:+.2f}",
+                f"Kazanma: %{stats['win_rate']:.1f}",
+                f"PF: {stats['profit_factor'] or 'N/A'}",
+                f"Ort R:R: {stats['avg_rr']}",
+            ]
+            if stats.get("sharpe") is not None:
+                lines.append(f"Sharpe: {stats['sharpe']}")
+            if stats.get("sortino") is not None:
+                lines.append(f"Sortino: {stats['sortino']}")
+            if stats.get("calmar") is not None:
+                lines.append(f"Calmar: {stats['calmar']}")
+            if stats.get("max_drawdown_pct") is not None:
+                lines.append(f"MaxDD: %{stats['max_drawdown_pct']:.1f}")
+            return "\n".join(lines)
+        except Exception as e:
+            return f"ATOS X: metrik hatasi ({e})"
+
+    if cmd.startswith("/var"):
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        hist = auto_trader.trade_history
+        if len(hist) < 5:
+            return "ATOS X: VaR icin yetersiz islem (min 5)"
+        try:
+            from app.strategy.var import historical_var, cvar
+            pnls = [(t.get("pnl") or 0) for t in hist]
+            notionals = [
+                float(t.get("entry") or 1) * float(t.get("qty", t.get("quantity", 1)) or 1)
+                for t in hist
+            ]
+            returns = [p / max(n, 1.0) for p, n in zip(pnls, notionals)]
+            eq = auto_trader.equity or 10000.0
+            var95 = historical_var(returns, 0.95)
+            cvar95 = cvar(returns, 0.95)
+            return (
+                "ATOS X VaR (tarihsel):\n"
+                f"Equity: ${eq:.2f}\n"
+                f"VaR %95: %{var95*100:.2f} = ${eq*abs(var95):.2f}\n"
+                f"CVaR %95: %{cvar95*100:.2f} = ${eq*abs(cvar95):.2f}\n"
+                f"Örnek: {len(returns)} islem"
+            )
+        except Exception as e:
+            return f"ATOS X: VaR hatasi ({e})"
+
+    if cmd.startswith("/stres"):
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        try:
+            from app.strategy.stress import stress_test, BUILTIN_SCENARIOS
+            positions = [
+                {"symbol": sym, "side": p.get("side", "BUY"),
+                 "entry_price": float(p.get("entry_price", 0) or 0),
+                 "quantity": float(p.get("quantity", 0) or 0)}
+                for sym, p in auto_trader.active_positions.items()
+            ]
+            eq = auto_trader.equity or 10000.0
+            result = stress_test(positions, equity=eq)
+            lines = [f"ATOS X Stres Testi ({len(positions)} pozisyon):"]
+            for key, sc in result["scenarios"].items():
+                sign = "+" if sc["total_pnl_usdt"] >= 0 else ""
+                lines.append(
+                    f"{sc['name']}: {sign}{sc['total_pnl_usdt']:.2f} "
+                    f"({sign}{sc['total_pnl_pct']:.1f}%)"
+                )
+            worst = result.get("worst_scenario")
+            if worst:
+                lines.append(f"En kotu: {result['scenarios'][worst]['name']}")
+            return "\n".join(lines)
+        except Exception as e:
+            return f"ATOS X: stres testi hatasi ({e})"
+
+    if cmd.startswith("/mtf"):
+        parts = text.strip().split()
+        if len(parts) < 2:
+            return "ATOS X: kullanim /mtf <SEMBOL> (orn. /mtf BTCUSDT)"
+        sym = parts[1].upper()
+        try:
+            from app.strategy.multi_tf import get_mtf_context, mtf_vote
+            s = strat_settings.get_settings()
+            intervals = s.get("mtf_intervals", ["4h", "1h"])
+            dfs = get_mtf_context(sym, intervals)
+            if not dfs:
+                return f"ATOS X: {sym} icin MTF verisi yok (CSV eksik)"
+            result = mtf_vote(dfs, s)
+            lines = [f"ATOS X MTF ({sym}):"]
+            for v in result.get("votes", []):
+                iv = v["interval"]
+                sig = v["signal"]
+                arrow = "🟢" if sig == "BUY" else ("🔴" if sig == "SELL" else "⚪")
+                lines.append(f"  {iv}: {arrow} {sig} (agirlik {v['weight']})")
+            lines.append(
+                f"Karar: {result['verdict']} "
+                f"(guven {result['confidence']*100:.0f}%)"
+            )
+            return "\n".join(lines)
+        except Exception as e:
+            return f"ATOS X: MTF hatasi ({e})"
+
+    if cmd.startswith("/aylik"):
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        hist = auto_trader.trade_history
+        if not hist:
+            return "ATOS X: islem gecmisi yok"
+        by_month: dict = {}
+        for t in hist:
+            ts = str(t.get("time", ""))
+            month = ts[:7] if len(ts) >= 7 else "?"
+            pnl = t.get("pnl", 0) or 0
+            m = by_month.setdefault(month, {"pnl": 0.0, "count": 0, "wins": 0})
+            m["pnl"] += pnl
+            m["count"] += 1
+            if pnl > 0:
+                m["wins"] += 1
+        months = sorted(by_month.items(), reverse=True)[:12]
+        lines = ["ATOS X Aylik Ozet:"]
+        for month, d in months:
+            emoji = "🟢" if d["pnl"] >= 0 else "🔴"
+            wr = d["wins"] / d["count"] * 100 if d["count"] else 0
+            sign = "+" if d["pnl"] >= 0 else ""
+            lines.append(
+                f"{emoji} {month}: {sign}{d['pnl']:.2f} "
+                f"({d['count']} islem, %{wr:.0f})"
+            )
+        return "\n".join(lines)
+
+    if cmd.startswith("/export"):
+        if not auto_trader:
+            return "ATOS X: motor calismiyor"
+        hist = auto_trader.trade_history[-200:]
+        if not hist:
+            return "ATOS X: islem gecmisi yok"
+        lines = ["symbol,side,entry,exit,qty,pnl,reason,time"]
+        for t in hist:
+            lines.append(
+                f"{t.get('symbol','')},{t.get('side','')},"
+                f"{t.get('entry','')},{t.get('exit','')},"
+                f"{t.get('qty', t.get('quantity',''))},"
+                f"{t.get('pnl','')},"
+                f"{t.get('reason','')},"
+                f"{t.get('time','')}"
+            )
+        csv_content = "\n".join(lines)
+        # Kısa CSV Telegram mesajı olarak gönder (büyük dosyalar kısaltılır)
+        if len(csv_content) > 3800:
+            csv_content = csv_content[:3800] + "\n...(kısaltıldı)"
+        return f"ATOS X İşlem Dışa Aktarma ({len(hist)} satır):\n<pre>{csv_content}</pre>"
+
     return None
 
 async def _run_backfill(symbols: list, days: int):
@@ -1569,6 +1738,8 @@ app.add_middleware(APIKeyMiddleware, api_key=settings.API_KEY)
 app.include_router(backtest_router)
 app.include_router(optimize_router)
 app.include_router(exchange_router)
+app.include_router(portfolio_router)
+app.include_router(risk_router)
 
 @app.get("/")
 async def root():

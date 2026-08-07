@@ -72,6 +72,22 @@ DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
     "ai_retrain_min_samples": 30,    # Accuracy tetikleyicisi icin gereken cozulmus tahmin sayisi
     "ai_retrain_symbols": 400,       # Egitimde kullanilacak sembol sayisi
     "ai_retrain_epochs": 30,         # Egitim epoch sayisi
+    # Multi-Timeframe (MTF) sinyal birlestirme
+    "mtf_enabled": False,           # True iken MTF oyu decision council'a eklenir
+    "mtf_intervals": ["4h", "1h"], # Kullanilacak zaman dilimleri
+    "mtf_weights": {               # Her zaman diliminin oy agirligi
+        "4h": 1.0,
+        "1h": 0.6,
+        "2h": 0.7,
+        "30m": 0.4,
+        "15m": 0.3,
+        "1d": 0.8,
+    },
+    # AI model tipi: dense | lstm | ensemble
+    "ai_model_type": "dense",      # Kullanilacak model mimarisi
+    # VaR ve risk olcumu
+    "var_confidence": 0.95,        # VaR guven duzeyi (0-1)
+    "var_lookback_days": 30,       # VaR hesabi icin gecmise bakis penceresi (gun)
     # Market Collector: ranking icin yerel CSV tazeligi
     "data_backfill_hours": 24.0,    # Otomatik backfill araligi (saat; 0 = devre disi)
     "data_freshness_hours": 12.0,   # Son bar bu saatten eskiyse sembol eski sayilir

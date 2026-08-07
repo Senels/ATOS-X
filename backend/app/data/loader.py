@@ -1,4 +1,5 @@
 """OHLCV veri yukleyici: yerel CSV arsivi veya Binance canli kline."""
+import re
 from pathlib import Path
 from typing import List
 
@@ -6,6 +7,15 @@ import pandas as pd
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_DATA_DIR = REPO_ROOT / "legacy" / "data"
+
+_TOKEN_RE = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
+
+
+def _safe_token(value: str) -> str:
+    """Path traversal'a karşı sembol/interval değerini doğrular."""
+    if not _TOKEN_RE.match(str(value)):
+        raise ValueError(f"Geçersiz sembol/interval değeri: {value!r}")
+    return value
 
 STABLECOIN_BASES = {
     "USDT", "USDC", "DAI", "FDUSD", "TUSD", "BUSD", "USDE", "USD1",
@@ -33,8 +43,10 @@ def _data_dir(interval: str, data_dir: str | None = None) -> Path:
 def load_csv(symbol: str, interval: str = "4h", data_dir: str | None = None,
              limit: int | None = None) -> pd.DataFrame:
     """Yerel CSV arsivinden OHLCV DataFrame yukler (index = utc datetime)."""
-    d = _data_dir(interval, data_dir)
-    path = d / f"{symbol}_{interval}.csv"
+    safe_sym = _safe_token(symbol)
+    safe_iv = _safe_token(interval)
+    d = _data_dir(safe_iv, data_dir)
+    path = d / f"{safe_sym}_{safe_iv}.csv"
     if not path.exists():
         raise FileNotFoundError(f"Veri dosyasi yok: {path}")
     df = pd.read_csv(path)

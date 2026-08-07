@@ -1,4 +1,4 @@
-.PHONY: install dev test lint shell
+.PHONY: install dev test lint shell docker-build docker-up docker-down docker-logs docker-clean
 
 install:
 	python -m venv .venv && .venv/bin/pip install -e "backend[dev]"
@@ -14,3 +14,20 @@ lint:
 
 shell:
 	.venv/bin/python -c "import app; print('ATOS X shell ok')"
+
+# ── Docker hedefleri ──────────────────────────────────────────────────────────
+
+docker-build:
+	docker build -t atos-x:latest .
+
+docker-up:
+	docker compose up -d
+
+docker-down:
+	docker compose down
+
+docker-logs:
+	docker compose logs -f atos-backend
+
+docker-clean:
+	docker compose down -v --rmi local
