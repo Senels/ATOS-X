@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import numpy as np
 import pandas as pd
 import pytest
+
 from app import main as main_mod
 from app.notifications.telegram import (
     TelegramNotifier,

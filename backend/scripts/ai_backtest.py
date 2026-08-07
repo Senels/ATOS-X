@@ -20,6 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pandas as pd
+
 from app.ai import model as m  # noqa: E402
 from app.ai.backtest_sim import simulate, summarize_scan  # noqa: E402
 from app.data import loader  # noqa: E402

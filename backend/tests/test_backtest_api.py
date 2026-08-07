@@ -2,6 +2,7 @@ import asyncio
 
 import numpy as np
 import pytest
+
 from app.api import backtest as bt
 from app.core.database import Database
 from app.data import loader

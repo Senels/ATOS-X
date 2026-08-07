@@ -1,6 +1,7 @@
 import asyncio
 
 import pytest
+
 from app.api import optimization as opt
 from app.data import loader
 

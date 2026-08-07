@@ -74,6 +74,7 @@ except Exception as e:
 print("\n📊 3. Gösterge Testleri:")
 try:
     import pandas as pd
+
     from app.strategy.tradebot_v23 import atr, macd, rsi, stochastic
 
     n = 60

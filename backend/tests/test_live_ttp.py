@@ -4,8 +4,9 @@ AutoTrader zaten `get_strategy` uzerinden strateji-agnostik calisir; bu testler
 TTPTSL'nin gercek veriyle canli akista (sinyal -> paper pozisyon) dogru
 calistigini uctan uca dogrular.
 """
-import app.strategy.auto_trader as at_mod
 import pytest
+
+import app.strategy.auto_trader as at_mod
 from app.strategy import get_strategy
 from app.strategy import settings as ss
 from app.strategy.ttp import TtpTsl

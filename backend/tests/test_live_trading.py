@@ -1,9 +1,10 @@
-import app.strategy.auto_trader as at_mod
 import pytest
+from fastapi.testclient import TestClient
+
+import app.strategy.auto_trader as at_mod
 from app import main as main_mod
 from app.core.database import Database
 from app.main import app
-from fastapi.testclient import TestClient
 
 
 class FakeTelegram:

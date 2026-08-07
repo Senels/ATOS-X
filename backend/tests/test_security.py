@@ -1,10 +1,11 @@
-from app.core.config import get_settings
-from app.core.security import APIKeyMiddleware, is_authorized_chat, parse_chat_ids
-from app.notifications.telegram import _process_updates
 from fastapi.testclient import TestClient
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse
 from starlette.routing import Route
+
+from app.core.config import get_settings
+from app.core.security import APIKeyMiddleware, is_authorized_chat, parse_chat_ids
+from app.notifications.telegram import _process_updates
 
 
 async def _ok(request):

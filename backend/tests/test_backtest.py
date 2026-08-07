@@ -1,5 +1,6 @@
 """v23 strateji + backtest motoru icin temel dogrulama testleri."""
 import pytest
+
 from app.backtest.engine import BacktestEngine
 from app.strategy.tradebot_v23 import TradeBotV23
 

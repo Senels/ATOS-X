@@ -2,6 +2,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+
 from app.backtest.engine import BacktestEngine
 from app.strategy import get_strategy
 from app.strategy.tradebot_v23 import TradeBotV23

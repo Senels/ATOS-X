@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
 
-import app.strategy.auto_trader as at_mod
 import pytest
+
+import app.strategy.auto_trader as at_mod
 from app.core.database import Database
 
 

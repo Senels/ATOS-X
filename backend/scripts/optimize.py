@@ -13,6 +13,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pandas as pd
+
 from app.data import loader
 from app.data.loader import is_stablecoin_symbol
 from app.optimization.search import DEFAULT_GRID, GridSearch, best_settings_to_file
