@@ -10,7 +10,13 @@ AI denetimi:
     esiginin altindaki sinyaller engellenir).
   - ab_mode=True    -> temiz + AI filtreli iki kosu karsilastirilir.
 """
+import asyncio
+import os
+import time
+import uuid
 from typing import Any, Dict, Optional
+
+import pandas as pd
 
 from fastapi import APIRouter, HTTPException
 
@@ -24,6 +30,78 @@ router = APIRouter(prefix="/api/v1", tags=["strategy"])
 _db = Database()
 
 _ai_predictor_cache = None
+
+_APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_CACHE_DIR = os.path.join(_APP_DIR, "data", "cache_binance")
+_CACHE_MAX_AGE_SEC = 12 * 3600
+
+_scan_jobs: Dict[str, Dict[str, Any]] = {}
+
+
+def _cache_path(interval: str, symbol: str) -> str:
+    return os.path.join(_CACHE_DIR, interval, f"{symbol}.csv")
+
+
+def _cache_fresh(path: str) -> bool:
+    try:
+        return (time.time() - os.path.getmtime(path)) < _CACHE_MAX_AGE_SEC
+    except OSError:
+        return False
+
+
+async def _fetch_binance_history(symbol: str, interval: str, target: int) -> Any:
+    """Binance futures kline'larini parcali cekerek `target` bara tamamlar.
+
+    Her parca 1500 bar istenir; sonraki parcanin baslangici bir onceki
+    parcanin ilk barinin `1500 * periyot` kadar gerisine alinir (Binance
+    startTime'dan itibaren ileriye dogru doner). Boylece parcalar bitisik
+    dizilir ve `target` bara eksiksiz ulasilir.
+    """
+    from app.exchange.binance_client import BinanceClient
+    from app.data.collector import _period_ms
+
+    period_ms = _period_ms(interval)
+    client = BinanceClient()
+    await client.connect()
+    chunks = []
+    remaining = target
+    start_time = None
+    while remaining > 0:
+        take = min(1500, remaining)
+        df = await client.get_klines(symbol, interval, limit=1500, start_time=start_time)
+        if df is None or df.empty:
+            break
+        chunks.append(df)
+        if len(df) < take:
+            break
+        remaining -= take
+        start_time = int(df.index[0].timestamp() * 1000) - 1500 * period_ms
+    if not chunks:
+        raise Exception("Binance kline donmedi")
+    out = pd.concat(chunks, ignore_index=False) if len(chunks) > 1 else chunks[0]
+    out = out[~out.index.duplicated(keep="first")].sort_index()
+    return out.iloc[-target:]
+
+
+async def _load_binance_cached(symbol: str, interval: str, limit: int) -> Any:
+    """Onbellekli Binance verisi: taze dosya varsa diskten, yoksa indirir.
+
+    Onbellek dosyasi istenen bar sayisindan az veri iceriyorsa bayat sayilir
+    (or. onceki kosu daha kucuk limit ile doldurmus olabilir) ve yeniden
+    indirilir.
+    """
+    path = _cache_path(interval, symbol)
+    if _cache_fresh(path):
+        try:
+            df = pd.read_csv(path, index_col=0, parse_dates=True)
+            if len(df) >= int(limit):
+                return df.iloc[-int(limit):]
+        except Exception:
+            pass
+    df = await _fetch_binance_history(symbol, interval, max(int(limit), 100))
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    df.to_csv(path, encoding="utf-8")
+    return df.iloc[-int(limit):]
 
 
 def _get_predictor():
@@ -39,14 +117,16 @@ def _get_predictor():
     return None if _ai_predictor_cache is False else _ai_predictor_cache
 
 
+def _banned_symbols() -> set:
+    """`banned_symbols` listesini buyuk harfli sete cevirir (canli trader ile ayni kural)."""
+    return {str(x).upper() for x in strat_settings.get_settings().get("banned_symbols", [])}
+
+
 async def _load_data(symbol: str, interval: str, limit: int, source: str) -> Any:
     if source == "csv":
         return loader.load_csv(symbol, interval, limit=limit)
     if source == "binance":
-        from app.exchange.binance_client import BinanceClient
-        client = BinanceClient()
-        await client.connect()
-        return await client.get_klines(symbol, interval, limit)
+        return await _load_binance_cached(symbol, interval, limit)
     raise HTTPException(status_code=400, detail="source: 'csv' | 'binance'")
 
 
@@ -307,8 +387,34 @@ async def run_backtest_scan(
     buyuk oldugu icin donulmez (metrikler + isabet istatistikleri).
     """
     symbol_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+    banned = _banned_symbols()
+    if banned:
+        symbol_list = [s for s in symbol_list if s not in banned]
     if not symbol_list:
         raise HTTPException(status_code=400, detail="symbols bos")
+    return await _run_scan(
+        symbol_list, interval, limit, source, ai_filter, ai_threshold, ab_mode,
+        leading_indicator, signal_expiry, alternate_signal, rr_ratio, sl_lookback,
+        atr_fallback, atr_mult, confirmations, sl_timeframe, ttp,
+        max_position_age_hours, min_signal_strength, initial_equity, risk_per_trade,
+        fee_rate, leverage, max_drawdown_pct, max_consecutive_losses,
+        max_daily_loss_pct, min_equity, trailing_activate_pct, trailing_sl_pct,
+        trailing_min_move_pct, breakeven_activate_pct,
+        on_progress=None,
+    )
+
+
+async def _run_scan(
+    symbol_list, interval, limit, source, ai_filter, ai_threshold, ab_mode,
+    leading_indicator, signal_expiry, alternate_signal, rr_ratio, sl_lookback,
+    atr_fallback, atr_mult, confirmations, sl_timeframe, ttp,
+    max_position_age_hours, min_signal_strength, initial_equity, risk_per_trade,
+    fee_rate, leverage, max_drawdown_pct, max_consecutive_losses,
+    max_daily_loss_pct, min_equity, trailing_activate_pct, trailing_sl_pct,
+    trailing_min_move_pct, breakeven_activate_pct,
+    on_progress=None,
+) -> Dict[str, Any]:
+    """Coklu sembol backtest taramasi (tek + toplu) — arka plan job ortak gövdesi."""
     settings = _build_settings(
         leading_indicator, signal_expiry, alternate_signal, rr_ratio,
         sl_lookback, atr_fallback, atr_mult, confirmations,
@@ -329,12 +435,13 @@ async def run_backtest_scan(
     )
     predictor = _get_predictor()
     rows = []
-    for symbol in symbol_list:
+    total = len(symbol_list)
+
+    async def _process_one(symbol: str) -> Dict[str, Any]:
         try:
             df = await _load_data(symbol, interval, limit, source)
         except Exception as e:
-            rows.append({"symbol": symbol, "error": str(e)})
-            continue
+            return {"symbol": symbol, "error": str(e)}
         bot = get_strategy(settings)
         analyze = getattr(bot, "analyze_full", None)
         result = analyze(df) if analyze else bot.analyze(df)
@@ -372,6 +479,8 @@ async def run_backtest_scan(
                 mask = _ai_mask(predictor, df, sig, ai_threshold)
                 row["blocked"] = int(mask.sum())
             res = _run_once(df, result["orders"], interval, kwargs, mask)
+            if mask is not None:
+                row["signal_stats"] = _signal_stats(df, sig, mask)
             row.update({
                 "trades": res["total_trades"],
                 "wins": res["winning_trades"],
@@ -384,7 +493,18 @@ async def run_backtest_scan(
                 "base_net": res["net_profit"],
                 "base_win_rate": res["win_rate"],
             })
-        rows.append(row)
+        return row
+
+    batch_size = 6
+    done = 0
+    for start in range(0, total, batch_size):
+        batch = symbol_list[start:start + batch_size]
+        batch_rows = await asyncio.gather(*[_process_one(s) for s in batch])
+        for symbol, row in zip(batch, batch_rows):
+            done += 1
+            rows.append(row)
+            if on_progress:
+                on_progress(done, total, symbol, row)
 
     from app.ai.backtest_sim import summarize_scan
     return {
@@ -397,6 +517,134 @@ async def run_backtest_scan(
         "results": rows,
         "summary": summarize_scan(rows),
     }
+
+
+@router.get("/backtest/market-symbols")
+async def market_symbols():
+    """Binance USDM Futures'taki tum USDT pariteleri (taramada kullanilir)."""
+    from app.exchange.binance_client import BinanceClient
+    client = BinanceClient()
+    try:
+        symbols = await client.load_all_symbols()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Binance sembol listesi alinamadi: {e}")
+    return {"count": len(symbols), "symbols": symbols}
+
+
+@router.post("/backtest/scan/start")
+async def scan_start(
+    symbols: str = "market",
+    interval: str = "4h",
+    limit: int = 2190,
+    source: str = "binance",
+    ai_filter: bool = False,
+    ai_threshold: float = 0.55,
+    ab_mode: bool = False,
+    leading_indicator: Optional[str] = None,
+    signal_expiry: Optional[int] = None,
+    alternate_signal: Optional[bool] = None,
+    rr_ratio: Optional[float] = None,
+    sl_lookback: Optional[int] = None,
+    atr_fallback: Optional[bool] = None,
+    atr_mult: Optional[float] = None,
+    confirmations: Optional[str] = None,
+    sl_timeframe: Optional[str] = None,
+    ttp: Optional[str] = None,
+    max_position_age_hours: Optional[float] = None,
+    min_signal_strength: Optional[float] = None,
+    initial_equity: Optional[float] = None,
+    risk_per_trade: Optional[float] = None,
+    fee_rate: Optional[float] = None,
+    leverage: Optional[float] = None,
+    max_drawdown_pct: Optional[float] = None,
+    max_consecutive_losses: Optional[int] = None,
+    max_daily_loss_pct: Optional[float] = None,
+    min_equity: Optional[float] = None,
+    trailing_activate_pct: Optional[float] = None,
+    trailing_sl_pct: Optional[float] = None,
+    trailing_min_move_pct: Optional[float] = None,
+    breakeven_activate_pct: Optional[float] = None,
+):
+    """Arka plan taramasi baslatir; `symbols=market` tum USDT paritelerini tarar.
+
+    Job ilerlemesi GET /backtest/scan/status/{id} ile izlenir; sonuc ayni
+    endpoint'ten `result` alaninda doner.
+    """
+    job_id = uuid.uuid4().hex[:12]
+    job: Dict[str, Any] = {
+        "id": job_id,
+        "status": "running",
+        "started_at": time.time(),
+        "total": 0,
+        "done": 0,
+        "current_symbol": "",
+        "errors": [],
+        "result": None,
+    }
+
+    if symbols.strip().lower() == "market":
+        from app.exchange.binance_client import BinanceClient
+        client = BinanceClient()
+        try:
+            symbol_list = await client.load_all_symbols()
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=f"Piyasa listesi alinamadi: {e}")
+        if not symbol_list:
+            raise HTTPException(status_code=503, detail="Piyasa listesi bos")
+        banned = _banned_symbols()
+        if banned:
+            symbol_list = [s for s in symbol_list if s.upper() not in banned]
+    else:
+        symbol_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+        banned = _banned_symbols()
+        if banned:
+            symbol_list = [s for s in symbol_list if s not in banned]
+    if not symbol_list:
+        raise HTTPException(status_code=400, detail="symbols bos")
+    job["total"] = len(symbol_list)
+    _scan_jobs[job_id] = job
+
+    def on_progress(done: int, total: int, symbol: str, row: Optional[Dict[str, Any]]):
+        job["done"] = done
+        job["total"] = total
+        job["current_symbol"] = symbol
+        if row and "error" in row:
+            job["errors"].append(f"{symbol}: {row['error']}")
+
+    async def _worker():
+        try:
+            result = await _run_scan(
+                symbol_list, interval, limit, source, ai_filter, ai_threshold,
+                ab_mode, leading_indicator, signal_expiry, alternate_signal,
+                rr_ratio, sl_lookback, atr_fallback, atr_mult, confirmations,
+                sl_timeframe, ttp, max_position_age_hours, min_signal_strength,
+                initial_equity, risk_per_trade, fee_rate, leverage,
+                max_drawdown_pct, max_consecutive_losses, max_daily_loss_pct,
+                min_equity, trailing_activate_pct, trailing_sl_pct,
+                trailing_min_move_pct, breakeven_activate_pct,
+                on_progress=on_progress,
+            )
+            job["result"] = result
+            job["status"] = "done"
+        except Exception as e:
+            job["status"] = "failed"
+            job["error"] = str(e)
+        job["finished_at"] = time.time()
+
+    asyncio.create_task(_worker())
+    return {"job_id": job_id, "total": job["total"]}
+
+
+@router.get("/backtest/scan/status/{job_id}")
+async def scan_status(job_id: str):
+    job = _scan_jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job bulunamadi")
+    out = {k: v for k, v in job.items() if k != "errors"}
+    out["errors"] = job["errors"][-20:]
+    if job["status"] in ("done", "failed"):
+        out["elapsed"] = round((job.get("finished_at") or time.time()) - job["started_at"], 1)
+    return out
 
 
 @router.get("/backtest/history")

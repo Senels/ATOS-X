@@ -1,5 +1,6 @@
 import asyncio
 
+import numpy as np
 import pytest
 
 from app.api import backtest as bt
@@ -171,6 +172,31 @@ def test_backtest_scan_ai_filter(api_db, monkeypatch):
     assert "base_net" in row and "net" in row
 
 
+def test_backtest_scan_ai_filter_with_mask(api_db, monkeypatch):
+    calls = {"n": 0}
+
+    def fake_predictor():
+        return object()
+
+    def fake_mask(predictor, df, sig, threshold):
+        calls["n"] += 1
+        m = np.zeros(len(df), dtype=bool)
+        m[np.asarray(sig) != 0] = True
+        return m
+
+    monkeypatch.setattr(bt, "_get_predictor", fake_predictor)
+    monkeypatch.setattr(bt, "_ai_mask", fake_mask)
+    res = asyncio.run(bt.run_backtest_scan(
+        symbols="BTCUSDT", interval="4h", limit=100, source="csv",
+        ai_filter=True,
+    ))
+    assert calls["n"] == 1
+    row = res["results"][0]
+    assert row["blocked"] > 0
+    assert row["signal_stats"]["blocked"] > 0
+    assert res["summary"]["blocked"] > 0
+
+
 def test_backtest_ttp_json_override(api_db):
     res = asyncio.run(bt.run_backtest(
         symbol="BTCUSDT", interval="4h", limit=100, source="csv",
@@ -187,3 +213,190 @@ def test_backtest_sl_timeframe_override(api_db):
         sl_timeframe="2h",
     ))
     assert res["settings"]["sl_timeframe"] == "2h"
+
+
+def test_binance_cached_roundtrip(tmp_path, monkeypatch):
+    """Onbellek yolu: ilk cagri indirir, ikinci cagri diskten okur."""
+    import pandas as pd
+
+    calls = {"n": 0}
+
+    async def fake_fetch(symbol, interval, target):
+        calls["n"] += 1
+        idx = pd.date_range("2025-01-01", periods=100, freq="4h", tz="UTC")
+        df = pd.DataFrame(
+            {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 10.0},
+            index=idx,
+        )
+        return df
+
+    monkeypatch.setattr(bt, "_CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(bt, "_fetch_binance_history", fake_fetch)
+
+    first = asyncio.run(bt._load_binance_cached("TESTUSDT", "4h", 80))
+    second = asyncio.run(bt._load_binance_cached("TESTUSDT", "4h", 80))
+    assert len(first) == 80
+    assert len(second) == 80
+    assert calls["n"] == 1
+    assert (tmp_path / "4h" / "TESTUSDT.csv").exists()
+
+
+def test_binance_history_multi_chunk(monkeypatch):
+    """1 yil 4h (2190 bar) gibi buyuk istekler parcali cekimle tamamlanir."""
+    import pandas as pd
+
+    async def fake_get_klines(symbol, interval, limit, start_time=None):
+        n = limit
+        if start_time is None:
+            start = pd.Timestamp("2025-01-01", tz="UTC")
+        else:
+            start = pd.Timestamp(start_time, unit="ms", tz="UTC")
+        idx = pd.date_range(start, periods=n, freq="4h", tz="UTC")
+        return pd.DataFrame(
+            {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 10.0},
+            index=idx,
+        )
+
+    class FakeClient:
+        async def connect(self):
+            return True
+
+        async def get_klines(self, symbol, interval, limit, start_time=None):
+            return await fake_get_klines(symbol, interval, limit, start_time)
+
+    monkeypatch.setattr(
+        "app.exchange.binance_client.BinanceClient", lambda: FakeClient())
+    df = asyncio.run(bt._fetch_binance_history("BTCUSDT", "4h", 2190))
+    assert len(df) == 2190
+    assert df.index.is_unique
+    expected_first = pd.Timestamp("2025-01-01", tz="UTC") - pd.Timedelta(hours=690 * 4)
+    assert abs((df.index[0] - expected_first).total_seconds()) < 300
+
+
+def test_binance_cached_refetch_when_short(tmp_path, monkeypatch):
+    """Onbellek dosyasi istenen bardan az veri iceriyorsa yeniden indirilir."""
+    import pandas as pd
+
+    calls = {"n": 0}
+
+    async def fake_fetch(symbol, interval, target):
+        calls["n"] += 1
+        n = 100 if calls["n"] == 1 else 250
+        idx = pd.date_range("2025-01-01", periods=n, freq="4h", tz="UTC")
+        return pd.DataFrame(
+            {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 10.0},
+            index=idx,
+        )
+
+    monkeypatch.setattr(bt, "_CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(bt, "_fetch_binance_history", fake_fetch)
+
+    first = asyncio.run(bt._load_binance_cached("TESTUSDT", "4h", 200))
+    second = asyncio.run(bt._load_binance_cached("TESTUSDT", "4h", 200))
+    assert len(first) == 100
+    assert len(second) == 200
+    assert calls["n"] == 2
+
+
+def test_binance_cached_refetch_when_stale(tmp_path, monkeypatch):
+    """Onbellek dosyasi bayatsa yeniden indirilir."""
+    import pandas as pd
+    import time
+
+    async def fake_fetch(symbol, interval, target):
+        idx = pd.date_range("2025-01-01", periods=50, freq="4h", tz="UTC")
+        return pd.DataFrame(
+            {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 10.0},
+            index=idx,
+        )
+
+    monkeypatch.setattr(bt, "_CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(bt, "_fetch_binance_history", fake_fetch)
+    monkeypatch.setattr(bt, "_CACHE_MAX_AGE_SEC", 3600)
+
+    asyncio.run(bt._load_binance_cached("TESTUSDT", "4h", 50))
+    path = tmp_path / "4h" / "TESTUSDT.csv"
+    old = time.time() - 7200
+    import os
+    os.utime(path, (old, old))
+
+    asyncio.run(bt._load_binance_cached("TESTUSDT", "4h", 50))
+    mtime = os.path.getmtime(path)
+    assert mtime > old
+
+
+def test_market_symbols(monkeypatch):
+    async def fake_load_all(self):
+        return ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+
+    monkeypatch.setattr("app.exchange.binance_client.BinanceClient.load_all_symbols", fake_load_all)
+    res = asyncio.run(bt.market_symbols())
+    assert res["count"] == 3
+    assert "BTCUSDT" in res["symbols"]
+
+
+def test_scan_start_market_job(monkeypatch, api_db):
+    """symbols=market job akisi: baslat -> calis -> done -> sonuc doner."""
+    async def fake_load_all(self):
+        return ["BTCUSDT", "ETHUSDT"]
+
+    async def fake_load_data(symbol, interval, limit, source):
+        return loader.load_csv(symbol, interval, limit=limit)
+
+    monkeypatch.setattr("app.exchange.binance_client.BinanceClient.load_all_symbols", fake_load_all)
+    monkeypatch.setattr(bt, "_load_data", fake_load_data)
+
+    async def scenario():
+        started = await bt.scan_start(
+            symbols="market", interval="4h", limit=100, source="csv",
+        )
+        for _ in range(200):
+            st = await bt.scan_status(started["job_id"])
+            if st["status"] in ("done", "failed"):
+                return st
+            await asyncio.sleep(0.05)
+        return await bt.scan_status(started["job_id"])
+
+    st = asyncio.run(scenario())
+    assert st["status"] == "done"
+    assert st["result"]["summary"]["symbols"] == 2
+
+    with pytest.raises(Exception):
+        asyncio.run(bt.scan_status("yok-boyle-bir-job"))
+
+
+def test_scan_respects_banned_symbols(api_db, monkeypatch):
+    monkeypatch.setattr(bt, "_banned_symbols", lambda: {"ETHUSDT", "DOGEUSDT"})
+    res = asyncio.run(bt.run_backtest_scan(
+        symbols="BTCUSDT,ETHUSDT,DOGEUSDT", interval="4h", limit=100, source="csv",
+    ))
+    assert [r["symbol"] for r in res["results"]] == ["BTCUSDT"]
+    assert res["summary"]["symbols"] == 1
+
+
+def test_scan_start_market_respects_banned(monkeypatch, api_db):
+    async def fake_load_all(self):
+        return ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+
+    async def fake_load_data(symbol, interval, limit, source):
+        return loader.load_csv(symbol, interval, limit=limit)
+
+    monkeypatch.setattr("app.exchange.binance_client.BinanceClient.load_all_symbols", fake_load_all)
+    monkeypatch.setattr(bt, "_load_data", fake_load_data)
+    monkeypatch.setattr(bt, "_banned_symbols", lambda: {"SOLUSDT"})
+
+    async def scenario():
+        started = await bt.scan_start(
+            symbols="market", interval="4h", limit=100, source="csv",
+        )
+        assert started["total"] == 2
+        for _ in range(200):
+            st = await bt.scan_status(started["job_id"])
+            if st["status"] in ("done", "failed"):
+                return st
+            await asyncio.sleep(0.05)
+        return await bt.scan_status(started["job_id"])
+
+    st = asyncio.run(scenario())
+    assert st["status"] == "done"
+    assert st["result"]["summary"]["symbols"] == 2

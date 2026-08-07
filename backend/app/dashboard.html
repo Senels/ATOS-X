@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
 <title>ATOS X Dashboard</title>
@@ -264,25 +264,51 @@ tr:hover { background:rgba(59,130,246,0.05); }
 </div>
 </div>
 
+<div class="card"><h3>🔐 Binance Gerçek Hesap Bağlantısı</h3>
+<div class="stats-row" style="margin-bottom:8px;">
+<div class="stat-box" style="flex:1;"><div class="label">API Key</div><input type="text" id="exApiKey" autocomplete="off" spellcheck="false" placeholder="Binance API key" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;font-family:Consolas,monospace;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Secret Key</div><input type="password" id="exSecret" autocomplete="off" placeholder="Binance secret" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;font-family:Consolas,monospace;"></div>
+</div>
+<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
+<label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="exTestnet"> Testnet (kapalıysa gerçek hesap)</label>
+<span class="hint" id="exStatus"></span>
+</div>
+<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+<button class="btn" style="background:#2563eb;" onclick="exchangeSave()">💾 Anahtarları Kaydet</button>
+<button class="btn" style="background:#16a34a;" onclick="exchangeTest()">🔌 Bağlantıyı Test Et</button>
+<span id="exResult" style="font-size:12px;color:#94a3b8;"></span>
+</div>
+</div>
+
 <div class="card"><h3>📜 Geçmiş Testi (Backtest)</h3>
 <div class="stats-row" style="margin-bottom:10px;">
-<div class="stat-box" style="flex:1.4;"><div class="label">Semboller (virgülle)</div><input type="text" id="fSymbols" value="BTCUSDT" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1.4;"><div class="label">Semboller (virgülle)</div><input type="text" id="fSymbols" value="BTCUSDT" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"><button class="btn" style="background:#0ea5e9;margin-top:5px;width:100%;" onclick="factoryRunMarket()">Tum Piyasa Taramasi (Binance, 1 Yil)</button></div>
 <div class="stat-box" style="flex:1;"><div class="label">Interval</div>
 <select id="fInterval" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;">
 <option>15m</option><option>30m</option><option>1h</option><option>2h</option><option selected>4h</option><option>6h</option><option>8h</option><option>12h</option><option>1d</option>
 </select></div>
-<div class="stat-box" style="flex:1;"><div class="label">Bar Sayısı</div><input type="number" id="fLimit" value="400" min="100" step="100" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
+<div class="stat-box" style="flex:1;"><div class="label">Bar Sayısı</div><input type="number" id="fLimit" value="2190" min="100" step="100" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;"></div>
 <div class="stat-box" style="flex:1;"><div class="label">Kaynak</div>
 <select id="fSource" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:4px 6px;font-size:12px;">
 <option value="csv" selected>CSV Arşiv</option><option value="binance">Binance Canlı</option>
 </select></div>
 </div>
 <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
-<label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="fAiFilter"> 🤖 AI Denetimi (sinyalleri filtrele)</label>
+<label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="fAiFilter" checked> 🤖 AI Denetimi (sinyalleri filtrele)</label>
 <label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;">Eşik <input type="number" id="fAiThreshold" value="0.55" step="0.05" min="0" max="1" style="width:70px;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:4px;padding:3px 6px;font-size:12px;"></label>
 <label style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="fAbMode"> ⚖️ A/B Karşılaştır (filtresiz vs AI)</label>
 </div>
 <button class="btn" style="background:#16a34a;" onclick="factoryRun()">▶ Koş</button> <span class="hint" id="factoryRunMsg"></span>
+<div id="factoryScanBox" style="display:none;margin-top:12px;border:1px solid #0ea5e9;border-radius:8px;padding:12px;background:#0c2233;">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+<b style="color:#7dd3fc;">🌐 Tüm Piyasa Taraması</b>
+<span class="hint" id="factoryScanMeta"></span>
+</div>
+<div style="height:10px;background:#0f172a;border-radius:5px;overflow:hidden;border:1px solid #334155;">
+<div id="factoryScanBar" style="height:100%;width:0%;background:linear-gradient(90deg,#0ea5e9,#22d3ee);transition:width .5s;"></div>
+</div>
+<div style="margin-top:6px;font-size:12px;color:#94a3b8;" id="factoryScanStatus">Hazırlanıyor...</div>
+</div>
 </div>
 
 <div class="card" id="factoryResultsCard" style="display:none;"><h3>📊 Sonuçlar <span class="hint" id="factoryResultMeta"></span></h3>
@@ -811,6 +837,43 @@ const d = await r.json();
 factoryFill(d.settings);
 factoryState('canlı ayarlar yüklendi');
 } catch(e) { factoryState('yükleme hatası'); console.error(e); }
+try { exchangeLoad(); } catch(e) {}
+}
+async function exchangeLoad() {
+try {
+const r = await (await fetch('/api/v1/exchange/status')).json();
+const el = document.getElementById('exStatus');
+if (el) el.textContent = 'API: ' + (r.api_key_masked || 'yok') + ' | testnet: ' + (r.testnet ? 'açık' : 'kapalı') + ' | paper: ' + (r.paper_trading ? 'açık' : 'kapalı') + (r.connected ? ' | bağlı' : ' | bağlı değil');
+} catch(e) { const el = document.getElementById('exStatus'); if (el) el.textContent = 'durum alınamadı'; }
+}
+async function exchangeSave() {
+const res = document.getElementById('exResult');
+const body = {
+api_key: document.getElementById('exApiKey').value.trim(),
+secret: document.getElementById('exSecret').value.trim(),
+testnet: document.getElementById('exTestnet').checked,
+};
+if (!body.api_key || !body.secret) { res.textContent = 'API key ve secret girin'; return; }
+try {
+const r = await (await fetch('/api/v1/exchange/credentials', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})).json();
+res.textContent = r.message || ('durum: ' + r.status);
+exchangeLoad();
+} catch(e) { res.textContent = 'hata: ' + e.message; }
+}
+async function exchangeTest() {
+const res = document.getElementById('exResult');
+if (!res) return;
+res.textContent = '⏳ bağlantı test ediliyor...';
+const body = {
+api_key: document.getElementById('exApiKey').value.trim(),
+secret: document.getElementById('exSecret').value.trim(),
+testnet: document.getElementById('exTestnet').checked,
+};
+try {
+const r = await (await fetch('/api/v1/exchange/test', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})).json();
+if (r.status === 'ok') res.innerHTML = '✅ ' + r.message + ' | testnet: ' + (r.testnet ? 'açık' : 'kapalı') + ' | Bakiye: <b>' + r.balance + '</b> USDT | Serbest: ' + r.available + ' | UPNL: ' + r.unrealized;
+else res.textContent = '❌ ' + r.message;
+} catch(e) { res.textContent = 'hata: ' + e.message; }
 }
 async function factoryDefaults() {
 try {
@@ -920,6 +983,50 @@ breakeven_activate_pct: s.breakeven_activate_pct,
 if (s.ttp) { try { qs.set('ttp', JSON.stringify(s.ttp)); } catch(e) {} }
 return qs;
 }
+async function factoryRunMarket() {
+const msg = document.getElementById('factoryRunMsg');
+const box = document.getElementById('factoryScanBox');
+const bar = document.getElementById('factoryScanBar');
+const meta = document.getElementById('factoryScanMeta');
+const status = document.getElementById('factoryScanStatus');
+if (!box) return;
+const s = factoryCollect();
+const qs = factoryOverrideQs(s);
+qs.set('interval', document.getElementById('fInterval').value || '4h');
+qs.set('limit', parseInt(document.getElementById('fLimit').value) || 2190);
+qs.set('source', document.getElementById('fSource').value || 'binance');
+qs.set('ai_filter', document.getElementById('fAiFilter').checked);
+qs.set('ai_threshold', parseFloat(document.getElementById('fAiThreshold').value) || 0.55);
+qs.set('ab_mode', document.getElementById('fAbMode').checked);
+if (msg) msg.textContent = '';
+box.style.display = 'block';
+bar.style.width = '2%';
+status.textContent = 'Sembol listesi alınıyor...';
+try {
+const r = await fetch('/api/v1/backtest/scan/start?' + qs.toString(), {method:'POST'});
+if (!r.ok) { const e = await r.json(); throw new Error(e.detail || r.statusText); }
+const j = await r.json();
+meta.textContent = j.total + ' sembol';
+const started = Date.now();
+const timer = setInterval(async function() {
+try {
+const st = await (await fetch('/api/v1/backtest/scan/status/' + j.job_id)).json();
+const pct = st.total ? Math.round(st.done / st.total * 100) : 0;
+bar.style.width = Math.max(2, pct) + '%';
+const secs = Math.round((Date.now() - started) / 1000);
+status.textContent = st.status === 'done' ? 'Tamamlandı (' + secs + 's)' :
+st.status === 'failed' ? 'HATA: ' + (st.error || '') :
+st.done + '/' + st.total + ' sembol | son: ' + st.current_symbol + ' | ' + secs + 's';
+if (st.status === 'done' || st.status === 'failed') {
+clearInterval(timer);
+if (st.result) renderScan(st.result, 'Tüm Piyasa (' + st.total + ' sembol)', st.result.interval, st.result.source);
+if (st.errors && st.errors.length) status.textContent += ' | ' + st.errors.length + ' sembol veri hatası';
+}
+} catch(e) { clearInterval(timer); status.textContent = 'Durum alınamadı: ' + e.message; }
+}, 2500);
+} catch(e) { box.style.display = 'block'; status.textContent = 'hata: ' + e.message; console.error(e); }
+}
+
 async function factoryRun() {
 const msg = document.getElementById('factoryRunMsg');
 if (msg) msg.textContent = '⏳ çalışıyor...';
@@ -1007,31 +1114,31 @@ card.style.display = 'block';
 document.getElementById('factoryResultMeta').textContent = d.symbols.length + ' sembol | ' + interval + ' | ' + source + (d.ai_applied ? ' | 🤖 AI: ' + d.summary.blocked + ' sinyal engellendi' : (d.ai_filter ? ' | AI modeli yok — filtresiz' : ''));
 const s = d.summary;
 if (d.ab_mode) {
+const rows = d.results.filter(r => !r.error && (r.base_trades > 0 || r.ai_trades > 0));
 document.getElementById('factorySummaryRow').innerHTML =
-factoryMini('Sembol', s.symbols) +
+factoryMini('Islem Yapan', rows.length) +
 factoryMini('Toplam Net (temiz)', factoryMoney(s.base_net), s.base_net >= 0 ? '#22c55e' : '#ef4444') +
 factoryMini('Toplam Net (AI)', factoryMoney(s.ai_net), s.ai_net >= 0 ? '#22c55e' : '#ef4444') +
-factoryMini('Trade', s.base_trades + ' → ' + s.ai_trades) +
-factoryMini('Win %', s.base_win_rate.toFixed(1) + '% → ' + s.ai_win_rate.toFixed(1) + '%') +
-factoryMini('Sinyal isabet', 'Geçen ' + Math.round(s.passed_accuracy * 100) + '% / Engellenen ' + Math.round(s.blocked_accuracy * 100) + '%');
-document.getElementById('factoryThead').innerHTML = '<tr><th>Symbol</th><th>Sinyal</th><th>Base Tr</th><th>Base Net</th><th>AI Tr</th><th>AI Net</th><th>AI Win%</th><th>Engellenen</th><th>Hata</th></tr>';
-document.getElementById('factoryBody').innerHTML = d.results.map(function(r) {
-if (r.error) return '<tr><td><strong>'+r.symbol+'</strong></td><td colspan="8" style="color:#ef4444;">veri hatası: ' + r.error + '</td></tr>';
-return '<tr><td><strong>'+r.symbol+'</strong></td><td>'+r.signals+'</td><td>'+r.base_trades+'</td><td style="color:'+(r.base_net>=0?'#22c55e':'#ef4444')+'">'+factoryMoney(r.base_net)+'</td><td>'+r.ai_trades+'</td><td style="color:'+(r.ai_net>=0?'#22c55e':'#ef4444')+'">'+factoryMoney(r.ai_net)+'</td><td>'+r.ai_win_rate+'%</td><td>'+r.blocked+'</td><td>-</td></tr>';
+factoryMini('Trade', s.base_trades + ' / ' + s.ai_trades) +
+factoryMini('Win %', s.base_win_rate.toFixed(1) + '% / ' + s.ai_win_rate.toFixed(1) + '%') +
+factoryMini('Sinyal isabet', 'Gecen ' + Math.round(s.passed_accuracy * 100) + '% / Engellenen ' + Math.round(s.blocked_accuracy * 100) + '%');
+document.getElementById('factoryThead').innerHTML = '<tr><th>Symbol</th><th>Sinyal</th><th>Base Tr</th><th>Base Net</th><th>AI Tr</th><th>AI Net</th><th>AI Win%</th><th>Engellenen</th></tr>';
+document.getElementById('factoryBody').innerHTML = rows.map(function(r) {
+return '<tr><td><strong>'+r.symbol+'</strong></td><td>'+r.signals+'</td><td>'+r.base_trades+'</td><td style="color:'+(r.base_net>=0?'#22c55e':'#ef4444')+'">'+factoryMoney(r.base_net)+'</td><td>'+r.ai_trades+'</td><td style="color:'+(r.ai_net>=0?'#22c55e':'#ef4444')+'">'+factoryMoney(r.ai_net)+'</td><td>'+r.ai_win_rate+'%</td><td>'+r.blocked+'</td></tr>';
 }).join('');
 document.getElementById('factoryAbBox').innerHTML = '';
 factoryDrawEquity(null);
 } else {
+const rows = d.results.filter(r => !r.error && r.trades > 0);
 document.getElementById('factorySummaryRow').innerHTML =
-factoryMini('Sembol', s.symbols) +
+factoryMini('Islem Yapan', rows.length) +
 factoryMini('Toplam Net', factoryMoney(s.base_net), s.base_net >= 0 ? '#22c55e' : '#ef4444') +
 factoryMini('Trade', s.base_trades) +
 factoryMini('Win %', s.base_win_rate.toFixed(1) + '%') +
 factoryMini('Sinyal', s.signals) +
 factoryMini('Engellenen', s.blocked);
 document.getElementById('factoryThead').innerHTML = '<tr><th>Symbol</th><th>Sinyal</th><th>Trade</th><th>Net</th><th>Win%</th><th>MaxDD</th><th>PF</th></tr>';
-document.getElementById('factoryBody').innerHTML = d.results.map(function(r) {
-if (r.error) return '<tr><td><strong>'+r.symbol+'</strong></td><td colspan="6" style="color:#ef4444;">veri hatası: ' + r.error + '</td></tr>';
+document.getElementById('factoryBody').innerHTML = rows.map(function(r) {
 return '<tr><td><strong>'+r.symbol+'</strong></td><td>'+r.signals+'</td><td>'+r.trades+'</td><td style="color:'+(r.net>=0?'#22c55e':'#ef4444')+'">'+factoryMoney(r.net)+'</td><td>'+r.win_rate+'%</td><td>'+r.max_dd+'%</td><td>'+(r.pf == null ? '-' : r.pf)+'</td></tr>';
 }).join('');
 document.getElementById('factoryAbBox').innerHTML = '';

@@ -24,3 +24,7 @@ backend/app/strategy/settings.json
 
 # TensorFlow AI modelleri (egitim ciktisi)
 backend/app/models/
+
+# Binance backtest veri onbellegi
+backend/app/data/cache_binance/
+*.db-journal

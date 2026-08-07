@@ -45,7 +45,7 @@ class BinanceClient:
                 ping=False,
                 requests_params={'timeout': 30},
             )
-            print("[BINANCE] testnet baglandi")
+            print(f"[BINANCE] baglandi (testnet={self.testnet})")
             await self.load_all_symbols()
             await self._sync_time_offset()
             return True
