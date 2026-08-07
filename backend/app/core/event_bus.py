@@ -1,6 +1,8 @@
 import asyncio, time
 from dataclasses import dataclass
 from typing import Callable, Dict, List
+
+from loguru import logger
 @dataclass
 class Event:
     type: str
@@ -24,6 +26,6 @@ class EventBus:
                     else:
                         handler(evt)
                 except Exception as e:
-                    print(f"[BUS ERROR] {evt.type}: {e}")
+                    logger.exception(f"Event bus handler hatasi ({evt.type}): {e}")
             self.queue.task_done()
 bus = EventBus()

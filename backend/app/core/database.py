@@ -4,6 +4,8 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
+from loguru import logger
+
 
 class Database:
     def __init__(self, db_path: str = "atos.db"):
@@ -122,7 +124,7 @@ class Database:
         ''')
         conn.commit()
         conn.close()
-        print("Veritabani hazir")
+        logger.debug(f"Veritabani hazir: {self.db_path}")
 
     def save_trade(self, symbol: str, side: str, entry_price: float, quantity: float,
                    entry_ts: str = None, ttp_tp_hit: int = 0):

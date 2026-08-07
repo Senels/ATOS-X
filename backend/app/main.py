@@ -13,7 +13,7 @@ from loguru import logger
 from app.api.backtest import router as backtest_router
 from app.api.exchange import router as exchange_router
 from app.api.optimization import router as optimize_router
-from app.core.config import get_settings
+from app.core.config import ENV_FILE, get_settings
 from app.core.database import Database
 from app.core.security import APIKeyMiddleware
 from app.data import loader
@@ -30,7 +30,7 @@ from app.strategy.decision import decide as decide_symbol
 from app.strategy.market_intel import analyze as analyze_market
 from app.websocket.client import BinanceWebSocket
 
-load_dotenv()
+load_dotenv(dotenv_path=str(ENV_FILE))
 settings = get_settings()
 _APP_DIR = Path(__file__).resolve().parent
 
@@ -1572,7 +1572,7 @@ app.include_router(exchange_router)
 
 @app.get("/")
 async def root():
-    return {"message": "🚀 ATOS X", "status": system_status["status"], "version": "1.0.0"}
+    return {"message": "🚀 ATOS X", "status": system_status["status"], "version": settings.APP_VERSION}
 
 @app.get("/health")
 async def health():
@@ -2199,7 +2199,8 @@ async def dashboard_html():
     try:
         with open(_APP_DIR / "dashboard.html", "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
-    except:
+    except OSError as e:
+        logger.warning(f"Dashboard HTML okunamadi: {e}")
         return HTMLResponse(content="<h1>Dashboard not found</h1>")
 
 @app.get("/dashboard/settings")
@@ -2207,7 +2208,8 @@ async def settings_html():
     try:
         with open(_APP_DIR / "strategy_settings.html", "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
-    except:
+    except OSError as e:
+        logger.warning(f"Strategy settings HTML okunamadi: {e}")
         return HTMLResponse(content="<h1>Settings not found</h1>")
 
 @app.get("/optimize/html")
@@ -2215,7 +2217,8 @@ async def optimize_html():
     try:
         with open(_APP_DIR / "optimize.html", "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
-    except:
+    except OSError as e:
+        logger.warning(f"Optimize HTML okunamadi: {e}")
         return HTMLResponse(content="<h1>Optimize not found</h1>")
 
 @app.get("/backtest/html")
@@ -2223,6 +2226,6 @@ async def backtest_html():
     try:
         with open(_APP_DIR / "backtest.html", "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
-    except:
+    except OSError as e:
+        logger.warning(f"Backtest HTML okunamadi: {e}")
         return HTMLResponse(content="<h1>Backtest not found</h1>")
-

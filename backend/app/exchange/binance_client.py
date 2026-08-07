@@ -7,11 +7,13 @@ import pandas as pd
 import urllib3
 from binance.client import Client
 from dotenv import load_dotenv
+from loguru import logger
+
+from app.core.config import ENV_FILE
+from app.data.loader import is_stablecoin_symbol
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-load_dotenv()
-
-from app.data.loader import is_stablecoin_symbol
+load_dotenv(dotenv_path=str(ENV_FILE))
 
 
 class _FuturesOnlyClient(Client):
@@ -45,12 +47,12 @@ class BinanceClient:
                 ping=False,
                 requests_params={'timeout': 30},
             )
-            print(f"[BINANCE] baglandi (testnet={self.testnet})")
+            logger.info(f"Binance baglandi (testnet={self.testnet})")
             await self.load_all_symbols()
             await self._sync_time_offset()
             return True
         except Exception as e:
-            print(f"[BINANCE] baglanti hatasi: {e}")
+            logger.error(f"Binance baglanti hatasi: {e}")
             return False
 
     async def _sync_time_offset(self):
@@ -62,9 +64,9 @@ class BinanceClient:
             offset = server_ms - int(time.time() * 1000)
             if abs(offset) > 500:
                 self.client.timestamp_offset = offset
-                print(f"  [TIME] offset {offset:+d}ms applied")
+                logger.info(f"Binance zaman offset uygulandi: {offset:+d}ms")
         except Exception as e:
-            print(f"  [TIME] sync failed: {e}")
+            logger.warning(f"Binance zaman senkronu basarisiz: {e}")
 
     async def _run(self, fn, *args, **kwargs):
         """Senkron python-binance cagrisini olay dongusunu bloke etmeden calistirir."""
@@ -85,10 +87,10 @@ class BinanceClient:
                 if s['symbol'].endswith('USDT') and s['status'] == 'TRADING'
                 and not is_stablecoin_symbol(s['symbol'])
             ]
-            print(f"[BINANCE] {len(self.all_symbols)} USDT cifti yuklendi")
+            logger.info(f"Binance'dan {len(self.all_symbols)} USDT cifti yuklendi")
             return self.all_symbols
         except Exception as e:
-            print(f"[BINANCE] sembol yukleme hatasi: {e}")
+            logger.error(f"Binance sembol yukleme hatasi: {e}")
             return ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT"]
 
     def _filter(self, symbol: str, ftype: str, default: str = "0.00000001"):

@@ -1,4 +1,6 @@
-from app.core.config import get_settings
+from pathlib import Path
+
+from app.core.config import BACKEND_DIR, ENV_FILE, get_settings
 
 
 def test_defaults():
@@ -14,3 +16,9 @@ def test_env_override(monkeypatch):
     settings = get_settings()
     assert settings.APP_ENV == "test"
     assert settings.BINANCE_TESTNET is False
+
+
+def test_env_file_resolves_to_backend_dotenv():
+    assert BACKEND_DIR == Path(__file__).resolve().parents[1]
+    assert ENV_FILE == BACKEND_DIR / ".env"
+    assert ENV_FILE.is_absolute()
