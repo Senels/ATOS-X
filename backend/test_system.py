@@ -74,7 +74,7 @@ except Exception as e:
 print("\n📊 3. Gösterge Testleri:")
 try:
     import pandas as pd
-    from app.strategy.tradebot_v23 import rsi, macd, stochastic, atr
+    from app.strategy.tradebot_v23 import atr, macd, rsi, stochastic
 
     n = 60
     idx = pd.date_range("2026-01-01", periods=n, freq="4h", tz="UTC")

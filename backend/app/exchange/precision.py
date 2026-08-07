@@ -1,4 +1,5 @@
 from decimal import Decimal, getcontext
+
 getcontext().prec = 28
 def quantize_price(price: Decimal, tick_size: Decimal) -> Decimal:
     return (price // tick_size) * tick_size

@@ -1,10 +1,9 @@
 import sqlite3
 from datetime import datetime, timedelta
 
+import app.strategy.auto_trader as at_mod
 import pandas as pd
 import pytest
-
-import app.strategy.auto_trader as at_mod
 from app.backtest.engine import BacktestEngine
 from app.core.database import Database
 from app.strategy import settings as strat_settings

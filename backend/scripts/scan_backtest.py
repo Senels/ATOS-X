@@ -13,7 +13,6 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pandas as pd
-
 from app.backtest.engine import BacktestEngine
 from app.data import loader
 from app.data.loader import is_stablecoin_symbol

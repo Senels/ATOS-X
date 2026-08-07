@@ -1,6 +1,5 @@
 ﻿import numpy as np
 import pandas as pd
-
 from app.data import collector
 from app.data.loader import load_csv
 

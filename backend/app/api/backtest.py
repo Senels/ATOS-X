@@ -17,7 +17,6 @@ import uuid
 from typing import Any, Dict, Optional
 
 import pandas as pd
-
 from fastapi import APIRouter, HTTPException
 
 from app.backtest.engine import BacktestEngine
@@ -57,8 +56,8 @@ async def _fetch_binance_history(symbol: str, interval: str, target: int) -> Any
     startTime'dan itibaren ileriye dogru doner). Boylece parcalar bitisik
     dizilir ve `target` bara eksiksiz ulasilir.
     """
-    from app.exchange.binance_client import BinanceClient
     from app.data.collector import _period_ms
+    from app.exchange.binance_client import BinanceClient
 
     period_ms = _period_ms(interval)
     client = BinanceClient()

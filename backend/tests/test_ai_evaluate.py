@@ -6,7 +6,6 @@ canli cozumleme semantiginin arsiv uzerindeki sonuclarini dogrular.
 import numpy as np
 import pandas as pd
 import pytest
-
 from app.ai.evaluate import DIRECTIONS, evaluate_model, resolve_outcome, summarize
 from app.ai.features import FEATURE_NAMES
 

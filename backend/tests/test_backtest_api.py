@@ -2,7 +2,6 @@ import asyncio
 
 import numpy as np
 import pytest
-
 from app.api import backtest as bt
 from app.core.database import Database
 from app.data import loader
@@ -300,8 +299,9 @@ def test_binance_cached_refetch_when_short(tmp_path, monkeypatch):
 
 def test_binance_cached_refetch_when_stale(tmp_path, monkeypatch):
     """Onbellek dosyasi bayatsa yeniden indirilir."""
-    import pandas as pd
     import time
+
+    import pandas as pd
 
     async def fake_fetch(symbol, interval, target):
         idx = pd.date_range("2025-01-01", periods=50, freq="4h", tz="UTC")

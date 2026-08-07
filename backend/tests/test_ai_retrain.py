@@ -8,7 +8,6 @@ import asyncio
 import time
 
 import pytest
-
 from app.ai import retrain as retrain_mod
 from app.ai.retrain import accuracy_trigger, retrain_due
 from app.core.database import Database

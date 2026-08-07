@@ -7,7 +7,6 @@ calisir ve TF gerektirmez.
 import numpy as np
 import pandas as pd
 import pytest
-
 from app.ai.features import FEATURE_NAMES, build_features, last_feature_vector
 from app.ai.labeling import class_balance, class_name, make_labels
 

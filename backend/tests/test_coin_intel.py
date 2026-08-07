@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-
 from app.strategy import coin_intel
 
 

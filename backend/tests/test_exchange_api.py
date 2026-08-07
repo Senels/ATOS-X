@@ -7,7 +7,6 @@ import asyncio
 import os
 
 import pytest
-
 from app.api import exchange as ex
 
 

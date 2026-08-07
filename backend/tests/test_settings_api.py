@@ -1,7 +1,6 @@
-from fastapi.testclient import TestClient
-
 import app.main as main_mod
 from app.main import app
+from fastapi.testclient import TestClient
 
 
 def test_get_strategy_settings(monkeypatch):

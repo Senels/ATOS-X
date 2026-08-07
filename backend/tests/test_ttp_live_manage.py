@@ -4,10 +4,9 @@
 gercek akisi (process_signals -> acilis -> manage -> kismi/tam kapanis) paper
 modda, FakeBinance uzerinden dogrular.
 """
+import app.strategy.auto_trader as at_mod
 import pandas as pd
 import pytest
-
-import app.strategy.auto_trader as at_mod
 from app.core.database import Database
 from app.strategy import settings as ss
 from app.strategy.ttp import TtpTsl

@@ -7,7 +7,6 @@ motorun `ai_blocks` filtrelemesi, `signal_accuracy` isabet sayimi ve
 import numpy as np
 import pandas as pd
 import pytest
-
 from app.ai.backtest_sim import ai_blocked_mask, signal_accuracy, simulate
 from app.ai.features import FEATURE_NAMES
 

@@ -1,9 +1,8 @@
 import time
 import types
 
-import pytest
-
 import app.exchange.binance_client as bc_mod
+import pytest
 from app.exchange.binance_client import BinanceClient
 
 

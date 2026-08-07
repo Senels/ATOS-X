@@ -9,10 +9,9 @@ from types import SimpleNamespace
 import numpy as np
 import pandas as pd
 import pytest
-from fastapi.testclient import TestClient
-
 from app import main as main_mod
 from app.core.database import Database
+from fastapi.testclient import TestClient
 
 
 def _df(n=120, seed=0, start=0.0, drift=0.0):

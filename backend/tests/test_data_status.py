@@ -2,10 +2,9 @@ from datetime import datetime
 from types import SimpleNamespace
 
 import pandas as pd
-from fastapi.testclient import TestClient
-
 from app import main as main_mod
 from app.main import app
+from fastapi.testclient import TestClient
 
 
 class _FakeTrader:
