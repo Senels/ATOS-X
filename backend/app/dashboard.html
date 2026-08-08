@@ -53,7 +53,6 @@ body { background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui
 .badge.degraded { background:rgba(245,158,11,.12); color:var(--yellow); border-color:rgba(245,158,11,.35); }
 .badge.offline { background:rgba(239,68,68,.12); color:var(--red); border-color:rgba(239,68,68,.35); }
 .badge.paper { background:rgba(139,92,246,.14); color:#c4b5fd; border-color:rgba(139,92,246,.4); }
-.badge.testnet { background:rgba(34,211,238,.12); color:var(--cyan); border-color:rgba(34,211,238,.35); }
 .badge.live { background:rgba(34,197,94,.12); color:var(--green); border-color:rgba(34,197,94,.35); }
 .badge.kill { background:rgba(239,68,68,.16); color:var(--red); border-color:rgba(239,68,68,.5); }
 .status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; }
@@ -137,6 +136,23 @@ textarea { font-family:Consolas,Menlo,monospace; }
 .empty-row { text-align:center; color:var(--faint); padding:22px; }
 .progress-track { height:10px; background:var(--bg2); border-radius:6px; overflow:hidden; border:1px solid var(--border); }
 .progress-bar { height:100%; width:0%; background:linear-gradient(90deg,#0ea5e9,#22d3ee); transition:width .5s; }
+/* ===== Tabpanels (KRITIK) ===== */
+.tabpanel { display:none; }
+.tabpanel.active { display:block; }
+/* ===== Profesyonel kategori basliklari ===== */
+.cat-header { display:flex; align-items:center; gap:10px; padding:14px 0 10px; border-bottom:1px solid var(--border); margin-bottom:14px; }
+.cat-header .cat-icon { font-size:18px; }
+.cat-header .cat-title { font-size:16px; font-weight:800; letter-spacing:.5px; }
+.cat-header .cat-desc { font-size:11px; color:var(--faint); margin-left:auto; }
+/* ===== Pro ozet kart ===== */
+.pro-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin-bottom:16px; }
+.pro-summary .pro-card { background:linear-gradient(135deg,var(--bg2),var(--bg3)); padding:14px 18px; border-radius:12px; border:1px solid var(--border); position:relative; overflow:hidden; }
+.pro-summary .pro-card::before { content:''; position:absolute; top:0; left:0; width:3px; height:100%; background:var(--accent); }
+.pro-summary .pro-card.green::before { background:var(--green); }
+.pro-summary .pro-card.red::before { background:var(--red); }
+.pro-summary .pro-card.yellow::before { background:var(--yellow); }
+.pro-summary .pro-card .pro-label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; font-weight:700; }
+.pro-summary .pro-card .pro-value { font-size:22px; font-weight:800; margin-top:4px; }
 /* ===== AI Ortağım sohbet penceresi ===== */
 .ai-fab { position:fixed; right:20px; bottom:20px; z-index:200; background:linear-gradient(135deg,#8b5cf6,#3b82f6); color:white; border:none; border-radius:50%; width:56px; height:56px; font-size:24px; cursor:pointer; box-shadow:0 6px 20px rgba(0,0,0,.5); transition:transform .2s; display:flex; align-items:center; justify-content:center; }
 .ai-fab:hover { transform:scale(1.08); }
@@ -167,15 +183,16 @@ textarea { font-family:Consolas,Menlo,monospace; }
     <div><h1>ATOS X</h1><small>Trading System</small></div>
   </div>
   <nav class="side-nav">
-    <div class="nav-group-label">İzleme</div>
+    <div class="nav-group-label">📊 Trading</div>
     <button class="tab nav-item active" data-tab="overview" onclick="showTab('overview')"><span class="nav-ico">📊</span>Genel Bakış</button>
     <button class="tab nav-item" data-tab="positions" onclick="showTab('positions')"><span class="nav-ico">💼</span>Pozisyonlar<span class="tab-badge" id="tabPosBadge">0</span></button>
+    <div class="nav-group-label">📈 Analiz</div>
     <button class="tab nav-item" data-tab="signals" onclick="showTab('signals')"><span class="nav-ico">📡</span>Sinyaller &amp; AI</button>
     <button class="tab nav-item" data-tab="market" onclick="showTab('market')"><span class="nav-ico">🌍</span>Piyasa İstihbaratı</button>
-    <div class="nav-group-label">Strateji</div>
-    <button class="tab nav-item" data-tab="fabrika" onclick="showTab('fabrika')"><span class="nav-ico">🧪</span>Strateji Fabrikası</button>
+    <div class="nav-group-label">🛡️ Risk</div>
     <button class="tab nav-item" data-tab="risk" onclick="showTab('risk')"><span class="nav-ico">🛡️</span>Risk &amp; Veri<span class="tab-badge" id="tabHaltBadge" style="display:none">HALT</span></button>
-    <div class="nav-group-label">Geliştirici</div>
+    <div class="nav-group-label">⚙️ Sistem</div>
+    <button class="tab nav-item" data-tab="fabrika" onclick="showTab('fabrika')"><span class="nav-ico">🧪</span>Strateji Fabrikası</button>
     <button class="tab nav-item" data-tab="api" onclick="showTab('api')"><span class="nav-ico">🔌</span>API Konsolu</button>
   </nav>
   <div class="side-bottom">
@@ -276,7 +293,7 @@ textarea { font-family:Consolas,Menlo,monospace; }
 <div class="card"><h3>🛡️ Risk Olayları</h3><div id="riskEvents"><div style="color:var(--faint);padding:10px;">-</div></div></div>
 <div class="card"><div class="card-title-line"><h3 style="margin:0;">🗃️ Veri Tazeliği</h3><button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;" onclick="backfillStale()">↻ Backfill</button><span class="hint" id="dataFreshSummary"></span></div><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Bar</th><th>Son Bar</th><th>Yaş (sa)</th><th>Durum</th></tr></thead><tbody id="dataFreshBody"><tr><td colspan="5" class="empty-row">Yükleniyor...</td></tr></tbody></table></div></div>
 <div class="card"><h3>🧹 Veri Temizleme</h3>
-<div style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:12px;">Eski test/paper kayıtlarını siler. İşlem öncesi otomatik yedek alınır. Silinen veriler geri getirilemez (yedekten geri yüklenebilir).</div>
+<div style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:12px;">Eski kayıtları siler. İşlem öncesi otomatik yedek alınır. Silinen veriler geri getirilemez (yedekten geri yüklenebilir).</div>
 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
 <button class="btn btn-ghost" onclick="dataClear('history')">🗑 Geçmişi Temizle</button>
 <button class="btn btn-red" onclick="dataClear('all')">💥 Tam Sıfırla</button>
@@ -400,7 +417,6 @@ textarea { font-family:Consolas,Menlo,monospace; }
 <div class="stat-box" style="flex:1;"><div class="label">Secret Key</div><input type="password" id="exSecret" autocomplete="off" placeholder="Binance secret" style="width:100%;font-family:Consolas,monospace;"></div>
 </div>
 <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
-<label class="check-line"><input type="checkbox" id="exTestnet"> Testnet (kapalıysa gerçek hesap)</label>
 <span class="hint" id="exStatus" style="font-size:12px;color:var(--muted);"></span>
 </div>
 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -420,7 +436,7 @@ textarea { font-family:Consolas,Menlo,monospace; }
 <div class="stat-box" style="flex:1;"><div class="label">Bar Sayısı</div><input type="number" id="fLimit" value="2190" min="100" step="100" style="width:100%;"></div>
 <div class="stat-box" style="flex:1;"><div class="label">Kaynak</div>
 <select id="fSource" style="width:100%;">
-<option value="csv" selected>CSV Arşiv</option><option value="binance">Binance Canlı</option>
+<option value="binance" selected>Binance Canlı</option>
 </select></div>
 </div>
 <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
@@ -540,9 +556,9 @@ if (d.status === 'online' && d.connected !== false) {
 } else {
     badge.innerHTML = '<span class="badge offline"><span class="status-dot status-offline"></span>' + (d.status || 'OFFLINE').toUpperCase() + '</span>';
 }
-const modeLabels = {paper:'PAPER', testnet:'TESTNET', live:'CANLI', 'kill-switch':'KILL-SWITCH'};
+const modeLabels = {paper:'PAPER', live:'CANLI', 'kill-switch':'KILL-SWITCH'};
 const mode = d.trading_mode || '';
-const modeCls = mode === 'live' ? 'live' : (mode === 'kill-switch' ? 'kill' : (mode === 'testnet' ? 'testnet' : 'paper'));
+const modeCls = mode === 'live' ? 'live' : (mode === 'kill-switch' ? 'kill' : 'paper');
 document.getElementById('paperBadge').innerHTML = '<span class="badge ' + modeCls + '">' + (modeLabels[mode] || mode.toUpperCase()) + '</span>';
 const sideDot = document.getElementById('sideDot');
 if (sideDot) sideDot.className = 'status-dot ' + (d.connected === false ? 'status-offline' : 'status-online');
@@ -1057,7 +1073,7 @@ async function exchangeLoad() {
 try {
 const r = await (await fetch('/api/v1/exchange/status')).json();
 const el = document.getElementById('exStatus');
-if (el) el.textContent = 'API: ' + (r.api_key_masked || 'yok') + ' | testnet: ' + (r.testnet ? 'açık' : 'kapalı') + ' | paper: ' + (r.paper_trading ? 'açık' : 'kapalı') + (r.connected ? ' | bağlı' : ' | bağlı değil');
+if (el) el.textContent = 'API: ' + (r.api_key_masked || 'yok') + ' | paper: ' + (r.paper_trading ? 'açık' : 'kapalı') + (r.connected ? ' | bağlı' : ' | bağlı değil');
 } catch(e) { const el = document.getElementById('exStatus'); if (el) el.textContent = 'durum alınamadı'; }
 }
 async function exchangeSave() {
@@ -1065,7 +1081,6 @@ const res = document.getElementById('exResult');
 const body = {
 api_key: document.getElementById('exApiKey').value.trim(),
 secret: document.getElementById('exSecret').value.trim(),
-testnet: document.getElementById('exTestnet').checked,
 };
 if (!body.api_key || !body.secret) { res.textContent = 'API key ve secret girin'; return; }
 try {
@@ -1081,11 +1096,10 @@ res.textContent = '⏳ bağlantı test ediliyor...';
 const body = {
 api_key: document.getElementById('exApiKey').value.trim(),
 secret: document.getElementById('exSecret').value.trim(),
-testnet: document.getElementById('exTestnet').checked,
 };
 try {
 const r = await (await fetch('/api/v1/exchange/test', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})).json();
-if (r.status === 'ok') res.innerHTML = '✅ ' + r.message + ' | testnet: ' + (r.testnet ? 'açık' : 'kapalı') + ' | Bakiye: <b>' + r.balance + '</b> USDT | Serbest: ' + r.available + ' | UPNL: ' + r.unrealized;
+if (r.status === 'ok') res.innerHTML = '✅ ' + r.message + ' | Bakiye: <b>' + r.balance + '</b> USDT | Serbest: ' + r.available + ' | UPNL: ' + r.unrealized;
 else res.textContent = '❌ ' + r.message;
 } catch(e) { res.textContent = 'hata: ' + e.message; }
 }

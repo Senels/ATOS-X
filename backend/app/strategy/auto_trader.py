@@ -43,17 +43,28 @@ class AutoTrader:
     edilerek kaydedilir (canli riski olmadan uctan uca deneme icin).
     """
 
-    def __init__(self, binance_client, telegram=None, paper=None, live_trading_enabled=None,
-                 min_notional=None):
+    def __init__(
+        self,
+        binance_client,
+        telegram=None,
+        paper=None,
+        live_trading_enabled=None,
+        min_notional=None,
+    ):
         self.binance = binance_client
         self.db = Database()
         self.telegram = telegram
         self.paper = get_settings().PAPER_TRADING if paper is None else bool(paper)
-        self.live_trading_enabled = (bool(get_settings().LIVE_TRADING_ENABLED)
-                                     if live_trading_enabled is None
-                                     else bool(live_trading_enabled))
-        self.min_notional = (float(get_settings().MIN_NOTIONAL or 0.0)
-                             if min_notional is None else float(min_notional))
+        self.live_trading_enabled = (
+            bool(get_settings().LIVE_TRADING_ENABLED)
+            if live_trading_enabled is None
+            else bool(live_trading_enabled)
+        )
+        self.min_notional = (
+            float(get_settings().MIN_NOTIONAL or 0.0)
+            if min_notional is None
+            else float(min_notional)
+        )
         self.halt_entries = False
         self.trading_mode = self._resolve_mode()
         s = strat_settings.get_settings()
@@ -106,7 +117,9 @@ class AutoTrader:
         self.risk_events = []
         self.risk_events_max = 200
         try:
-            self.risk_events = list(reversed(self.db.get_risk_events(self.risk_events_max)))
+            self.risk_events = list(
+                reversed(self.db.get_risk_events(self.risk_events_max))
+            )
         except Exception:
             self.risk_events = []
         try:
@@ -114,7 +127,10 @@ class AutoTrader:
         except Exception:
             self.trade_history = []
         self.consecutive_losses = self._count_consecutive_losses()
-        if self.max_consecutive_losses > 0 and self.consecutive_losses >= self.max_consecutive_losses:
+        if (
+            self.max_consecutive_losses > 0
+            and self.consecutive_losses >= self.max_consecutive_losses
+        ):
             self.loss_halted = True
         self._restore_risk_state()
         self.scan_interval = 30
@@ -132,27 +148,30 @@ class AutoTrader:
         self._agent_oi_cache: dict = {}
         try:
             from app.marketdata.whale_tracker import WhaleTracker
+
             self._whale = WhaleTracker()
         except Exception:
             self._whale = None
 
     def _resolve_mode(self) -> str:
-        """Calisma modunu belirler: paper / kill-switch / testnet / live."""
+        """Calisma modunu belirler: paper / kill-switch / live."""
         if self.paper:
             return "paper"
         if not self.live_trading_enabled:
             return "kill-switch"
-        if getattr(self.binance, "testnet", False):
-            return "testnet"
         return "live"
 
     def _log_risk_event(self, event_type: str, message: str, **extra):
         """Risk/blok olaylarini son-N halka tamponuna ve DB'ye kalici yazar."""
-        entry = {"time": utc_now().isoformat(), "type": event_type,
-                 "message": message, **extra}
+        entry = {
+            "time": utc_now().isoformat(),
+            "type": event_type,
+            "message": message,
+            **extra,
+        }
         self.risk_events.append(entry)
         if len(self.risk_events) > self.risk_events_max:
-            self.risk_events = self.risk_events[-self.risk_events_max:]
+            self.risk_events = self.risk_events[-self.risk_events_max :]
         try:
             self.db.save_risk_event(event_type, message, entry["time"])
         except Exception as e:
@@ -236,9 +255,13 @@ class AutoTrader:
                 continue
             if m.get("total_trades", 0) < 5:
                 continue
-            rows.append((float(m.get("sharpe", 0.0) or 0.0),
-                         float(m.get("net_profit", 0.0) or 0.0),
-                         symbol))
+            rows.append(
+                (
+                    float(m.get("sharpe", 0.0) or 0.0),
+                    float(m.get("net_profit", 0.0) or 0.0),
+                    symbol,
+                )
+            )
         rows.sort(key=lambda r: (r[0], r[1]), reverse=True)
         return [r[2] for r in rows]
 
@@ -265,7 +288,7 @@ class AutoTrader:
         siralama listeye bas koyar; skoru alinamayan ya da havuz disindaki
         semboller mevcut (backtest) siralama korunarak arkaya eklenir.
         """
-        pool = ranked[: _SCORE_POOL]
+        pool = ranked[:_SCORE_POOL]
         klines_map = await self._fetch_klines_batch(pool)
         scored = []
         for symbol in pool:
@@ -324,8 +347,9 @@ class AutoTrader:
         """`data_backfill_hours` arayla eski CSV verisini otomatik tazeler."""
         while self.running:
             try:
-                hours = float(strat_settings.get_settings().get(
-                    "data_backfill_hours", 0.0) or 0.0)
+                hours = float(
+                    strat_settings.get_settings().get("data_backfill_hours", 0.0) or 0.0
+                )
                 if hours > 0:
                     await asyncio.sleep(hours * 3600)
                     await self._ensure_data_freshness()
@@ -350,6 +374,7 @@ class AutoTrader:
             try:
                 try:
                     from app.marketdata.stooq import macro_summary
+
                     self._agent_macro = macro_summary() or {}
                 except Exception as e:
                     logger.warning(f"Makro veri hatasi: {e}")
@@ -359,10 +384,15 @@ class AutoTrader:
                     logger.warning(f"Mikro veri hatasi: {e}")
                 try:
                     from app.marketdata.correlation import correlation_report
-                    symbols = (self.priority or list(self._agent_klines_map.keys()))
+
+                    symbols = self.priority or list(self._agent_klines_map.keys())
                     if symbols:
-                        self._agent_corr = correlation_report(
-                            self._agent_klines_map, symbols, lookback=90, top_n=40) or {}
+                        self._agent_corr = (
+                            correlation_report(
+                                self._agent_klines_map, symbols, lookback=90, top_n=40
+                            )
+                            or {}
+                        )
                 except Exception as e:
                     logger.warning(f"Korelasyon hatasi: {e}")
                 await asyncio.sleep(300)
@@ -375,8 +405,11 @@ class AutoTrader:
     async def _collect_agent_micro(self):
         """Oncelikli sembollerin mikro yapi verilerini toplar (5 dk cache)."""
         from app.marketdata.binance_extra import BinanceExtraData
+
         extra = BinanceExtraData(self.binance)
-        top = (self.priority or self.trading_symbols or list(self._agent_klines_map.keys()))[:20]
+        top = (
+            self.priority or self.trading_symbols or list(self._agent_klines_map.keys())
+        )[:20]
         micro = {}
         for sym in top:
             entry = {}
@@ -390,8 +423,11 @@ class AutoTrader:
                     price_trend = 0.0
                     if k is not None and len(k) > 3:
                         c = k["close"]
-                        price_trend = (float(c.iloc[-1]) / float(c.iloc[-4]) - 1)
-                    entry["open_interest"] = {"history": list(hist), "price_trend": round(price_trend, 4)}
+                        price_trend = float(c.iloc[-1]) / float(c.iloc[-4]) - 1
+                    entry["open_interest"] = {
+                        "history": list(hist),
+                        "price_trend": round(price_trend, 4),
+                    }
             except Exception:
                 pass
             try:
@@ -433,7 +469,10 @@ class AutoTrader:
                     pos = (close - lo) / (hi - lo) if hi > lo else 0.5
                     hist = entry["open_interest"]["history"]
                     oi_high = len(hist) > 1 and hist[-1] > hist[0] * 1.05
-                    entry["liquidation"] = {"position_pct": round(pos, 3), "oi_high": oi_high}
+                    entry["liquidation"] = {
+                        "position_pct": round(pos, 3),
+                        "oi_high": oi_high,
+                    }
             except Exception:
                 pass
             if self._whale is not None:
@@ -457,10 +496,12 @@ class AutoTrader:
         istek thread pool'daki gorevi tuketiyor ve ana tarama dongusu
         dakikalarca donuyordu (gather asla tamamlanmiyordu).
         """
+
         async def fetch(symbol):
             try:
                 return symbol, await asyncio.wait_for(
-                    self.binance.get_klines(symbol, "4h", 200), timeout=20)
+                    self.binance.get_klines(symbol, "4h", 200), timeout=20
+                )
             except Exception:
                 return symbol, None
 
@@ -474,7 +515,9 @@ class AutoTrader:
         while self.running:
             if await self.binance.connect():
                 if failed and self.telegram:
-                    await self.telegram.send("ATOS X: Binance baglantisi yeniden kuruldu")
+                    await self.telegram.send(
+                        "ATOS X: Binance baglantisi yeniden kuruldu"
+                    )
                 return True
             failed = True
             attempts += 1
@@ -547,7 +590,9 @@ class AutoTrader:
                 all_prices = await self.binance.get_all_tickers()
                 if not all_prices:
                     # Baglanti koptuysa yeniden kur, fallback sembollerde kaldiysa tazele
-                    logger.warning("Borsa fiyatlari alinamadi; baglanti yeniden deneniyor")
+                    logger.warning(
+                        "Borsa fiyatlari alinamadi; baglanti yeniden deneniyor"
+                    )
                     await self.binance.connect()
                     if self.binance.client and len(self.trading_symbols) < 10:
                         self.trading_symbols = await self.binance.load_all_symbols()
@@ -560,9 +605,16 @@ class AutoTrader:
 
                 if self.priority and time.time() - self._last_rank > 1800:
                     asyncio.create_task(self._refresh_ranking())
-                ranked = [s for s in self.priority if s in all_prices] if self.priority else None
-                candidates = ranked[: self._scan_limit()] if ranked \
+                ranked = (
+                    [s for s in self.priority if s in all_prices]
+                    if self.priority
+                    else None
+                )
+                candidates = (
+                    ranked[: self._scan_limit()]
+                    if ranked
                     else self.trading_symbols[: self._scan_limit()]
+                )
                 candidates = self._filter_banned(candidates, s)
 
                 klines_map = await self._fetch_klines_batch(candidates)
@@ -586,9 +638,21 @@ class AutoTrader:
                     signal["bar_ts"] = str(klines.index[-1])
                     signal["atr_ratio"] = self._signal_atr_ratio(klines)
 
-                    if signal.get("signal") in ("BUY", "SELL") and signal.get("sl") and signal.get("tp"):
-                        allow_ai, ai_info, allow, decision, allow_str, str_info, \
-                            allow_agents, agent_info = self._gate_and_record(symbol, signal, klines, s)
+                    if (
+                        signal.get("signal") in ("BUY", "SELL")
+                        and signal.get("sl")
+                        and signal.get("tp")
+                    ):
+                        (
+                            allow_ai,
+                            ai_info,
+                            allow,
+                            decision,
+                            allow_str,
+                            str_info,
+                            allow_agents,
+                            agent_info,
+                        ) = self._gate_and_record(symbol, signal, klines, s)
                         if not allow:
                             logger.info(
                                 f"{symbol}: council karari sinyali engelledi"
@@ -684,15 +748,31 @@ class AutoTrader:
         allow_str, str_info = self._strength_gate(signal, settings)
         allow_agents, agent_info = self._agent_gate(symbol, signal, klines, settings)
         try:
-            self._record_prediction(symbol, signal, decision, ai_info,
-                                    executed=bool(allow and allow_str and allow_ai and allow_agents))
+            self._record_prediction(
+                symbol,
+                signal,
+                decision,
+                ai_info,
+                executed=bool(allow and allow_str and allow_ai and allow_agents),
+            )
         except Exception as e:
             logger.warning(f"AI tahmin kaydi hatasi {symbol}: {e}")
-        return allow_ai, ai_info, allow, decision, allow_str, str_info, allow_agents, agent_info
+        return (
+            allow_ai,
+            ai_info,
+            allow,
+            decision,
+            allow_str,
+            str_info,
+            allow_agents,
+            agent_info,
+        )
 
     def _scan_limit(self) -> int:
         """Tarama limiti: ayarlardan (runtime degistirilebilir), yoksa sabitten."""
-        return max(1, int(strat_settings.get_settings().get("scan_limit", self.scan_limit)))
+        return max(
+            1, int(strat_settings.get_settings().get("scan_limit", self.scan_limit))
+        )
 
     def _council_gate(self, signal, klines, settings):
         """Decision Council filtresi.
@@ -706,8 +786,11 @@ class AutoTrader:
         if not settings.get("use_decision_council", False):
             return True, None
         if settings.get("active_strategy") == "ttp":
-            decision = decide_council(klines, settings=settings,
-                                      primary_signal={"signal": signal, "source": "ttp"})
+            decision = decide_council(
+                klines,
+                settings=settings,
+                primary_signal={"signal": signal, "source": "ttp"},
+            )
         else:
             decision = decide_council(klines, settings=settings)
         if decision["verdict"] != signal or decision["confidence"] < float(
@@ -747,6 +830,7 @@ class AutoTrader:
             from app.agents.context import AgentContext
             from app.agents.feedback import record_votes
             from app.agents.orchestrator import run_council
+
             analog = {}
             mem = get_memory()
             if mem is not None:
@@ -761,23 +845,31 @@ class AutoTrader:
                 prices=dict(self.live_prices or {}),
                 macro=self._agent_macro,
                 micro=(self._agent_micro or {}).get(symbol, {}),
-                portfolio=[{"symbol": s, "side": p.get("side"), "status": "OPEN"}
-                           for s, p in self.active_positions.items()],
+                portfolio=[
+                    {"symbol": s, "side": p.get("side"), "status": "OPEN"}
+                    for s, p in self.active_positions.items()
+                ],
                 settings=settings,
                 corr=self._agent_corr,
                 extra={
                     "drawdown_pct": float(self.drawdown_pct or 0.0),
                     "risk_halted": bool(self.risk_halted),
-                    "predictor": self._ai_predictor() if settings.get("use_ai_model") else None,
+                    "predictor": self._ai_predictor()
+                    if settings.get("use_ai_model")
+                    else None,
                     "analog": analog,
                 },
             )
             results, verdict_info = run_council(ctx, settings)
             adjusts = verdict_info["adjustments"]
             try:
-                record_votes(self.db, symbol,
-                             signal.get("bar_ts") or str(klines.index[-1]),
-                             results, price=float(klines["close"].iloc[-1]))
+                record_votes(
+                    self.db,
+                    symbol,
+                    signal.get("bar_ts") or str(klines.index[-1]),
+                    results,
+                    price=float(klines["close"].iloc[-1]),
+                )
             except Exception as e:
                 logger.warning(f"{symbol}: ajan oy kaydi hatasi: {e}")
             info = {
@@ -785,7 +877,8 @@ class AutoTrader:
                 "confidence": verdict_info["confidence"],
                 "consensus": verdict_info["consensus"],
                 "net": round(verdict_info["buy"] - verdict_info["sell"], 3),
-                "buy": verdict_info["buy"], "sell": verdict_info["sell"],
+                "buy": verdict_info["buy"],
+                "sell": verdict_info["sell"],
                 "votes": verdict_info["votes"],
                 "agree_categories": verdict_info["agree_categories"],
                 "blocked": verdict_info["blocked"],
@@ -797,8 +890,10 @@ class AutoTrader:
                 info["block_sources"] = adjusts["block_sources"]
                 return False, info
             threshold = float(settings.get("agent_min_confidence", 0.5) or 0.0)
-            if verdict_info["verdict"] != signal.get("signal") or \
-                    verdict_info["confidence"] < threshold:
+            if (
+                verdict_info["verdict"] != signal.get("signal")
+                or verdict_info["confidence"] < threshold
+            ):
                 return False, info
             return True, info
         except Exception as e:
@@ -828,7 +923,10 @@ class AutoTrader:
         if self._ai_predictor_cache is None:
             try:
                 from app.ai.model import load_predictor
-                model_name = str(strat_settings.get_settings().get("ai_model_path", "ai_direction"))
+
+                model_name = str(
+                    strat_settings.get_settings().get("ai_model_path", "ai_direction")
+                )
                 self._ai_predictor_cache = load_predictor(model_name) or False
             except Exception as e:
                 logger.warning(f"AI predictor yuklenemedi: {e}")
@@ -856,6 +954,7 @@ class AutoTrader:
             return
         try:
             from app.ai.retrain import accuracy_trigger, last_trained_at, retrain_due
+
             model_name = str(s.get("ai_model_path", "ai_direction"))
             last = last_trained_at(model_name)
             interval = float(s.get("ai_retrain_interval_hours", 24.0) or 0.0)
@@ -870,7 +969,9 @@ class AutoTrader:
                     float(stats.get("accuracy", 0.0) or 0.0),
                     int(s.get("ai_retrain_min_samples", 30)),
                     float(s.get("ai_retrain_min_acc", 0.55) or 0.0),
-                    last, now)
+                    last,
+                    now,
+                )
             if not due:
                 return
         except Exception as e:
@@ -883,6 +984,7 @@ class AutoTrader:
         """Arka plan egitim gorevi: alt sureci calistirir, sonucu bildirir."""
         try:
             from app.ai.retrain import RetrainRunner
+
             symbols = int(settings.get("ai_retrain_symbols", 400) or 400)
             epochs = int(settings.get("ai_retrain_epochs", 30) or 30)
             horizon = int(settings.get("ai_horizon", 24) or 24)
@@ -890,12 +992,15 @@ class AutoTrader:
             if self.telegram:
                 await self.telegram.send(
                     f"AI yeniden egitimi basladi ({model_name}, "
-                    f"{symbols} sembol, {epochs} epoch, h={horizon})...")
-            logger.info(f"AI yeniden egitimi basladi: {model_name} "
-                        f"({symbols} sembol, {epochs} epoch, h={horizon})")
+                    f"{symbols} sembol, {epochs} epoch, h={horizon})..."
+                )
+            logger.info(
+                f"AI yeniden egitimi basladi: {model_name} "
+                f"({symbols} sembol, {epochs} epoch, h={horizon})"
+            )
             ok, tail = await RetrainRunner(model_name=model_name).train(
-                symbols=symbols, epochs=epochs,
-                horizon=horizon, atr_mult=atr_mult)
+                symbols=symbols, epochs=epochs, horizon=horizon, atr_mult=atr_mult
+            )
             if ok:
                 self._ai_predictor_cache = None
                 logger.info(f"AI modeli yeniden egitildi: {model_name}")
@@ -908,13 +1013,15 @@ class AutoTrader:
                 logger.warning(f"AI yeniden egitimi basarisiz: {tail}")
                 if self.telegram:
                     await self.telegram.send(
-                        f"AI yeniden egitimi BASARISIZ ({model_name}): {tail}")
+                        f"AI yeniden egitimi BASARISIZ ({model_name}): {tail}"
+                    )
         except Exception as e:
             logger.warning(f"AI yeniden egitim hatasi: {e}")
             if self.telegram:
                 try:
                     await self.telegram.send(
-                        f"AI yeniden egitimi hata ile sonlandi: {e}")
+                        f"AI yeniden egitimi hata ile sonlandi: {e}"
+                    )
                 except Exception:
                     pass
         finally:
@@ -929,9 +1036,12 @@ class AutoTrader:
         """
         try:
             from app.agents.feedback import resolve_stale, resolve_symbol
+
             if resolution_bars is None:
-                resolution_bars = int(strat_settings.get_settings().get(
-                    "agent_feedback_horizon", 24) or 24)
+                resolution_bars = int(
+                    strat_settings.get_settings().get("agent_feedback_horizon", 24)
+                    or 24
+                )
             for symbol, klines in (klines_map or {}).items():
                 if klines is None or len(klines) == 0:
                     continue
@@ -969,6 +1079,7 @@ class AutoTrader:
                 agent_retrain_due,
                 last_trained_at,
             )
+
             last = last_trained_at()
             interval = float(s.get("agent_retrain_interval_hours", 24.0) or 0.0)
             due = interval > 0 and agent_retrain_due(last, now, interval)
@@ -976,7 +1087,9 @@ class AutoTrader:
                 due = accuracy_trigger(
                     agent_accuracy(self.db),
                     float(s.get("agent_min_acc", 0.40) or 0.0),
-                    last, now)
+                    last,
+                    now,
+                )
         except Exception as e:
             logger.warning(f"Agent egitim kontrolu hatasi: {e}")
             return
@@ -989,14 +1102,17 @@ class AutoTrader:
         """Arka plan agent egitim gorevi: alt sureci calistirir, sonucu bildirir."""
         try:
             from app.agents.retrain import AgentRetrainRunner
+
             symbols = int(settings.get("agent_retrain_symbols", 150) or 150)
             horizon = int(settings.get("agent_feedback_horizon", 24) or 24)
             if self.telegram:
                 await self.telegram.send(
-                    f"Agent konseyi egitimi basladi ({symbols} sembol, h={horizon})...")
+                    f"Agent konseyi egitimi basladi ({symbols} sembol, h={horizon})..."
+                )
             logger.info(f"Agent konseyi egitimi basladi ({symbols} sembol)")
             ok, tail = await AgentRetrainRunner().train(
-                symbols=symbols, horizon=horizon)
+                symbols=symbols, horizon=horizon
+            )
             if ok:
                 logger.info("Agent konseyi egitildi (analog bellek + agirliklar)")
                 if self.telegram:
@@ -1007,15 +1123,20 @@ class AutoTrader:
             else:
                 logger.warning(f"Agent konseyi egitimi basarisiz: {tail}")
                 if self.telegram:
-                    await self.telegram.send(
-                        f"Agent konseyi egitimi BASARISIZ: {tail}")
+                    await self.telegram.send(f"Agent konseyi egitimi BASARISIZ: {tail}")
         except Exception as e:
             logger.warning(f"Agent konseyi egitim hatasi: {e}")
         finally:
             self._agent_retrain_running = False
 
-    def _record_prediction(self, symbol: str, signal: dict, decision: dict,
-                           ai_info: dict, executed: bool = False):
+    def _record_prediction(
+        self,
+        symbol: str,
+        signal: dict,
+        decision: dict,
+        ai_info: dict,
+        executed: bool = False,
+    ):
         """Her BUY/SELL sinyali icin AI yon tahminini DB'ye yazar (feedback dongusu).
 
         `executed` = AI kapisindan gecildi (entry olusturuldu). AI kapali ya da
@@ -1034,7 +1155,9 @@ class AutoTrader:
             bar_ts=signal.get("bar_ts"),
         )
 
-    def _resolve_pending_predictions(self, klines_map: dict, resolution_bars: int = None):
+    def _resolve_pending_predictions(
+        self, klines_map: dict, resolution_bars: int = None
+    ):
         """Bekleyen AI tahminlerini bar-bazli cozer.
 
         Tahmin barindan `resolution_bars` bar sonraki kapanis, tahmin anindaki
@@ -1089,9 +1212,7 @@ class AutoTrader:
             else:
                 self._rollover_day()
                 if self.risk_halted:
-                    logger.info(
-                        f"{symbol}: drawdown korumasi aktif, giris engellendi"
-                    )
+                    logger.info(f"{symbol}: drawdown korumasi aktif, giris engellendi")
                     continue
                 if self.halt_entries:
                     logger.info(
@@ -1116,9 +1237,12 @@ class AutoTrader:
                 if len(self.active_positions) >= self.max_positions:
                     continue
                 side = "LONG" if signal["signal"] == "BUY" else "SHORT"
-                notional = self._projected_notional(signal["price"], signal["sl"],
-                                                    signal.get("atr_ratio"),
-                                                    signal.get("agent_adjusts"))
+                notional = self._projected_notional(
+                    signal["price"],
+                    signal["sl"],
+                    signal.get("atr_ratio"),
+                    signal.get("agent_adjusts"),
+                )
                 if await self._blocked_by_side(side, notional):
                     logger.warning(
                         f"{symbol}: {side} yonunde asiri pozisyon, giris engellendi"
@@ -1130,8 +1254,12 @@ class AutoTrader:
                     )
                     continue
                 await self.open_position(
-                    symbol, signal["signal"], signal["price"],
-                    signal["sl"], signal["tp"], signal.get("reason"),
+                    symbol,
+                    signal["signal"],
+                    signal["price"],
+                    signal["sl"],
+                    signal["tp"],
+                    signal.get("reason"),
                     float(signal.get("strength", 0.0) or 0.0),
                     entry_ts=signal.get("entry_ts"),
                     council_confidence=signal.get("council_confidence"),
@@ -1147,13 +1275,25 @@ class AutoTrader:
         self.engine.risk_per_trade = float(s["risk_per_trade"])
         self.engine.max_leverage = float(s["max_leverage"])
         self.max_drawdown_pct = float(s.get("max_drawdown_pct", self.max_drawdown_pct))
-        self.max_position_age_hours = float(s.get("max_position_age_hours", self.max_position_age_hours))
-        self.max_consecutive_losses = int(s.get("max_consecutive_losses", self.max_consecutive_losses))
-        self.trailing_activate_pct = float(s.get("trailing_activate_pct", self.trailing_activate_pct))
+        self.max_position_age_hours = float(
+            s.get("max_position_age_hours", self.max_position_age_hours)
+        )
+        self.max_consecutive_losses = int(
+            s.get("max_consecutive_losses", self.max_consecutive_losses)
+        )
+        self.trailing_activate_pct = float(
+            s.get("trailing_activate_pct", self.trailing_activate_pct)
+        )
         self.trailing_sl_pct = float(s.get("trailing_sl_pct", self.trailing_sl_pct))
-        self.trailing_min_move_pct = float(s.get("trailing_min_move_pct", self.trailing_min_move_pct))
-        self.breakeven_activate_pct = float(s.get("breakeven_activate_pct", self.breakeven_activate_pct))
-        self.max_daily_loss_pct = float(s.get("max_daily_loss_pct", self.max_daily_loss_pct))
+        self.trailing_min_move_pct = float(
+            s.get("trailing_min_move_pct", self.trailing_min_move_pct)
+        )
+        self.breakeven_activate_pct = float(
+            s.get("breakeven_activate_pct", self.breakeven_activate_pct)
+        )
+        self.max_daily_loss_pct = float(
+            s.get("max_daily_loss_pct", self.max_daily_loss_pct)
+        )
         self.min_equity = float(s.get("min_equity", self.min_equity))
         self.engine.vol_sizing_enabled = bool(s.get("vol_sizing_enabled", False))
         self.engine.vol_mult_hi = float(s.get("vol_mult_hi", 1.5))
@@ -1172,13 +1312,18 @@ class AutoTrader:
             pass
         return 1.0
 
-    def _projected_notional(self, price: float, sl: float, atr_ratio: float = None,
-                            agent_adjusts: dict = None) -> float:
+    def _projected_notional(
+        self,
+        price: float,
+        sl: float,
+        atr_ratio: float = None,
+        agent_adjusts: dict = None,
+    ) -> float:
         """Yeni bir pozisyonun boyutlandirma sonrasi nominal degeri."""
         try:
-            sizing = self.engine.position_size(price, sl, self.equity,
-                                               atr_ratio=atr_ratio,
-                                               agent_adjusts=agent_adjusts)
+            sizing = self.engine.position_size(
+                price, sl, self.equity, atr_ratio=atr_ratio, agent_adjusts=agent_adjusts
+            )
             return price * float(sizing["qty"])
         except Exception:
             return 0.0
@@ -1231,14 +1376,27 @@ class AutoTrader:
             return {"symbol": symbol, "paper": True}
         return await self.binance.close_position(symbol)
 
-    async def open_position(self, symbol: str, side: str, price: float, sl: float, tp: float, reason: str = "", strength: float = 0.0, entry_ts=None,
-                            council_confidence: float = None, ai_direction: str = None, ai_confidence: float = None,
-                            atr_ratio: float = None, agent_adjusts: dict = None):
+    async def open_position(
+        self,
+        symbol: str,
+        side: str,
+        price: float,
+        sl: float,
+        tp: float,
+        reason: str = "",
+        strength: float = 0.0,
+        entry_ts=None,
+        council_confidence: float = None,
+        ai_direction: str = None,
+        ai_confidence: float = None,
+        atr_ratio: float = None,
+        agent_adjusts: dict = None,
+    ):
         try:
             side = "BUY" if side == "BUY" else "SELL"
-            sizing = self.engine.position_size(price, sl, self.equity,
-                                               atr_ratio=atr_ratio,
-                                               agent_adjusts=agent_adjusts)
+            sizing = self.engine.position_size(
+                price, sl, self.equity, atr_ratio=atr_ratio, agent_adjusts=agent_adjusts
+            )
             qty = float(sizing["qty"])
             if qty <= 0:
                 return
@@ -1288,25 +1446,52 @@ class AutoTrader:
                     "entry_ts": str(entry_ts) if entry_ts else None,
                     "ttp_tp_hit": False,
                 }
-                self.db.save_trade(symbol, side, price, qty,
-                                   entry_ts=str(entry_ts) if entry_ts else None)
-                conf = float(ai_confidence) if ai_confidence is not None else (
-                    float(council_confidence) if council_confidence is not None else 0.0)
+                self.db.save_trade(
+                    symbol,
+                    side,
+                    price,
+                    qty,
+                    entry_ts=str(entry_ts) if entry_ts else None,
+                )
+                conf = (
+                    float(ai_confidence)
+                    if ai_confidence is not None
+                    else (
+                        float(council_confidence)
+                        if council_confidence is not None
+                        else 0.0
+                    )
+                )
                 self.db.save_signal(symbol, side, price, conf, reason or "auto")
                 if self.telegram:
-                    await self.telegram.send_signal(symbol, side, price, reason, sl=sl, tp=tp,
-                                                    strength=strength, ai_direction=ai_direction,
-                                                    ai_confidence=ai_confidence)
+                    await self.telegram.send_signal(
+                        symbol,
+                        side,
+                        price,
+                        reason,
+                        sl=sl,
+                        tp=tp,
+                        strength=strength,
+                        ai_direction=ai_direction,
+                        ai_confidence=ai_confidence,
+                    )
                 if not self.paper:
                     position_side = "LONG" if side == "BUY" else "SHORT"
                     algo = {}
                     try:
-                        if strat_settings.get_settings().get("active_strategy") == "ttp":
+                        if (
+                            strat_settings.get_settings().get("active_strategy")
+                            == "ttp"
+                        ):
                             # TTPTSL: TP cikisini strateji yonetir (kismi TP icin tam
                             # pozisyon TP emri yerine SL koruma emri konur).
-                            algo = await self.binance.set_tp_sl(symbol, position_side, sl, 0.0)
+                            algo = await self.binance.set_tp_sl(
+                                symbol, position_side, sl, 0.0
+                            )
                         else:
-                            algo = await self.binance.set_tp_sl(symbol, position_side, sl, tp)
+                            algo = await self.binance.set_tp_sl(
+                                symbol, position_side, sl, tp
+                            )
                     except Exception as e:
                         logger.error(f"{symbol}: SL/TP koruma emri hatasi: {e}")
                     self.active_positions[symbol]["sl_order_id"] = algo.get("sl")
@@ -1399,8 +1584,9 @@ class AutoTrader:
             self.db.update_trade_protection(symbol, trailing=False, breakeven=False)
         except Exception as e:
             logger.warning(f"{symbol}: koruma bayragi sifirlanamadi: {e}")
-        self._log_risk_event("manual_sl_update",
-                             f"{symbol}: SL {old_sl} -> {new_sl} (manuel)")
+        self._log_risk_event(
+            "manual_sl_update", f"{symbol}: SL {old_sl} -> {new_sl} (manuel)"
+        )
         if not self.paper and pos.get("sl_order_id"):
             try:
                 await self.binance.cancel_algo_order(symbol, pos["sl_order_id"])
@@ -1420,8 +1606,11 @@ class AutoTrader:
                     )
                 except Exception:
                     pass
-                return {"ok": False, "error": "exchange_sl_update_failed",
-                        "symbol": symbol}
+                return {
+                    "ok": False,
+                    "error": "exchange_sl_update_failed",
+                    "symbol": symbol,
+                }
         logger.info(f"{symbol}: SL manuel olarak {old_sl} -> {new_sl}")
         return {"ok": True, "symbol": symbol, "old_sl": old_sl, "new_sl": new_sl}
 
@@ -1444,8 +1633,9 @@ class AutoTrader:
             return {"ok": False, "error": "tp_above_entry"}
         old_tp = pos.get("tp")
         pos["tp"] = new_tp
-        self._log_risk_event("manual_tp_update",
-                             f"{symbol}: TP {old_tp} -> {new_tp} (manuel)")
+        self._log_risk_event(
+            "manual_tp_update", f"{symbol}: TP {old_tp} -> {new_tp} (manuel)"
+        )
         if not self.paper and pos.get("tp_order_id"):
             try:
                 await self.binance.cancel_algo_order(symbol, pos["tp_order_id"])
@@ -1465,33 +1655,41 @@ class AutoTrader:
                     )
                 except Exception:
                     pass
-                return {"ok": False, "error": "exchange_tp_update_failed",
-                        "symbol": symbol}
+                return {
+                    "ok": False,
+                    "error": "exchange_tp_update_failed",
+                    "symbol": symbol,
+                }
         logger.info(f"{symbol}: TP manuel olarak {old_tp} -> {new_tp}")
         return {"ok": True, "symbol": symbol, "old_tp": old_tp, "new_tp": new_tp}
 
-    async def _record_closed_position(self, symbol: str, pos: dict, exit_price: float,
-                                      reason: str):
+    async def _record_closed_position(
+        self, symbol: str, pos: dict, exit_price: float, reason: str
+    ):
         """Kapanan pozisyonun PnL hesabi, DB kaydi ve bildirimini yapar."""
-        pnl = (exit_price - pos["entry_price"]) * pos["quantity"] \
-            if pos["side"] == "BUY" \
+        pnl = (
+            (exit_price - pos["entry_price"]) * pos["quantity"]
+            if pos["side"] == "BUY"
             else (pos["entry_price"] - exit_price) * pos["quantity"]
+        )
         exit_fee = exit_price * pos["quantity"] * self.engine.fee_rate
         net = pnl - exit_fee - pos.get("entry_fee", 0.0)
         self.equity += pnl - exit_fee
         self.db.close_trade_by_symbol(symbol, exit_price, net, reason)
-        self.trade_history.append({
-            "symbol": symbol,
-            "side": pos["side"],
-            "entry": pos["entry_price"],
-            "exit": exit_price,
-            "qty": pos["quantity"],
-            "pnl": net,
-            "reason": reason,
-            "trailing": bool(pos.get("trailing")),
-            "breakeven": bool(pos.get("breakeven")),
-            "time": utc_now().isoformat(),
-        })
+        self.trade_history.append(
+            {
+                "symbol": symbol,
+                "side": pos["side"],
+                "entry": pos["entry_price"],
+                "exit": exit_price,
+                "qty": pos["quantity"],
+                "pnl": net,
+                "reason": reason,
+                "trailing": bool(pos.get("trailing")),
+                "breakeven": bool(pos.get("breakeven")),
+                "time": utc_now().isoformat(),
+            }
+        )
         if self.telegram:
             await self.telegram.send_trade(
                 symbol, pos["side"], exit_price, pos["quantity"], reason
@@ -1545,7 +1743,9 @@ class AutoTrader:
             return 0.0
         if isinstance(raw, (int, float)):
             try:
-                dt = datetime.fromtimestamp(float(raw), tz=timezone.utc).replace(tzinfo=None)
+                dt = datetime.fromtimestamp(float(raw), tz=timezone.utc).replace(
+                    tzinfo=None
+                )
             except (ValueError, OSError):
                 return 0.0
         else:
@@ -1579,7 +1779,9 @@ class AutoTrader:
             symbol = t["symbol"]
             if symbol in self.active_positions:
                 continue
-            entry_time = t.get("entry_time") or t.get("entry_ts") or utc_now().isoformat()
+            entry_time = (
+                t.get("entry_time") or t.get("entry_ts") or utc_now().isoformat()
+            )
             self.active_positions[symbol] = {
                 "side": "BUY" if t["side"] == "BUY" else "SELL",
                 "entry_price": t["entry_price"],
@@ -1636,8 +1838,9 @@ class AutoTrader:
             algo_map = {}
             for a in algos or []:
                 sym = a.get("symbol")
-                entry = algo_map.setdefault(sym, {"sl": None, "sl_id": None,
-                                                 "tp": None, "tp_id": None})
+                entry = algo_map.setdefault(
+                    sym, {"sl": None, "sl_id": None, "tp": None, "tp_id": None}
+                )
                 order_type = a.get("orderType") or a.get("type")
                 if order_type == "STOP_MARKET":
                     entry["sl"] = float(a.get("triggerPrice") or 0) or None
@@ -1757,8 +1960,9 @@ class AutoTrader:
             return
         if streak >= self.max_consecutive_losses and not self.loss_halted:
             self.loss_halted = True
-            self._log_risk_event("loss_streak_halt",
-                                 f"{streak} ardısık zarar - yeni girisler durduruldu")
+            self._log_risk_event(
+                "loss_streak_halt", f"{streak} ardısık zarar - yeni girisler durduruldu"
+            )
             logger.warning(
                 f"{streak} ardısık zarar (esik {self.max_consecutive_losses}) "
                 f"- yeni girisler durduruldu"
@@ -1770,8 +1974,9 @@ class AutoTrader:
                 )
         elif self.loss_halted and streak < self.max_consecutive_losses:
             self.loss_halted = False
-            self._log_risk_event("loss_streak_clear",
-                                 "Kar sonrasi ardısık zarar korumasi serbest")
+            self._log_risk_event(
+                "loss_streak_clear", "Kar sonrasi ardısık zarar korumasi serbest"
+            )
             logger.info("Kar sonrasi ardısık zarar korumasi kaldirildi")
             if self.telegram:
                 await self.telegram.send(
@@ -1789,7 +1994,9 @@ class AutoTrader:
         self.day_pnl = 0.0
         if self.daily_loss_halted:
             self.daily_loss_halted = False
-            self._log_risk_event("daily_loss_clear", "Yeni gun - gunluk zarar korumasi serbest")
+            self._log_risk_event(
+                "daily_loss_clear", "Yeni gun - gunluk zarar korumasi serbest"
+            )
             logger.info("Yeni gun - gunluk zarar korumasi kaldirildi")
         self._persist_risk_state()
 
@@ -1809,9 +2016,11 @@ class AutoTrader:
         limit = self.equity * self.max_daily_loss_pct / 100.0
         if self.day_pnl <= -limit and not self.daily_loss_halted:
             self.daily_loss_halted = True
-            self._log_risk_event("daily_loss_halt",
-                                 f"Gunluk zarar {self.day_pnl:.2f} esigi asti "
-                                 f"(-%{self.max_daily_loss_pct:.1f}) - girisler durduruldu")
+            self._log_risk_event(
+                "daily_loss_halt",
+                f"Gunluk zarar {self.day_pnl:.2f} esigi asti "
+                f"(-%{self.max_daily_loss_pct:.1f}) - girisler durduruldu",
+            )
             logger.warning(
                 f"Gunluk zarar {self.day_pnl:.2f} esigi asti "
                 f"(-%{self.max_daily_loss_pct:.1f}) - girisler durduruldu"
@@ -1842,8 +2051,9 @@ class AutoTrader:
             return
         if dd >= threshold and not self.risk_halted:
             self.risk_halted = True
-            self._log_risk_event("drawdown_halt",
-                                 f"Drawdown %{dd:.1f} (%{threshold:.0f} esigi) asildi")
+            self._log_risk_event(
+                "drawdown_halt", f"Drawdown %{dd:.1f} (%{threshold:.0f} esigi) asildi"
+            )
             logger.warning(
                 f"Drawdown %{dd:.1f} (%{threshold:.0f} esigi) - yeni girisler durduruldu"
             )
@@ -1854,8 +2064,9 @@ class AutoTrader:
                 )
         elif self.risk_halted and dd <= threshold * 0.5:
             self.risk_halted = False
-            self._log_risk_event("drawdown_clear",
-                                 f"Drawdown %{dd:.1f}'e geri geldi, girisler serbest")
+            self._log_risk_event(
+                "drawdown_clear", f"Drawdown %{dd:.1f}'e geri geldi, girisler serbest"
+            )
             logger.info(f"Drawdown %{dd:.1f}'e geri geldi - yeni girisler serbest")
             if self.telegram:
                 await self.telegram.send(
@@ -1874,9 +2085,11 @@ class AutoTrader:
             return
         if self.equity < self.min_equity and not self.equity_halted:
             self.equity_halted = True
-            self._log_risk_event("equity_floor",
-                                 f"Equity {self.equity:.2f} taban sinirin "
-                                 f"({self.min_equity:.2f}) altina dustu")
+            self._log_risk_event(
+                "equity_floor",
+                f"Equity {self.equity:.2f} taban sinirin "
+                f"({self.min_equity:.2f}) altina dustu",
+            )
             logger.warning(
                 f"Equity {self.equity:.2f} taban sinirin ({self.min_equity:.2f}) "
                 f"altina dustu - yeni girisler durduruldu"
@@ -1888,8 +2101,9 @@ class AutoTrader:
                 )
         elif self.equity_halted and self.equity >= self.min_equity:
             self.equity_halted = False
-            self._log_risk_event("equity_clear",
-                                 "Equity taban sinirin uzerine dondu, girisler serbest")
+            self._log_risk_event(
+                "equity_clear", "Equity taban sinirin uzerine dondu, girisler serbest"
+            )
             logger.info("Equity taban sinirin uzerine dondu - yeni girisler serbest")
             if self.telegram:
                 await self.telegram.send(
@@ -1903,12 +2117,24 @@ class AutoTrader:
         if not self.telegram:
             return
         halted = "AKTIF" if self.risk_halted else "yok"
-        age = f"{self.max_position_age_hours:.0f} saat" if self.max_position_age_hours > 0 else "devre disi"
+        age = (
+            f"{self.max_position_age_hours:.0f} saat"
+            if self.max_position_age_hours > 0
+            else "devre disi"
+        )
         trail = "devre disi"
         if self.trailing_activate_pct > 0 and self.trailing_sl_pct > 0:
             trail = f"kar %{self.trailing_activate_pct:.0f}+, SL %{self.trailing_sl_pct:.1f} geri"
-        be = f"%{self.breakeven_activate_pct:.0f}" if self.breakeven_activate_pct > 0 else "devre disi"
-        dl = f"%{self.max_daily_loss_pct:.0f}" if self.max_daily_loss_pct > 0 else "devre disi"
+        be = (
+            f"%{self.breakeven_activate_pct:.0f}"
+            if self.breakeven_activate_pct > 0
+            else "devre disi"
+        )
+        dl = (
+            f"%{self.max_daily_loss_pct:.0f}"
+            if self.max_daily_loss_pct > 0
+            else "devre disi"
+        )
         eq_floor = f"${self.min_equity:.0f}" if self.min_equity > 0 else "devre disi"
         msg = (
             f"ATOS X: Motor baslatildi\n"
@@ -1927,7 +2153,7 @@ class AutoTrader:
             msg += "\nEngel yok"
         if self.risk_events:
             last = self.risk_events[-1]
-            msg += f"\nSon risk olayi: {last['type']} ({last['time'][:16].replace('T',' ')})"
+            msg += f"\nSon risk olayi: {last['type']} ({last['time'][:16].replace('T', ' ')})"
         await self.telegram.send(msg)
 
     async def _sync_block_state(self):
@@ -2065,7 +2291,9 @@ class AutoTrader:
                 return pos["tp"], "take_profit"
             if pos.get("sl") and last is not None and last >= pos["sl"]:
                 return pos["sl"], "stop_loss"
-        return last or pos.get("tp") or pos.get("sl") or pos["entry_price"], "exchange_closed"
+        return last or pos.get("tp") or pos.get("sl") or pos[
+            "entry_price"
+        ], "exchange_closed"
 
     async def check_positions(self, prices):
         if strat_settings.get_settings().get("active_strategy") == "ttp":
@@ -2117,6 +2345,7 @@ class AutoTrader:
         tasidigi degerlerle tazelenir (genel v23 trailing/breakeven uygulanmaz).
         """
         from app.strategy.ttp import TtpTsl
+
         bot = get_strategy(strat_settings.get_settings())
         if not isinstance(bot, TtpTsl):
             return
@@ -2129,7 +2358,8 @@ class AutoTrader:
                 res = bot.manage(
                     klines,
                     pos.get("entry_ts") or pos.get("open_time"),
-                    float(pos["entry_price"]), pos["side"],
+                    float(pos["entry_price"]),
+                    pos["side"],
                     float(pos["quantity"]),
                     tp_already_hit=bool(pos.get("ttp_tp_hit")),
                 )
@@ -2142,8 +2372,14 @@ class AutoTrader:
             qfrac = float(res.get("exit_qty_pct") or 0.0)
             if not res.get("active") and not ex:
                 ex, qfrac = "reversal", 1.0
-            exit_px = ep if ep is not None else (
-                current_price if current_price is not None else float(pos.get("entry_price") or 0)
+            exit_px = (
+                ep
+                if ep is not None
+                else (
+                    current_price
+                    if current_price is not None
+                    else float(pos.get("entry_price") or 0)
+                )
             )
 
             if ex == "sl":
@@ -2152,7 +2388,9 @@ class AutoTrader:
                 if qfrac >= 1.0 - 1e-9:
                     await self.close_position(symbol, float(exit_px), "take_profit")
                 elif ep is not None:
-                    await self._close_portion(symbol, float(ep), float(pos["quantity"]) * qfrac, "take_profit")
+                    await self._close_portion(
+                        symbol, float(ep), float(pos["quantity"]) * qfrac, "take_profit"
+                    )
             elif ex == "trail_tp":
                 await self.close_position(symbol, float(exit_px), "trail_tp")
             elif ex == "reversal":
@@ -2168,7 +2406,11 @@ class AutoTrader:
                     move_sl = bool(not self.paper and pos.get("sl_order_id"))
                     if not move_sl:
                         pos["sl"] = float(new_sl)
-                if new_tp is not None and float(new_tp) > 0 and float(new_tp) != float(pos.get("tp") or 0):
+                if (
+                    new_tp is not None
+                    and float(new_tp) > 0
+                    and float(new_tp) != float(pos.get("tp") or 0)
+                ):
                     pos["tp"] = float(new_tp)
                     changed = True
                 if changed:
@@ -2179,8 +2421,10 @@ class AutoTrader:
                     try:
                         await self.binance.cancel_algo_order(symbol, pos["sl_order_id"])
                         algo = await self.binance.set_tp_sl(
-                            symbol, "LONG" if pos["side"] == "BUY" else "SHORT",
-                            float(new_sl), 0.0,
+                            symbol,
+                            "LONG" if pos["side"] == "BUY" else "SHORT",
+                            float(new_sl),
+                            0.0,
                         )
                         if not algo.get("sl"):
                             raise RuntimeError("set_tp_sl SL id dondurmedi")
@@ -2190,7 +2434,9 @@ class AutoTrader:
                             f"{symbol}: TTPTSL SL borsaya tasindi -> sl {pos['sl']:.6f}"
                         )
                     except Exception as e:
-                        logger.error(f"{symbol}: TTPTSL SL borsa guncelleme hatasi: {e}")
+                        logger.error(
+                            f"{symbol}: TTPTSL SL borsa guncelleme hatasi: {e}"
+                        )
                         last_alert = float(pos.get("sl_alert_ts") or 0)
                         if self.telegram and time.time() - last_alert > 600:
                             pos["sl_alert_ts"] = time.time()
@@ -2199,16 +2445,38 @@ class AutoTrader:
                                 f"tasinamadi (mevcut {old_sl:.6f}, hedef {float(new_sl):.6f}). "
                                 f"Koruma eski seviyede; sonraki taramada yeniden denenir."
                             )
-                if current_price and pos.get("sl") and pos["side"] == "BUY" and current_price <= float(pos["sl"]):
+                if (
+                    current_price
+                    and pos.get("sl")
+                    and pos["side"] == "BUY"
+                    and current_price <= float(pos["sl"])
+                ):
                     await self.close_position(symbol, float(pos["sl"]), "stop_loss")
-                elif current_price and pos.get("sl") and pos["side"] == "SELL" and current_price >= float(pos["sl"]):
+                elif (
+                    current_price
+                    and pos.get("sl")
+                    and pos["side"] == "SELL"
+                    and current_price >= float(pos["sl"])
+                ):
                     await self.close_position(symbol, float(pos["sl"]), "stop_loss")
-                elif current_price and pos.get("tp") and pos["side"] == "BUY" and current_price >= float(pos["tp"]):
+                elif (
+                    current_price
+                    and pos.get("tp")
+                    and pos["side"] == "BUY"
+                    and current_price >= float(pos["tp"])
+                ):
                     await self.close_position(symbol, float(pos["tp"]), "take_profit")
-                elif current_price and pos.get("tp") and pos["side"] == "SELL" and current_price <= float(pos["tp"]):
+                elif (
+                    current_price
+                    and pos.get("tp")
+                    and pos["side"] == "SELL"
+                    and current_price <= float(pos["tp"])
+                ):
                     await self.close_position(symbol, float(pos["tp"]), "take_profit")
 
-    async def _close_portion(self, symbol: str, exit_price: float, exit_qty: float, reason: str):
+    async def _close_portion(
+        self, symbol: str, exit_price: float, exit_qty: float, reason: str
+    ):
         """Pozisyonun `exit_qty` kadarlik kismini kapatir; kalan miktar durur."""
         pos = self.active_positions.get(symbol)
         if not pos or exit_qty <= 0:
@@ -2227,9 +2495,11 @@ class AutoTrader:
             except Exception as e:
                 logger.error(f"{symbol}: kismi kapanis emri gonderilemedi: {e}")
                 return
-        pnl = (exit_price - float(pos["entry_price"])) * exit_qty \
-            if pos["side"] == "BUY" \
+        pnl = (
+            (exit_price - float(pos["entry_price"])) * exit_qty
+            if pos["side"] == "BUY"
             else (float(pos["entry_price"]) - exit_price) * exit_qty
+        )
         exit_fee = exit_price * exit_qty * self.engine.fee_rate
         entry_fee_part = float(pos.get("entry_fee", 0.0)) * (exit_qty / full_qty)
         net = pnl - exit_fee - entry_fee_part
@@ -2237,18 +2507,20 @@ class AutoTrader:
         pos["quantity"] = full_qty - exit_qty
         pos["entry_fee"] = float(pos.get("entry_fee", 0.0)) - entry_fee_part
         pos["ttp_tp_hit"] = True
-        self.trade_history.append({
-            "symbol": symbol,
-            "side": pos["side"],
-            "entry": pos["entry_price"],
-            "exit": exit_price,
-            "qty": exit_qty,
-            "pnl": net,
-            "reason": reason,
-            "trailing": bool(pos.get("trailing")),
-            "breakeven": bool(pos.get("breakeven")),
-            "time": utc_now().isoformat(),
-        })
+        self.trade_history.append(
+            {
+                "symbol": symbol,
+                "side": pos["side"],
+                "entry": pos["entry_price"],
+                "exit": exit_price,
+                "qty": exit_qty,
+                "pnl": net,
+                "reason": reason,
+                "trailing": bool(pos.get("trailing")),
+                "breakeven": bool(pos.get("breakeven")),
+                "time": utc_now().isoformat(),
+            }
+        )
         try:
             self.db.reduce_trade_quantity(symbol, pos["quantity"])
             self.db.update_trade_protection(symbol, ttp_tp_hit=True)
@@ -2259,8 +2531,11 @@ class AutoTrader:
         self._persist_risk_state()
         if self.telegram:
             await self.telegram.send_trade(
-                symbol, pos["side"], exit_price, exit_qty,
-                f"{reason} (kismi, kalan {pos['quantity']:.4f})"
+                symbol,
+                pos["side"],
+                exit_price,
+                exit_qty,
+                f"{reason} (kismi, kalan {pos['quantity']:.4f})",
             )
         logger.success(
             f"{symbol}: kismi {reason} {exit_qty:.4f} @ {exit_price} (kalan {pos['quantity']:.4f})"
@@ -2288,9 +2563,13 @@ class AutoTrader:
             pos["sl"] = entry
             pos["breakeven"] = True
             self.db.update_trade_protection(symbol, breakeven=True)
-            self._log_risk_event("breakeven_move",
-                                 f"{symbol} SL giris fiyatina tasindi ({_fmt_px(entry)})")
-            logger.info(f"{symbol}: SL giris fiyatina tasindi -> {_fmt_px(entry)} (kar %{profit_pct:.1f})")
+            self._log_risk_event(
+                "breakeven_move",
+                f"{symbol} SL giris fiyatina tasindi ({_fmt_px(entry)})",
+            )
+            logger.info(
+                f"{symbol}: SL giris fiyatina tasindi -> {_fmt_px(entry)} (kar %{profit_pct:.1f})"
+            )
             return
         try:
             await self.binance.cancel_algo_order(symbol, pos["sl_order_id"])
@@ -2303,9 +2582,13 @@ class AutoTrader:
             pos["breakeven"] = True
             pos["sl_order_id"] = algo["sl"]
             self.db.update_trade_protection(symbol, breakeven=True)
-            self._log_risk_event("breakeven_move",
-                                 f"{symbol} SL giris fiyatina tasindi ({_fmt_px(entry)})")
-            logger.info(f"{symbol}: SL giris fiyatina tasindi -> {_fmt_px(entry)} (kar %{profit_pct:.1f})")
+            self._log_risk_event(
+                "breakeven_move",
+                f"{symbol} SL giris fiyatina tasindi ({_fmt_px(entry)})",
+            )
+            logger.info(
+                f"{symbol}: SL giris fiyatina tasindi -> {_fmt_px(entry)} (kar %{profit_pct:.1f})"
+            )
         except Exception as e:
             logger.error(f"{symbol}: breakeven SL guncelleme hatasi: {e}")
             last_alert = float(pos.get("sl_alert_ts") or 0)
@@ -2348,12 +2631,18 @@ class AutoTrader:
             pos["trailing"] = True
             self.db.update_trade_protection(symbol, trailing=True)
             if not was_trailing:
-                self._log_risk_event("trailing_activate",
-                                     f"{symbol} SL takibi: kar %{profit_pct:.1f}, SL {_fmt_px(new_sl)}")
+                self._log_risk_event(
+                    "trailing_activate",
+                    f"{symbol} SL takibi: kar %{profit_pct:.1f}, SL {_fmt_px(new_sl)}",
+                )
             else:
-                self._log_risk_event("trailing_move",
-                                     f"{symbol} SL {_fmt_px(cur_sl)} -> {_fmt_px(new_sl)} (kar %{profit_pct:.1f})")
-            logger.info(f"{symbol}: SL takibe girdi -> {_fmt_px(new_sl)} (kar %{profit_pct:.1f})")
+                self._log_risk_event(
+                    "trailing_move",
+                    f"{symbol} SL {_fmt_px(cur_sl)} -> {_fmt_px(new_sl)} (kar %{profit_pct:.1f})",
+                )
+            logger.info(
+                f"{symbol}: SL takibe girdi -> {_fmt_px(new_sl)} (kar %{profit_pct:.1f})"
+            )
             return
         try:
             await self.binance.cancel_algo_order(symbol, pos["sl_order_id"])
@@ -2367,12 +2656,18 @@ class AutoTrader:
             pos["sl_order_id"] = algo["sl"]
             self.db.update_trade_protection(symbol, trailing=True)
             if not was_trailing:
-                self._log_risk_event("trailing_activate",
-                                     f"{symbol} SL takibi: kar %{profit_pct:.1f}, SL {_fmt_px(new_sl)}")
+                self._log_risk_event(
+                    "trailing_activate",
+                    f"{symbol} SL takibi: kar %{profit_pct:.1f}, SL {_fmt_px(new_sl)}",
+                )
             else:
-                self._log_risk_event("trailing_move",
-                                     f"{symbol} SL {_fmt_px(cur_sl)} -> {_fmt_px(new_sl)} (kar %{profit_pct:.1f})")
-            logger.info(f"{symbol}: trailing SL {_fmt_px(new_sl)} borsaya yerleştirildi")
+                self._log_risk_event(
+                    "trailing_move",
+                    f"{symbol} SL {_fmt_px(cur_sl)} -> {_fmt_px(new_sl)} (kar %{profit_pct:.1f})",
+                )
+            logger.info(
+                f"{symbol}: trailing SL {_fmt_px(new_sl)} borsaya yerleştirildi"
+            )
         except Exception as e:
             logger.error(f"{symbol}: trailing SL guncelleme hatasi: {e}")
             last_alert = float(pos.get("sl_alert_ts") or 0)
@@ -2392,12 +2687,16 @@ class AutoTrader:
         closed = self.trade_history
         wins = sum(1 for t in closed if t.get("pnl", 0) > 0)
         win_rate = wins / len(closed) * 100 if closed else 0.0
-        self.db.save_performance(self.equity, len(self.active_positions), len(self.trade_history), win_rate)
+        self.db.save_performance(
+            self.equity, len(self.active_positions), len(self.trade_history), win_rate
+        )
         self._persist_risk_state()
 
     async def stop(self):
         self.running = False
-        self._log_risk_event("system_stop", "Motor durduruldu - tum pozisyonlar kapatiliyor")
+        self._log_risk_event(
+            "system_stop", "Motor durduruldu - tum pozisyonlar kapatiliyor"
+        )
         before = len(self.trade_history)
         for symbol in list(self.active_positions.keys()):
             price = self.live_prices.get(symbol)

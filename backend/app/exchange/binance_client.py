@@ -18,6 +18,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 load_dotenv(dotenv_path=str(ENV_FILE))
 _FUTURES_ONLY_CLIENT_LOCK = Lock()
 
+
 @lru_cache(maxsize=1)
 def _futures_only_client_class():
     with _FUTURES_ONLY_CLIENT_LOCK:
@@ -49,7 +50,7 @@ class BinanceClient:
     def __init__(self):
         self.api_key = os.getenv("BINANCE_API_KEY", "")
         self.api_secret = os.getenv("BINANCE_SECRET_KEY", "")
-        self.testnet = os.getenv("BINANCE_TESTNET", "True").lower() == "true"
+        self.testnet = os.getenv("BINANCE_TESTNET", "False").lower() == "true"
         self.client = None
         self.last_price = None
         self.all_symbols = []
@@ -64,7 +65,7 @@ class BinanceClient:
                 self.api_secret,
                 testnet=self.testnet,
                 ping=False,
-                requests_params={'timeout': 30},
+                requests_params={"timeout": 30},
             )
             logger.info(f"[BINANCE] baglandi (testnet={self.testnet})")
             await self.load_all_symbols()
@@ -79,7 +80,7 @@ class BinanceClient:
         if not self.client:
             return
         try:
-            server_ms = int((await self._run(self.client.futures_time))['serverTime'])
+            server_ms = int((await self._run(self.client.futures_time))["serverTime"])
             offset = server_ms - int(time.time() * 1000)
             if abs(offset) > 500:
                 self.client.timestamp_offset = offset
@@ -98,13 +99,15 @@ class BinanceClient:
                 await self.connect()
             exchange_info = await self._run(self.client.futures_exchange_info)
             self.symbol_filters = {
-                s['symbol']: {f['filterType']: f for f in s.get('filters', [])}
-                for s in exchange_info['symbols']
+                s["symbol"]: {f["filterType"]: f for f in s.get("filters", [])}
+                for s in exchange_info["symbols"]
             }
             self.all_symbols = [
-                s['symbol'] for s in exchange_info['symbols']
-                if s['symbol'].endswith('USDT') and s['status'] == 'TRADING'
-                and not is_stablecoin_symbol(s['symbol'])
+                s["symbol"]
+                for s in exchange_info["symbols"]
+                if s["symbol"].endswith("USDT")
+                and s["status"] == "TRADING"
+                and not is_stablecoin_symbol(s["symbol"])
             ]
             logger.info(f"[BINANCE] {len(self.all_symbols)} USDT cifti yuklendi")
             return self.all_symbols
@@ -116,22 +119,22 @@ class BinanceClient:
         """Sembolun tickSize/stepSize gibi filtre degerini verir."""
         try:
             f = self.symbol_filters.get(symbol, {}).get(ftype, {})
-            return f.get('tickSize') or f.get('stepSize') or default
+            return f.get("tickSize") or f.get("stepSize") or default
         except Exception:
             return default
 
     @staticmethod
     def _decimal_places(value: str) -> int:
         """'0.00000001' gibi bir filtre degerinin ondalik basamak sayisi."""
-        s = value.rstrip('0').rstrip('.')
-        return len(s.split('.')[1]) if '.' in s else 0
+        s = value.rstrip("0").rstrip(".")
+        return len(s.split(".")[1]) if "." in s else 0
 
     def _price_str(self, symbol: str, price: float) -> str:
-        places = self._decimal_places(self._filter(symbol, 'PRICE_FILTER'))
+        places = self._decimal_places(self._filter(symbol, "PRICE_FILTER"))
         return f"{price:.{places}f}"
 
     def _qty_str(self, symbol: str, qty: float) -> str:
-        places = self._decimal_places(self._filter(symbol, 'LOT_SIZE'))
+        places = self._decimal_places(self._filter(symbol, "LOT_SIZE"))
         return f"{qty:.{places}f}"
 
     async def get_all_tickers(self):
@@ -139,7 +142,11 @@ class BinanceClient:
             if not self.client:
                 await self.connect()
             tickers = await self._run(self.client.futures_ticker)
-            return {t['symbol']: float(t['lastPrice']) for t in tickers if t['symbol'].endswith('USDT')}
+            return {
+                t["symbol"]: float(t["lastPrice"])
+                for t in tickers
+                if t["symbol"].endswith("USDT")
+            }
         except Exception as e:
             logger.warning(f"[BINANCE] ticker hatasi: {e}")
             return {}
@@ -149,7 +156,9 @@ class BinanceClient:
             await self.connect()
         try:
             ticker = await self._run(self.client.futures_ticker, symbol=symbol)
-            price = ticker.get('price') or ticker.get('lastPrice') or ticker.get('bidPrice')
+            price = (
+                ticker.get("price") or ticker.get("lastPrice") or ticker.get("bidPrice")
+            )
             if price is not None:
                 self.last_price = float(price)
                 return self.last_price
@@ -157,8 +166,13 @@ class BinanceClient:
         except Exception:
             return self.last_price
 
-    async def get_klines(self, symbol: str = "BTCUSDT", interval: str = "1h",
-                         limit: int = 1000, start_time: Optional[int] = None) -> pd.DataFrame:
+    async def get_klines(
+        self,
+        symbol: str = "BTCUSDT",
+        interval: str = "1h",
+        limit: int = 1000,
+        start_time: Optional[int] = None,
+    ) -> pd.DataFrame:
         """Binance futures kline'larini OHLCV DataFrame olarak dondurur.
 
         Sutunlar: open, high, low, close, volume (index = utc datetime).
@@ -182,14 +196,17 @@ class BinanceClient:
         df = df.set_index("datetime")
         return df[["open", "high", "low", "close", "volume"]]
 
-    async def place_market_order(self, symbol: str, side: str, quantity: float,
-                                 reduce_only: bool = False):
+    async def place_market_order(
+        self, symbol: str, side: str, quantity: float, reduce_only: bool = False
+    ):
         if not self.client:
             await self.connect()
         try:
             return await self._run(
                 self.client.futures_create_order,
-                symbol=symbol, side=side.upper(), type='MARKET',
+                symbol=symbol,
+                side=side.upper(),
+                type="MARKET",
                 quantity=self._qty_str(symbol, quantity),
                 reduceOnly=reduce_only,
             )
@@ -200,14 +217,19 @@ class BinanceClient:
         if not self.client:
             await self.connect()
         try:
-            position = await self._run(self.client.futures_position_information, symbol=symbol)
-            if position and float(position[0]['positionAmt']) != 0:
-                qty = abs(float(position[0]['positionAmt']))
-                side = 'SELL' if float(position[0]['positionAmt']) > 0 else 'BUY'
+            position = await self._run(
+                self.client.futures_position_information, symbol=symbol
+            )
+            if position and float(position[0]["positionAmt"]) != 0:
+                qty = abs(float(position[0]["positionAmt"]))
+                side = "SELL" if float(position[0]["positionAmt"]) > 0 else "BUY"
                 return await self._run(
                     self.client.futures_create_order,
-                    symbol=symbol, side=side, type='MARKET',
-                    quantity=self._qty_str(symbol, qty), reduceOnly=True,
+                    symbol=symbol,
+                    side=side,
+                    type="MARKET",
+                    quantity=self._qty_str(symbol, qty),
+                    reduceOnly=True,
                 )
             return None
         except Exception as e:
@@ -227,7 +249,7 @@ class BinanceClient:
             )
         except Exception as e:
             raise Exception(f"Pozisyon sorgulama hatasi: {e}")
-        if not position or float(position[0].get('positionAmt', 0)) == 0:
+        if not position or float(position[0].get("positionAmt", 0)) == 0:
             return None
         return position[0]
 
@@ -240,7 +262,7 @@ class BinanceClient:
         if not self.client:
             await self.connect()
         positions = await self._run(self.client.futures_position_information)
-        return [p for p in positions if float(p.get('positionAmt', 0)) != 0]
+        return [p for p in positions if float(p.get("positionAmt", 0)) != 0]
 
     async def get_account_balance(self) -> dict:
         """USDT futures cuzdan dengesi (portfolio sync icin).
@@ -256,8 +278,9 @@ class BinanceClient:
             "unrealized": float(acct.get("totalUnrealizedProfit", 0.0)),
         }
 
-    async def set_tp_sl(self, symbol: str, position_side: str, sl_price: float,
-                        tp_price: float) -> dict:
+    async def set_tp_sl(
+        self, symbol: str, position_side: str, sl_price: float, tp_price: float
+    ) -> dict:
         """Exchange-side SL (STOP_MARKET) + TP (TAKE_PROFIT_MARKET) algo emirleri.
 
         KOSULLU emirler Algo Order API'ye gider (Binance 2025-12-09 zorunlulugu).
@@ -267,7 +290,7 @@ class BinanceClient:
         if not self.client:
             await self.connect()
         result = {"sl": None, "tp": None}
-        side = 'SELL' if position_side.upper() == 'LONG' else 'BUY'
+        side = "SELL" if position_side.upper() == "LONG" else "BUY"
         if not await self._wait_for_position(symbol):
             logger.warning(f"  TP/SL error {symbol}: pozisyon bulunamadi")
             return result
@@ -275,20 +298,30 @@ class BinanceClient:
             try:
                 sl = await self._run(
                     self.client.futures_create_order,
-                    symbol=symbol, side=side, type='STOP_MARKET',
-                    triggerPrice=self._price_str(symbol, sl_price), closePosition=True,
+                    symbol=symbol,
+                    side=side,
+                    type="STOP_MARKET",
+                    triggerPrice=self._price_str(symbol, sl_price),
+                    closePosition=True,
                 )
-                result["sl"] = sl.get('algoId') or sl.get('orderId') or sl.get('order_id')
+                result["sl"] = (
+                    sl.get("algoId") or sl.get("orderId") or sl.get("order_id")
+                )
             except Exception as e:
                 logger.error(f"  SL error {symbol}: {e}")
         if tp_price:
             try:
                 tp = await self._run(
                     self.client.futures_create_order,
-                    symbol=symbol, side=side, type='TAKE_PROFIT_MARKET',
-                    triggerPrice=self._price_str(symbol, tp_price), closePosition=True,
+                    symbol=symbol,
+                    side=side,
+                    type="TAKE_PROFIT_MARKET",
+                    triggerPrice=self._price_str(symbol, tp_price),
+                    closePosition=True,
                 )
-                result["tp"] = tp.get('algoId') or tp.get('orderId') or tp.get('order_id')
+                result["tp"] = (
+                    tp.get("algoId") or tp.get("orderId") or tp.get("order_id")
+                )
             except Exception as e:
                 logger.error(f"  TP error {symbol}: {e}")
         return result
@@ -301,7 +334,7 @@ class BinanceClient:
                 position = await self._run(
                     self.client.futures_position_information, symbol=symbol
                 )
-                if position and float(position[0]['positionAmt']) != 0:
+                if position and float(position[0]["positionAmt"]) != 0:
                     return True
             except Exception:
                 pass
@@ -316,7 +349,9 @@ class BinanceClient:
             await self.connect()
         try:
             return await self._run(
-                self.client.futures_cancel_algo_order, symbol=symbol, algoId=algo_id,
+                self.client.futures_cancel_algo_order,
+                symbol=symbol,
+                algoId=algo_id,
             )
         except Exception as e:
             logger.error(f"  Cancel error {symbol} order {algo_id}: {e}")

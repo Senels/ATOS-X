@@ -2830,11 +2830,7 @@ _ASSISTANT_FILE = _APP_DIR / "data" / "assistant_messages.json"
 
 
 def _build_assistant_system_prompt() -> str:
-    mode = (
-        "PAPER"
-        if os.getenv("BINANCE_TESTNET", "True").lower() in ("true", "1")
-        else "CANLI"
-    )
+    mode = "PAPER" if (auto_trader and auto_trader.paper) else "CANLI"
     trading = auto_trader.running if auto_trader else False
     halt = auto_trader.halt_entries if auto_trader else False
     symbols_count = len(auto_trader.trading_symbols) if auto_trader else 0

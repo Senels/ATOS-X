@@ -7,7 +7,7 @@ def test_defaults():
     settings = get_settings()
     assert settings.APP_NAME == "ATOS X"
     assert settings.APP_ENV == "dev"
-    assert settings.BINANCE_TESTNET is True
+    assert settings.BINANCE_TESTNET is False
 
 
 def test_env_override(monkeypatch):

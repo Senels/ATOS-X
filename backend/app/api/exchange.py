@@ -4,6 +4,7 @@ Anahtarlar `.env` dosyasina ve calisma zamani `os.environ`'a yazilir
 (binance_client os.getenv ile okur). Secret hicbir GET endpoint'inden
 donulmez; yalnizca maskeli son-4 gosterilir.
 """
+
 import os
 from pathlib import Path
 
@@ -50,30 +51,30 @@ async def exchange_status(request: Request):
     return {
         "has_api_key": bool(os.getenv("BINANCE_API_KEY", "")),
         "api_key_masked": _masked(os.getenv("BINANCE_API_KEY", "")),
-        "testnet": os.getenv("BINANCE_TESTNET", "True").lower() == "true",
+        "testnet": os.getenv("BINANCE_TESTNET", "False").lower() == "true",
         "paper_trading": os.getenv("PAPER_TRADING", "True").lower() == "true",
-        "live_trading_enabled": os.getenv("LIVE_TRADING_ENABLED", "False").lower() == "true",
+        "live_trading_enabled": os.getenv("LIVE_TRADING_ENABLED", "False").lower()
+        == "true",
         "connected": bool(binance and binance.client),
     }
 
 
 @router.post("/credentials")
 async def exchange_credentials(request: Request):
-    """API key + secret + testnet flag kaydeder (.env + os.environ)."""
+    """API key + secret kaydeder (.env + os.environ)."""
     data = await request.json()
     api_key = (data.get("api_key") or "").strip()
     secret = (data.get("secret") or "").strip()
     if not api_key or not secret:
         return {"status": "error", "message": "API key ve secret bos olamaz"}
-    testnet = bool(data.get("testnet", True))
     _set_env("BINANCE_API_KEY", api_key)
     _set_env("BINANCE_SECRET_KEY", secret)
-    _set_env("BINANCE_TESTNET", "True" if testnet else "False")
+    _set_env("BINANCE_TESTNET", "False")
     return {
         "status": "ok",
         "message": "Anahtarlar kaydedildi. Motoru yeniden baslatin; yeni anahtarlarla baglanir.",
         "api_key_masked": _masked(api_key),
-        "testnet": testnet,
+        "testnet": False,
     }
 
 
@@ -81,33 +82,33 @@ async def exchange_credentials(request: Request):
 async def exchange_test(request: Request):
     """Baglanti + bakiye testi.
 
-    Body'de `api_key`/`secret`/`testnet` verilirse GECICI olarak onlarla test
+    Body'de `api_key`/`secret` verilirse GECICI olarak onlarla test
     eder (kaydetmez); bos body ise kayitli (os.environ) anahtarlari kullanir.
     """
-    body: dict = {}
+    body: dict[str, object] = {}
     try:
         body = await request.json()
     except Exception:
         pass
-    api_key = (body.get("api_key") or "").strip() or os.getenv("BINANCE_API_KEY", "")
-    secret = (body.get("secret") or "").strip() or os.getenv("BINANCE_SECRET_KEY", "")
-    testnet = body.get("testnet")
+    api_key = str(body.get("api_key") or "").strip() or os.getenv("BINANCE_API_KEY", "")
+    secret = str(body.get("secret") or "").strip() or os.getenv(
+        "BINANCE_SECRET_KEY", ""
+    )
     client = BinanceClient()
     if api_key:
         client.api_key = api_key
     if secret:
         client.api_secret = secret
-    if testnet is not None:
-        client.testnet = bool(testnet)
+    client.testnet = False
     ok = await client.connect()
     if not ok:
-        return {"status": "error", "message": "Baglanti kurulamadi (anahtar/testnet ayari?)"}
+        return {"status": "error", "message": "Baglanti kurulamadi (anahtar ayari?)"}
     try:
         bal = await client.get_account_balance()
         return {
             "status": "ok",
             "message": "Baglanti basarili",
-            "testnet": client.testnet,
+            "testnet": False,
             "balance": bal["balance"],
             "available": bal["available"],
             "unrealized": bal["unrealized"],

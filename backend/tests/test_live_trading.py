@@ -62,6 +62,7 @@ def _make_trader(tmp_path, monkeypatch, **kwargs):
 
 # ---- trading mode ----
 
+
 def test_mode_paper(tmp_path, monkeypatch):
     tr = _make_trader(tmp_path, monkeypatch, paper=True)
     assert tr.trading_mode == "paper"
@@ -73,13 +74,13 @@ def test_mode_kill_switch(tmp_path, monkeypatch):
     assert tr.live_trading_enabled is False
 
 
-def test_mode_testnet(tmp_path, monkeypatch):
+def test_mode_live_direct(tmp_path, monkeypatch):
     db = Database(str(tmp_path / "at.db"))
     monkeypatch.setattr(at_mod, "Database", lambda *a, **k: db)
     fb = FakeBinance()
-    fb.testnet = True
+    fb.testnet = False
     tr = at_mod.AutoTrader(fb, paper=False, live_trading_enabled=True)
-    assert tr.trading_mode == "testnet"
+    assert tr.trading_mode == "live"
 
 
 def test_mode_live(tmp_path, monkeypatch):
@@ -88,6 +89,7 @@ def test_mode_live(tmp_path, monkeypatch):
 
 
 # ---- kill-switch ----
+
 
 async def test_submit_open_kill_switch_blocks(tmp_path, monkeypatch):
     db = Database(str(tmp_path / "at.db"))
@@ -117,6 +119,7 @@ async def test_submit_open_paper_skips_exchange(tmp_path, monkeypatch):
 
 # ---- min-notional ----
 
+
 async def test_min_notional_blocks_entry(tmp_path, monkeypatch):
     tr = _make_trader(tmp_path, monkeypatch, paper=True, min_notional=100000.0)
     await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
@@ -138,22 +141,39 @@ async def test_min_notional_allows_large_entry(tmp_path, monkeypatch):
 
 # ---- halt_entries ----
 
+
 async def test_halt_entries_blocks_new_entries(trader):
     tr, _fb, _db = trader
     tr.halt_entries = True
-    await tr.process_signals([{
-        "symbol": "BTCUSDT", "signal": "BUY", "price": 65000.0,
-        "sl": 63000.0, "tp": 69000.0, "reason": "test",
-    }])
+    await tr.process_signals(
+        [
+            {
+                "symbol": "BTCUSDT",
+                "signal": "BUY",
+                "price": 65000.0,
+                "sl": 63000.0,
+                "tp": 69000.0,
+                "reason": "test",
+            }
+        ]
+    )
     assert "BTCUSDT" not in tr.active_positions
 
 
 async def test_halt_entries_allows_when_off(trader):
     tr, _fb, _db = trader
-    await tr.process_signals([{
-        "symbol": "BTCUSDT", "signal": "BUY", "price": 65000.0,
-        "sl": 63000.0, "tp": 69000.0, "reason": "test",
-    }])
+    await tr.process_signals(
+        [
+            {
+                "symbol": "BTCUSDT",
+                "signal": "BUY",
+                "price": 65000.0,
+                "sl": 63000.0,
+                "tp": 69000.0,
+                "reason": "test",
+            }
+        ]
+    )
     assert "BTCUSDT" in tr.active_positions
 
 

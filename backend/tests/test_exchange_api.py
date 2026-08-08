@@ -3,6 +3,7 @@
 Anahtarlar `.env`/os.environ'a yazilir; testler gecici tmp .env uzerinden
 calsir ve anahtarlari asla donup donmedigini dogrular.
 """
+
 import asyncio
 import os
 
@@ -31,7 +32,11 @@ def test_set_env_writes_file_and_os_environ(env_tmp):
     assert os.environ["BINANCE_API_KEY"] == "abc123"
     assert "BINANCE_API_KEY=abc123" in env_tmp.read_text(encoding="utf-8")
     ex._set_env("BINANCE_API_KEY", "xyz789")
-    lines = [l for l in env_tmp.read_text(encoding="utf-8").splitlines() if l.startswith("BINANCE_API_KEY=")]
+    lines = [
+        l
+        for l in env_tmp.read_text(encoding="utf-8").splitlines()
+        if l.startswith("BINANCE_API_KEY=")
+    ]
     assert lines == ["BINANCE_API_KEY=xyz789"]
 
 
@@ -49,8 +54,9 @@ def test_masked():
 def test_credentials_roundtrip(monkeypatch, env_tmp):
     class Req:
         app = type("App", (), {"state": type("S", (), {"binance": None})})()
+
         async def json(self):
-            return {"api_key": "AAAABBBBCCCCDDDD", "secret": "s3cr3t", "testnet": False}
+            return {"api_key": "AAAABBBBCCCCDDDD", "secret": "s3cr3t"}
 
     res = asyncio.run(ex.exchange_credentials(Req()))
     assert res["status"] == "ok"
@@ -71,8 +77,10 @@ def test_credentials_requires_keys(monkeypatch, env_tmp):
 
 def test_status_masks_secret(monkeypatch, env_tmp):
     monkeypatch.setenv("BINANCE_API_KEY", "ABCDEFGH12345678")
+
     class App:
         state = type("S", (), {"binance": type("B", (), {"client": None})})()
+
     res = asyncio.run(ex.exchange_status(type("Req", (), {"app": App})()))
     assert res["api_key_masked"] == "ABCD...5678"
     assert "ABCDEFGH12345678" not in str(res)
@@ -116,9 +124,9 @@ def test_test_uses_temp_credentials(monkeypatch, env_tmp):
         return bc
 
     monkeypatch.setattr(ex, "BinanceClient", fake_bc)
-    res = asyncio.run(ex.exchange_test(_BodyReq(
-        {"api_key": "TEMPKEY123", "secret": "temps3cr3t", "testnet": False}
-    )))
+    res = asyncio.run(
+        ex.exchange_test(_BodyReq({"api_key": "TEMPKEY123", "secret": "temps3cr3t"}))
+    )
     assert res["status"] == "ok"
     assert res["balance"] == 100.0
     assert captured["bc"].api_key == "TEMPKEY123"

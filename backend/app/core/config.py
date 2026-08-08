@@ -16,15 +16,14 @@ class Settings(BaseSettings):
     # Binance
     BINANCE_API_KEY: str = ""
     BINANCE_SECRET_KEY: str = ""
-    BINANCE_TESTNET: bool = True
+    BINANCE_TESTNET: bool = False
 
     # Paper mod: True = emirler borsaya gitmez, simule edilir
     PAPER_TRADING: bool = True
 
     # Canli emir kill-switch'i: False iken yeni pozisyon ACIS emirleri
     # (paper mod disinda) kod seviyesinde engellenir. Canliya gecmek icin
-    # PAPER_TRADING=False + BINANCE_TESTNET=False + LIVE_TRADING_ENABLED=True
-    # ucunun birlikte ayarlanmasi gerekir.
+    # PAPER_TRADING=False + LIVE_TRADING_ENABLED=True ayarlanmasi gerekir.
     LIVE_TRADING_ENABLED: bool = False
 
     # Minimum pozisyon notionali (USDT); 0 = devre disi.
