@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     # Virgulle ayrilmis izinli CORS originleri; bos ise localhost varsayilani
     ALLOWED_ORIGINS: str = ""
 
+    # Makro veri (dashboard sekmesi); FMP free tier key
+    FMP_API_KEY: str = ""
+
 
 def get_settings():
     return Settings()

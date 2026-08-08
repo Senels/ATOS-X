@@ -35,18 +35,18 @@ body { background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui
 .side-logo h1 { font-size:19px; letter-spacing:.5px; background:linear-gradient(135deg,#fbbf24,#60a5fa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
 .side-logo small { display:block; font-size:10px; color:var(--faint); letter-spacing:2px; text-transform:uppercase; }
 .side-nav { flex:1; padding:12px 10px; display:flex; flex-direction:column; gap:3px; overflow-y:auto; }
-.nav-item { display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:10px; color:var(--muted); cursor:pointer; font-size:13px; font-weight:600; border:1px solid transparent; transition:all .15s; background:none; text-align:left; width:100%; }
+.nav-item { display:flex; align-items:center; gap:11px; padding:10px 14px; border-radius:10px; color:var(--muted); cursor:pointer; font-size:13px; font-weight:600; border:1px solid transparent; transition:all .15s; background:none; text-align:left; width:100%; }
 .nav-item .nav-ico { font-size:15px; width:20px; text-align:center; }
 .nav-item:hover { background:rgba(59,130,246,.09); color:var(--text); border-color:var(--border); }
-.nav-item.active { background:linear-gradient(135deg,rgba(59,130,246,.22),rgba(139,92,246,.14)); color:#fff; border-color:var(--border2); }
+.nav-item.active { background:linear-gradient(135deg,rgba(59,130,246,.25),rgba(139,92,246,.18)); color:#fff; border-color:var(--border2); box-shadow:0 2px 8px rgba(59,130,246,.2); }
 .nav-item .tab-badge { margin-left:auto; background:var(--bg); color:var(--muted); font-size:10px; padding:1px 8px; border-radius:10px; font-weight:700; }
 .nav-item .tab-badge.warn { background:var(--red); color:#fff; }
 .nav-group-label { font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--faint); padding:14px 12px 5px; }
 .side-bottom { padding:12px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:8px; }
 .side-mode { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); }
 /* ===== Topbar ===== */
-.topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
-.topbar h2 { font-size:20px; font-weight:700; display:flex; align-items:center; gap:10px; }
+.topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:20px; padding-bottom:14px; border-bottom:1px solid rgba(31,45,82,.6); }
+.topbar h2 { font-size:22px; font-weight:800; display:flex; align-items:center; gap:10px; }
 .topbar-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .badge { display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:20px; font-size:12px; font-weight:700; border:1px solid transparent; }
 .badge.online { background:rgba(34,197,94,.12); color:var(--green); border-color:rgba(34,197,94,.35); }
@@ -76,25 +76,28 @@ body { background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui
 /* ===== Kartlar ===== */
 .section-title { font-size:13px; color:var(--yellow); margin:2px 0 14px; text-transform:uppercase; letter-spacing:1.5px; display:flex; align-items:center; gap:8px; font-weight:700; }
 .stats-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-bottom:16px; }
-.stat-box { background:var(--bg2); padding:12px 16px; border-radius:12px; border:1px solid var(--border); text-align:center; transition:border-color .15s; }
-.stat-box:hover { border-color:var(--border2); }
-.stat-box .label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.8px; font-weight:700; }
-.stat-box .value { font-size:20px; font-weight:800; margin-top:5px; letter-spacing:.3px; }
+.stat-box { background:var(--bg2); padding:14px 18px; border-radius:12px; border:1px solid var(--border); text-align:center; transition:all .15s; position:relative; overflow:hidden; }
+.stat-box::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--accent); opacity:0; transition:opacity .2s; }
+.stat-box:hover { border-color:var(--border2); transform:translateY(-1px); }
+.stat-box:hover::before { opacity:1; }
+.stat-box .label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; font-weight:700; }
+.stat-box .value { font-size:22px; font-weight:800; margin-top:5px; letter-spacing:.3px; }
 .stat-box .value.green { color:var(--green); }
 .stat-box .value.red { color:var(--red); }
 .stat-box .value.yellow { color:var(--yellow); }
-.card { background:linear-gradient(180deg,var(--card),var(--card2)); padding:16px; border-radius:var(--radius); border:1px solid var(--border); margin-bottom:14px; box-shadow:var(--shadow); transition:border-color .15s; }
-.card:hover { border-color:var(--border2); }
-.card h3 { margin-bottom:12px; font-size:13px; color:var(--muted); display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-weight:700; letter-spacing:.4px; text-transform:uppercase; }
+.card { background:linear-gradient(180deg,var(--card),var(--card2)); padding:18px 20px; border-radius:var(--radius); border:1px solid var(--border); margin-bottom:16px; box-shadow:var(--shadow); transition:border-color .15s, box-shadow .2s; }
+.card:hover { border-color:var(--border2); box-shadow:0 6px 20px rgba(2,8,23,.5); }
+.card h3 { margin-bottom:14px; font-size:13px; color:var(--muted); display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-weight:700; letter-spacing:.6px; text-transform:uppercase; padding-bottom:10px; border-bottom:1px solid rgba(31,45,82,.5); }
 .card h3 .hint { color:var(--faint); font-size:11px; font-weight:400; text-transform:none; }
 .card .card-title-line { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
 /* ===== Tablo ===== */
 .table-wrap { overflow-x:auto; border-radius:10px; border:1px solid var(--border); }
 table { width:100%; font-size:13px; border-collapse:collapse; }
-th,td { padding:9px 12px; text-align:left; border-bottom:1px solid var(--border); white-space:nowrap; }
-th { color:var(--faint); font-weight:700; font-size:10px; text-transform:uppercase; letter-spacing:.8px; }
+th,td { padding:10px 14px; text-align:left; border-bottom:1px solid rgba(31,45,82,.5); white-space:nowrap; }
+ th { color:var(--faint); font-weight:700; font-size:10px; text-transform:uppercase; letter-spacing:1px; background:rgba(13,20,40,.5); position:sticky; top:0; z-index:2; }
 tr:last-child td { border-bottom:none; }
-tr:hover td { background:rgba(59,130,246,.06); }
+tr:hover td { background:rgba(59,130,246,.08); }
+tr td:first-child { font-weight:600; }
 /* ===== Badges ===== */
 .badge-buy { background:rgba(34,197,94,.15); color:var(--green); padding:2px 10px; border-radius:12px; font-size:11px; font-weight:700; }
 .badge-sell { background:rgba(239,68,68,.15); color:var(--red); padding:2px 10px; border-radius:12px; font-size:11px; font-weight:700; }
@@ -153,6 +156,7 @@ textarea { font-family:Consolas,Menlo,monospace; }
 .pro-summary .pro-card.yellow::before { background:var(--yellow); }
 .pro-summary .pro-card .pro-label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; font-weight:700; }
 .pro-summary .pro-card .pro-value { font-size:22px; font-weight:800; margin-top:4px; }
+.pro-summary .pro-card .pro-sub { font-size:10px; color:var(--muted); margin-top:3px; }
 /* ===== AI Ortağım sohbet penceresi ===== */
 .ai-fab { position:fixed; right:20px; bottom:20px; z-index:200; background:linear-gradient(135deg,#8b5cf6,#3b82f6); color:white; border:none; border-radius:50%; width:56px; height:56px; font-size:24px; cursor:pointer; box-shadow:0 6px 20px rgba(0,0,0,.5); transition:transform .2s; display:flex; align-items:center; justify-content:center; }
 .ai-fab:hover { transform:scale(1.08); }
@@ -216,6 +220,14 @@ textarea { font-family:Consolas,Menlo,monospace; }
 
 <!-- ================= GENEL BAKIŞ ================= -->
 <section id="tab-overview" class="tabpanel active">
+<div class="pro-summary" id="proSummary">
+<div class="pro-card"><div class="pro-label">Equity</div><div class="pro-value" id="proEquity">-</div><div class="pro-sub" id="proEquitySub">-</div></div>
+<div class="pro-card" style="--accent:var(--green);"><div class="pro-label">Gün PnL</div><div class="pro-value" id="proDayPnl">-</div><div class="pro-sub" id="proDayPnlSub">-</div></div>
+<div class="pro-card" style="--accent:var(--yellow);"><div class="pro-label">Drawdown</div><div class="pro-value" id="proDD">-</div><div class="pro-sub" id="proDDSub">-</div></div>
+<div class="pro-card" style="--accent:var(--accent2);"><div class="pro-label">Aktif Pozisyon</div><div class="pro-value" id="proPos">-</div><div class="pro-sub" id="proPosSub">-</div></div>
+<div class="pro-card" style="--accent:var(--cyan);"><div class="pro-label">Coin Takip</div><div class="pro-value" id="proCoins">-</div><div class="pro-sub" id="proCoinsSub">-</div></div>
+<div class="pro-card" style="--accent:var(--red);"><div class="pro-label">AI İsabet</div><div class="pro-value" id="proAI">-</div><div class="pro-sub" id="proAISub">-</div></div>
+</div>
 <div class="stats-row">
 <div class="stat-box"><div class="label">Coins</div><div class="value" id="totalCoins">-</div></div>
 <div class="stat-box"><div class="label">Pozisyon</div><div class="value" id="positions">0</div></div>
@@ -285,6 +297,8 @@ textarea { font-family:Consolas,Menlo,monospace; }
 <div class="card"><h3>🎯 Öncelikli İzleme Listesi</h3><div id="watchlistBody" style="display:flex;flex-wrap:wrap;gap:6px;">-</div></div>
 <div class="card"><h3>🌡️ Piyasa Rejimi</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Trend</th><th>Volatilite</th><th>ATR%</th><th>ATR%ile</th></tr></thead><tbody id="regimeBody"><tr><td colspan="5" class="empty-row">Yükleniyor...</td></tr></tbody></table></div></div>
 <div class="card"><h3>🏆 Coin Skorları</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Skor</th><th>Momentum%</th><th>Trend</th><th>ATR%</th></tr></thead><tbody id="scoreBody"><tr><td colspan="5" class="empty-row">Yükleniyor...</td></tr></tbody></table></div></div>
+<div class="card"><h3>📊 Makro Ekonomik Göstergeler <span class="hint" id="macroHint">-</span></h3><div class="table-wrap"><table><thead><tr><th>Gösterge</th><th>Son</th><th>Değişim</th><th>Tarih</th></tr></thead><tbody id="macroBody"><tr><td colspan="4" class="empty-row">FMP_API_KEY yok</td></tr></tbody></table></div></div>
+<div class="card"><h3>📅 Yaklaşan Ekonomik Takvim</h3><div class="table-wrap"><table><thead><tr><th>Event</th><th>Tarih</th><th>Beklenen</th><th>Sigorta</th></tr></thead><tbody id="calendarBody"><tr><td colspan="4" class="empty-row">Yükleniyor...</td></tr></tbody></table></div></div>
 </section>
 
 <!-- ================= RİSK & VERİ ================= -->
@@ -598,6 +612,18 @@ const wl = document.getElementById('watchlistBody');
 if (d.top_symbols && d.top_symbols.length > 0) {
 wl.innerHTML = d.top_symbols.map(function(s) { return '<span class="chip">'+s+'</span>'; }).join('');
 } else { wl.textContent = '-'; }
+/* Pro summary banner */
+const pe = document.getElementById('proEquity'); if (pe) pe.textContent = '$' + (d.equity || 10000).toLocaleString();
+const pes = document.getElementById('proEquitySub'); if (pes) pes.textContent = 'Peak: $' + (d.peak_equity || '-');
+const pdp = document.getElementById('proDayPnl'); if (pdp) { const dp = d.day_pnl || 0; pdp.textContent = (dp>=0?'+':'') + '$' + Math.abs(dp).toFixed(2); pdp.style.color = dp >= 0 ? 'var(--green)' : 'var(--red)'; }
+const pdps = document.getElementById('proDayPnlSub'); if (pdps) pdps.textContent = (d.day_start_date || '-');
+const pdd = document.getElementById('proDD'); if (pdd) { pdd.textContent = (d.drawdown_pct != null ? d.drawdown_pct + '%' : '-'); pdd.style.color = (d.drawdown_pct || 0) > 15 ? 'var(--red)' : (d.drawdown_pct || 0) > 5 ? 'var(--yellow)' : 'var(--green)'; }
+const pdds = document.getElementById('proDDSub'); if (pdds) pdds.textContent = d.risk_halted ? 'RISK HALT' : 'Normal';
+const pp = document.getElementById('proPos'); if (pp) pp.textContent = (d.active_positions || 0);
+const pps = document.getElementById('proPosSub'); if (pps) pps.textContent = (d.protected_positions || 0) + ' korumali';
+const pc = document.getElementById('proCoins'); if (pc) pc.textContent = (d.symbols || 0);
+const pcs = document.getElementById('proCoinsSub'); if (pcs) pcs.textContent = (d.top_symbols || []).length + ' oncelikli';
+const pai = document.getElementById('proAI'); if (pai) pai.textContent = '-';
 const posBody = document.getElementById('positionsBody');
 if (d.positions && Object.keys(d.positions).length > 0) {
 posBody.innerHTML = '';
@@ -645,6 +671,7 @@ loadSignals();
 loadRegimes();
 loadScores();
 loadDecisions();
+loadMacro();
 loadAIStats();
 loadAgents();
 loadDataStatus();
@@ -673,10 +700,10 @@ lastSignalsLoad = 0;
 lastRegimesLoad = 0;
 lastScoresLoad = 0;
 lastDecisionsLoad = 0;
-loadSignals();
 loadRegimes();
 loadScores();
 loadDecisions();
+loadMacro();
 }
 async function applyPos(sym) {
 const sl = document.querySelector('.sl-ed[data-sym="'+sym+'"]').value;
@@ -748,6 +775,35 @@ body.innerHTML += '<tr><td><strong>'+x.symbol+'</strong></td><td><span class="'+
 });
 } else { body.innerHTML = '<tr><td colspan="5" class="empty-row">Rejim yok</td></tr>'; }
 } catch(e) { console.error(e); }
+}
+let lastMacroLoad = 0;
+async function loadMacro() {
+  if (Date.now() - lastMacroLoad < 60000) return;
+  lastMacroLoad = Date.now();
+  const hint = document.getElementById('macroHint');
+  try {
+    const r = await fetch('/api/v1/macro/indicators?limit=4');
+    const d = await r.json();
+    const body = document.getElementById('macroBody');
+    if (d.indicators && d.indicators.length) {
+      hint.textContent = d.source || 'FMP';
+      body.innerHTML = d.indicators.map(function(x) {
+        const prev = x.previous != null ? x.previous : '-';
+        const chgCls = (x.value != null && x.previous != null && x.value < x.previous) ? 'red' : 'green';
+        return '<tr><td>'+x.name+'</td><td style="color:'+(x.value >= 0 ? '#22c55e' : '#ef4444')+';">'+x.value+'</td><td style="color:'+(x.previous > x.value ? '#ef4444' : '#22c55e')+'">'+x.value+'</td><td>'+(x.date || '-')+'</td></tr>';
+      }).join('');
+    } else { hint.textContent = 'FMP_API_KEY eksik'; body.innerHTML = '<tr><td colspan="4" class="empty-row">Veri yok</td></tr>'; }
+  } catch(e) { hint.textContent = '-'; console.error(e); }
+  try {
+    const r2 = await fetch('/api/v1/macro/calendar?limit=6');
+    const d2 = await r2.json();
+    const cbody = document.getElementById('calendarBody');
+    if (d2.events && d2.events.length) {
+      cbody.innerHTML = d2.events.map(function(e) {
+        return '<tr><td>'+(e.event||e.title||'-')+'</td><td>'+(e.date||'-')+'</td><td>'+(e.expected||e.actual||'-')+'</td><td>'+(e.currency||'-')+'</td></tr>';
+      }).join('');
+    } else { cbody.innerHTML = '<tr><td colspan="4" class="empty-row">Takvim yok</td></tr>'; }
+  } catch(e) { console.error(e); }
 }
 let lastScoresLoad = 0;
 async function loadScores() {
@@ -1581,7 +1637,24 @@ if (msg) msg.textContent = 'istek hatası';
 }
 }
 refresh();
-setInterval(refresh, 10000);
+let _rafPending = false;
+function _tickRefresh() {
+  if (_rafPending) return;
+  _rafPending = true;
+  requestAnimationFrame(function() {
+    _rafPending = false;
+    if (document.visibilityState === 'hidden') return;
+    refresh();
+  });
+}
+let _refreshTimer = null;
+function _refreshLoop() {
+  if (document.visibilityState !== 'hidden') _tickRefresh();
+  _refreshTimer = setTimeout(_refreshLoop, 10000);
+}
+_refreshLoop();
+document.addEventListener('visibilitychange', _tickRefresh);
+
 </script>
 <script>
 let aiLast = 0;
@@ -1608,8 +1681,13 @@ return '<div class="ai-msg '+(m.sender === 'user' ? 'user' : (m.sender === 'ai' 
 }).join('');
 box.scrollTop = box.scrollHeight;
 }
-function assistantLoad() { fetch('/api/v1/assistant/messages').then(r=>r.json()).then(d=>aiRender(d.messages||[])).catch(()=>{}); }
-setInterval(assistantLoad, 10000);
+function assistantLoad() { if (document.visibilityState !== 'visible') return; fetch('/api/v1/assistant/messages').then(r=>r.json()).then(d=>aiRender(d.messages||[])).catch(()=>{}); }
+let _aiTimer = null;
+function _aiLoop() {
+  if (document.visibilityState === 'visible') assistantLoad();
+  _aiTimer = setTimeout(_aiLoop, 10000);
+}
+_aiLoop();
 </script>
 </body>
 </html>

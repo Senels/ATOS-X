@@ -2161,6 +2161,40 @@ async def market_decisions(limit: int = 10, interval: str = "4h"):
     return {"decisions": decisions, "count": len(decisions), "scanned": candidates}
 
 
+@app.get("/api/v1/macro/indicators")
+async def macro_indicators(limit: int = 6):
+    """FMP ekonomik göstergeleri (GDP, CPI, vb.)."""
+    from app.data.providers import FMPProvider
+
+    provider = FMPProvider()
+    indicators = ["GDP", "CPI", "Unemployment Rate", "Inflation Rate", "Interest Rate"]
+    out = []
+    for name in indicators[:limit]:
+        rows = await provider.economic_indicator(name=name, limit=2)
+        if rows and len(rows) >= 1:
+            latest = rows[-1]
+            prev = rows[-2] if len(rows) >= 2 else None
+            out.append(
+                {
+                    "name": name,
+                    "value": latest.get("value"),
+                    "previous": prev.get("value") if prev else None,
+                    "date": latest.get("date"),
+                }
+            )
+    return {"indicators": out, "source": "FMP"}
+
+
+@app.get("/api/v1/macro/calendar")
+async def macro_calendar(limit: int = 10):
+    """FMP yaklaşan ekonomik takvim."""
+    from app.data.providers import FMPProvider
+
+    provider = FMPProvider()
+    events = await provider.economic_calendar(limit=limit)
+    return {"events": events, "source": "FMP"}
+
+
 @app.post("/api/v1/data/collect")
 async def data_collect(
     symbols: str = "",

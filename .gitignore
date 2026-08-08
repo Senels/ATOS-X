@@ -28,3 +28,4 @@ backend/app/models/
 # Binance backtest veri onbellegi
 backend/app/data/cache_binance/
 *.db-journal
+.playwright-mcp/
