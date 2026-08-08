@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from loguru import logger
 
+from app.api.agents import router as agents_router
 from app.api.backtest import router as backtest_router
 from app.api.exchange import router as exchange_router
 from app.api.metrics import router as metrics_router
@@ -1744,6 +1745,7 @@ app.include_router(exchange_router)
 app.include_router(metrics_router)
 app.include_router(portfolio_router)
 app.include_router(risk_router)
+app.include_router(agents_router)
 
 @app.get("/")
 async def root():

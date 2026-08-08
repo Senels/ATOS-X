@@ -252,6 +252,12 @@ textarea { font-family:Consolas,Menlo,monospace; }
 <div class="stat-box"><div class="label">Ort. Güven</div><div class="value" id="aiConf">-</div></div>
 <div class="stat-box"><div class="label">Model</div><div class="value" id="aiModel" style="font-size:15px;">-</div></div>
 </div><div class="table-wrap"><table style="margin-top:12px;"><thead><tr><th>Yön</th><th>İsabet</th><th>Toplam</th><th>Doğruluk</th><th>Ort. Güven</th></tr></thead><tbody id="aiStatsBody"><tr><td colspan="5" class="empty-row">Veri birikiyor...</td></tr></tbody></table></div></div>
+<div class="card"><h3>🛰️ Ajan Konseyi <span class="hint" id="agentBadge"></span></h3><div class="stats-row" style="margin-bottom:0;">
+<div class="stat-box"><div class="label">Bellek</div><div class="value" id="agentMemory" style="font-size:15px;">-</div></div>
+<div class="stat-box"><div class="label">Sembol</div><div class="value" id="agentSymbols">-</div></div>
+<div class="stat-box"><div class="label">Ajan</div><div class="value" id="agentCount">-</div></div>
+<div class="stat-box"><div class="label">Kapı</div><div class="value" id="agentGate">-</div></div>
+</div><div class="table-wrap"><table style="margin-top:12px;"><thead><tr><th>Kategori</th><th>Ajan</th><th>Etkin</th><th>Çözülen Oy</th><th>İsabet</th></tr></thead><tbody id="agentBody"><tr><td colspan="5" class="empty-row">Veri birikiyor...</td></tr></tbody></table></div></div>
 <div class="card"><div class="card-title-line"><h3 style="margin:0;">📡 Canlı Sinyaller</h3><select id="signalsInterval" onchange="signalsIntervalChange()"><option value="15m">15m</option><option value="30m">30m</option><option value="1h">1h</option><option value="2h">2h</option><option value="4h" selected>4h</option><option value="6h">6h</option><option value="8h">8h</option><option value="12h">12h</option><option value="1d">1d</option></select><select id="signalsFilter" onchange="signalsFilterChange()"><option value="ALL">Tümü</option><option value="BUY">BUY</option><option value="SELL">SELL</option><option value="HOLD">HOLD</option></select></div><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Sinyal</th><th>AI</th><th>Fiyat</th><th>SL</th><th>TP</th><th>Güç</th><th>Neden</th></tr></thead><tbody id="signalsBody"><tr><td colspan="8" class="empty-row">Yükleniyor...</td></tr></tbody></table></div></div>
 <div class="card"><h3>⚖️ Karar Konseyi</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Karar</th><th>Güven</th><th>Oy</th><th>Neden</th></tr></thead><tbody id="decisionBody"><tr><td colspan="5" class="empty-row">Yükleniyor...</td></tr></tbody></table></div></div>
 </section>
@@ -624,6 +630,7 @@ loadRegimes();
 loadScores();
 loadDecisions();
 loadAIStats();
+loadAgents();
 loadDataStatus();
 loadPortfolio();
 initSignalsInterval();
@@ -797,6 +804,42 @@ const confPct = b.total && b.avg_confidence != null ? Math.round(b.avg_confidenc
 body.innerHTML += '<tr><td><strong>'+dir+'</strong></td><td>'+b.hits+'</td><td>'+b.total+'</td><td style="color:'+accCol+';font-weight:bold;">'+accPct+'</td><td>'+confPct+'</td></tr>';
 });
 } else { body.innerHTML = '<tr><td colspan="5" class="empty-row">Cozulmus tahmin yok — 12 bar sonrasi otomatik cozulur</td></tr>'; }
+} catch(e) { console.error(e); }
+}
+let lastAgentsLoad = 0;
+async function loadAgents() {
+if (Date.now() - lastAgentsLoad < 60000) return;
+lastAgentsLoad = Date.now();
+try {
+const r = await fetch('/api/v1/agents/summary');
+const d = await r.json();
+const m = d.memory || {};
+document.getElementById('agentMemory').textContent = m.loaded ? (m.rows || 0).toLocaleString() : 'yok';
+document.getElementById('agentSymbols').textContent = m.loaded ? (m.symbols || 0) : '-';
+document.getElementById('agentCount').textContent = (d.agents || []).length + ' / 50';
+const gateEl = document.getElementById('agentGate');
+gateEl.textContent = d.use_agent_council ? 'AÇIK' : 'KAPALI';
+gateEl.style.color = d.use_agent_council ? '#22c55e' : '#94a3b8';
+const badge = document.getElementById('agentBadge');
+badge.innerHTML = d.last_trained_at != null ? '<span style="color:var(--faint);">Son egitim: ' + new Date(d.last_trained_at * 1000).toLocaleString() + '</span>' : '';
+const ags = d.agents || [];
+const vs = d.vote_stats || {};
+const cats = {};
+ags.forEach(function(a) { (cats[a.category] = cats[a.category] || []).push(a); });
+const body = document.getElementById('agentBody');
+body.innerHTML = '';
+Object.keys(cats).forEach(function(cat) {
+const list = cats[cat];
+const enabled = list.filter(function(a){return a.enabled;}).length;
+let resolved = 0, hits = 0;
+list.forEach(function(a) {
+const st = vs[a.agent_id] || {};
+if (st.resolved) { resolved += st.resolved; hits += (st.accuracy || 0) * st.resolved; }
+});
+const accPct = resolved ? Math.round(100 * hits / resolved) + '%' : '-';
+const accCol = resolved ? (hits/resolved >= 0.6 ? '#22c55e' : (hits/resolved >= 0.5 ? '#f59e0b' : '#ef4444')) : '#94a3b8';
+body.innerHTML += '<tr><td><strong>'+cat+'</strong></td><td>'+list.length+'</td><td>'+enabled+'</td><td>'+resolved+'</td><td style="color:'+accCol+';font-weight:bold;">'+accPct+'</td></tr>';
+});
 } catch(e) { console.error(e); }
 }
 async function loadPortfolio() {

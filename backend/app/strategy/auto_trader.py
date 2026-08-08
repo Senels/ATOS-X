@@ -571,6 +571,10 @@ class AutoTrader:
                     self._resolve_pending_predictions(klines_map)
                 except Exception as e:
                     logger.warning(f"AI tahmin cozumleme hatasi: {e}")
+                try:
+                    self._resolve_agent_votes(klines_map)
+                except Exception as e:
+                    logger.warning(f"Ajan oy cozumleme hatasi: {e}")
 
                 for symbol in candidates:
                     klines = klines_map.get(symbol)
@@ -660,6 +664,7 @@ class AutoTrader:
                 await self._check_drawdown()
                 await self._check_equity_floor()
                 self._maybe_retrain_ai()
+                self._maybe_retrain_agents()
                 await asyncio.sleep(self.scan_interval)
 
             except Exception as e:
@@ -726,21 +731,29 @@ class AutoTrader:
         return True, None
 
     def _agent_gate(self, symbol: str, signal: dict, klines, settings: dict):
-        """48 ajan konseyi kapisi (app/agents).
+        """50 ajan konseyi kapisi (app/agents) + analog bellek + oy kaydi.
 
-        `use_agent_council` kapaliysa gecirir. Acikken tum etkin ajanlar
-        calistirilir; herhangi bir risk ajani `block` dediyse, konsey karari
-        sinyal yonunde degilse veya guven `agent_min_confidence` altindaysa
-        sinyal reddedilir. Risk ajanlarinin boyut ayarlamalari (size_mult)
-        `adjusts` olarak bilgiye eklenir ve gecen sinyaller open_position'da
-        uygulanir. Donus: (allow, agent_info|None).
+        `use_agent_council` kapaliysa gecirir. Acikken `run_council` akisi
+        isletilir (calistir -> tur 2 danisma -> konsensus karari). Risk
+        vetosu, yetersiz quorum/kategori veya zayif konsensus sinyali
+        engeller; `agent_min_confidence` guven esigidir. Analog bellek varsa
+        oy veren ajanlar `agent_votes` tablosuna kaydedilir (feedback dongusu).
+        Donus: (allow, agent_info|None).
         """
         if not settings.get("use_agent_council", False):
             return True, None
         try:
+            from app.agents.analog import get_memory
             from app.agents.context import AgentContext
-            from app.agents.orchestrator import (aggregate, collect_adjustments,
-                                                 run_for_symbol)
+            from app.agents.feedback import record_votes
+            from app.agents.orchestrator import run_council
+            analog = {}
+            mem = get_memory()
+            if mem is not None:
+                for key in ("trend", "momentum", "reversal", "regime"):
+                    res = mem.query(klines, key=key)
+                    if res:
+                        analog[key] = res
             ctx = AgentContext(
                 symbol=symbol,
                 df=klines,
@@ -756,22 +769,36 @@ class AutoTrader:
                     "drawdown_pct": float(self.drawdown_pct or 0.0),
                     "risk_halted": bool(self.risk_halted),
                     "predictor": self._ai_predictor() if settings.get("use_ai_model") else None,
-                    "pattern_winrate": None,
+                    "analog": analog,
                 },
             )
-            results = run_for_symbol(ctx, settings)
-            adjusts = collect_adjustments(results)
-            if adjusts["blocked"]:
-                info = {"verdict": "BLOCK", "confidence": 0.0, "votes": len(results),
-                        "blocked": True, "block_sources": adjusts["block_sources"],
-                        "adjusts": adjusts}
+            results, verdict_info = run_council(ctx, settings)
+            adjusts = verdict_info["adjustments"]
+            try:
+                record_votes(self.db, symbol,
+                             signal.get("bar_ts") or str(klines.index[-1]),
+                             results, price=float(klines["close"].iloc[-1]))
+            except Exception as e:
+                logger.warning(f"{symbol}: ajan oy kaydi hatasi: {e}")
+            info = {
+                "verdict": verdict_info["verdict"],
+                "confidence": verdict_info["confidence"],
+                "consensus": verdict_info["consensus"],
+                "net": round(verdict_info["buy"] - verdict_info["sell"], 3),
+                "buy": verdict_info["buy"], "sell": verdict_info["sell"],
+                "votes": verdict_info["votes"],
+                "agree_categories": verdict_info["agree_categories"],
+                "blocked": verdict_info["blocked"],
+                "hold_reason": verdict_info["hold_reason"],
+                "consulted": sum(1 for r in results if r.meta.get("consulted")),
+                "adjusts": adjusts,
+            }
+            if verdict_info["blocked"]:
+                info["block_sources"] = adjusts["block_sources"]
                 return False, info
-            verdict, confidence, net, buy, sell = aggregate(results)
-            info = {"verdict": verdict, "confidence": confidence, "net": net,
-                    "buy": buy, "sell": sell, "votes": len(results),
-                    "blocked": False, "adjusts": adjusts}
             threshold = float(settings.get("agent_min_confidence", 0.5) or 0.0)
-            if verdict != signal.get("signal") or confidence < threshold:
+            if verdict_info["verdict"] != signal.get("signal") or \
+                    verdict_info["confidence"] < threshold:
                 return False, info
             return True, info
         except Exception as e:
@@ -892,6 +919,98 @@ class AutoTrader:
                     pass
         finally:
             self._retrain_running = False
+
+    def _resolve_agent_votes(self, klines_map: dict):
+        """Bekleyen ajan oylarini guncel fiyatlarla cozumler (feedback dongusu).
+
+        Bar kapanisi oylarini `agent_votes` tablosunda hit/miss olarak isaretler;
+        sonra bekleyen oylari cozumu yapilmamıs eski kayitlari `na` yapar.
+        Hata sessizce atlanir (tarama dongusu aksamaz).
+        """
+        try:
+            from app.agents.feedback import resolve_stale, resolve_symbol
+            for symbol, klines in (klines_map or {}).items():
+                if klines is None or len(klines) == 0:
+                    continue
+                try:
+                    resolve_symbol(self.db, symbol,
+                                   float(klines["close"].iloc[-1]))
+                except Exception:
+                    continue
+            resolve_stale(self.db, days=30)
+        except Exception as e:
+            logger.warning(f"Ajan oy cozumleme hatasi: {e}")
+
+    def _maybe_retrain_agents(self, now: float = None):
+        """Agent konseyi otomatik egitim kontrolu (zaman + isabet tetikleyicileri).
+
+        En fazla 15 dakikada bir degerlendirir; tetiklenirse analog bellek +
+        agirlik egitimini arka plan gorevi olarak baslatir. Egitim bittiginde
+        bellek cache'i temizlenir ve sonraki kapida yeniden yuklenir.
+        """
+        if getattr(self, "_agent_retrain_running", False):
+            return
+        now = now or time.time()
+        if now - getattr(self, "_agent_retrain_check", 0.0) < 900:
+            return
+        self._agent_retrain_check = now
+        try:
+            s = strat_settings.get_settings()
+        except Exception:
+            return
+        if not s.get("agent_auto_retrain", False):
+            return
+        try:
+            from app.agents.retrain import (
+                accuracy_trigger,
+                agent_accuracy,
+                agent_retrain_due,
+                last_trained_at,
+            )
+            last = last_trained_at()
+            interval = float(s.get("agent_retrain_interval_hours", 24.0) or 0.0)
+            due = interval > 0 and agent_retrain_due(last, now, interval)
+            if not due:
+                due = accuracy_trigger(
+                    agent_accuracy(self.db),
+                    float(s.get("agent_min_acc", 0.40) or 0.0),
+                    last, now)
+        except Exception as e:
+            logger.warning(f"Agent egitim kontrolu hatasi: {e}")
+            return
+        if not due:
+            return
+        self._agent_retrain_running = True
+        asyncio.create_task(self._run_retrain_agents(s))
+
+    async def _run_retrain_agents(self, settings: dict):
+        """Arka plan agent egitim gorevi: alt sureci calistirir, sonucu bildirir."""
+        try:
+            from app.agents.retrain import AgentRetrainRunner
+            symbols = int(settings.get("agent_retrain_symbols", 150) or 150)
+            horizon = int(settings.get("agent_feedback_horizon", 24) or 24)
+            if self.telegram:
+                await self.telegram.send(
+                    f"Agent konseyi egitimi basladi ({symbols} sembol, h={horizon})...")
+            logger.info(f"Agent konseyi egitimi basladi ({symbols} sembol)")
+            ok, tail = await AgentRetrainRunner().train(
+                symbols=symbols, horizon=horizon)
+            if ok:
+                logger.info("Agent konseyi egitildi (analog bellek + agirliklar)")
+                if self.telegram:
+                    msg = "Agent konseyi egitildi (analog bellek + agirliklar)."
+                    if tail:
+                        msg += f"\n{tail}"
+                    await self.telegram.send(msg)
+            else:
+                logger.warning(f"Agent konseyi egitimi basarisiz: {tail}")
+                if self.telegram:
+                    await self.telegram.send(
+                        f"Agent konseyi egitimi BASARISIZ: {tail}")
+        except Exception as e:
+            logger.warning(f"Agent konseyi egitim hatasi: {e}")
+        finally:
+            self._agent_retrain_running = False
 
     def _record_prediction(self, symbol: str, signal: dict, decision: dict,
                            ai_info: dict, executed: bool = False):

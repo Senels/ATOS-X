@@ -37,6 +37,7 @@ class AgentResult:
     confidence: float = 0.5
     adjustments: Dict[str, Any] = field(default_factory=dict)
     meta: Dict[str, Any] = field(default_factory=dict)
+    category: str = ""
 
     @property
     def blocking(self) -> bool:

@@ -94,7 +94,7 @@ class AnalogMemory:
             vecs.append(z.to_numpy(dtype=np.float32)[ok][-max_bars:])
             fwds.append(fwd.to_numpy(dtype=np.float32)[ok][-max_bars:])
             codes.append(np.full(int(ok.sum()), code, dtype=np.int32)[-max_bars:])
-            tss.append(df.index.to_numpy().astype("int64")[ok][-max_bars:])
+            tss.append(df.index.asi8[ok][-max_bars:])
         if not vecs:
             self.symbols = []
             return {"rows": 0, "symbols": 0, "skipped": skipped}

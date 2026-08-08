@@ -3,3 +3,6 @@ app/data/assistant_messages.json
 
 # pip install -e yapı çıktısı
 *.egg-info/
+
+# Ajan konseyi eğitim artefaktları (train_agents.py yeniden üretir)
+app/agents/agent_params/

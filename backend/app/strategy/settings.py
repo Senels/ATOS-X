@@ -50,10 +50,41 @@ DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
     "use_decision_council": True,   # True iken girisler council kararina ve min guvene tabi
     "council_min_confidence": 0.6,  # Council kararina gerekli minimum guven (0-1)
     "min_signal_strength": 0.6,     # Sinyal gucu esigi (0-1; alti giris engellenir; 0 = devre disi)
-    # Agent Council: 48 uzman finansal ajan oylamasi kapisi (app/agents/)
+    # Agent Council: 50 uzman finansal ajan oylamasi kapisi (app/agents/)
     "use_agent_council": True,      # True iken girisler ajan konseyi kararina ve min guvene tabi
     "agent_min_confidence": 0.5,    # Ajan konseyi kararina gerekli minimum guven (0-1)
     "agents": {},                   # Ajan bazli ayarlar: {"ajan_id": {"enabled": bool, "weight": float}}
+    # Agent Council esikleri (konsensus karari + tur 2 danisma)
+    "council": {
+        "agent_min_quorum": 15,             # Nihai karar icin gereken oy veren ajan sayisi
+        "agent_min_agree_categories": 4,    # Gereken kategori mutabakati sayisi
+        "agent_min_consensus": 0.25,        # Net oy orani esigi (buy-sell)/(buy+sell)
+        "agent_max_size_mult": 1.0,         # Risk ajanlarinin boyut carpani ust siniri
+        "agent_max_sl_mult": 4.0,           # SL carpani ust siniri
+        "agent_max_tp_mult": 4.0,           # TP carpani ust siniri
+        "agent_min_sl_mult": 0.5,           # SL carpani alt siniri
+        "agent_min_tp_mult": 0.5,           # TP carpani alt siniri
+        "consult_confidence": 0.45,         # Tur 2 danismaya katilan guven esigi
+        "consult_strength": 0.60,           # Kategori egilimi guclu oy esigi
+        "consult_cross_agree": 0.80,        # Cift kategori bonus mutabakat orani
+        "consult_bonus_conf": 0.50,         # Danisma sonrasi guven tavani
+        "consult_cross_bonus_conf": 0.55,   # Cift kategori bonus guven degeri
+    },
+    # Agent geri bildirim (feedback) parametreleri
+    "agents_council": {
+        "agent_feedback_alpha": 0.2,        # EWMA yumusatma katsayisi
+        "agent_min_samples": 20,            # Oto-disable icin gereken oy sayisi
+        "agent_min_acc_enable": 0.40,       # Bu isabetin altinda oto-disable
+        "agent_weight_min": 0.25,           # Agirlik carpani alt siniri
+        "agent_weight_max": 1.5,            # Agirlik carpani ust siniri
+        "agent_feedback_horizon_bars": 24,  # Oy cozumleme ufku (bar)
+    },
+    # Agent konseyi otomatik egitim (analog bellek + geri bildirim agirliklari)
+    "agent_auto_retrain": False,    # True iken zaman/isabet tetikleyicisiyle egitir
+    "agent_retrain_interval_hours": 24.0,  # Zaman tetikleyicisi (saat; 0 = kapali)
+    "agent_min_acc": 0.40,          # Genel ajan isabeti bu degerin altina duserse + soguma -> tetikler
+    "agent_retrain_symbols": 150,   # Egitimde kullanilacak sembol sayisi
+    "agent_feedback_horizon": 24,   # Oy sonucu cozumleme ufku (bar; 24 = 96 saat)
     # Volatilite rejimi pozisyon boyutlandirma: sinyal bari ATR% 20 bar
     # ortalamasinin vol_mult_hi katinin ustundeyse risk vol_mult_factor ile kucultur
     "vol_sizing_enabled": True,     # True iken yuksek ATR rejiminde risk carpani uygulanir
