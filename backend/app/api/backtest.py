@@ -17,7 +17,6 @@ import uuid
 from typing import Any, Dict, Optional
 
 import pandas as pd
-
 from fastapi import APIRouter, HTTPException
 
 from app.backtest.engine import BacktestEngine
@@ -57,8 +56,8 @@ async def _fetch_binance_history(symbol: str, interval: str, target: int) -> Any
     startTime'dan itibaren ileriye dogru doner). Boylece parcalar bitisik
     dizilir ve `target` bara eksiksiz ulasilir.
     """
-    from app.exchange.binance_client import BinanceClient
     from app.data.collector import _period_ms
+    from app.exchange.binance_client import BinanceClient
 
     period_ms = _period_ms(interval)
     client = BinanceClient()
@@ -141,9 +140,12 @@ def _build_settings(
     confirmations: Optional[str],
     sl_timeframe: Optional[str] = None,
     ttp: Optional[str] = None,
+    active_strategy: Optional[str] = None,
 ) -> Dict[str, Any]:
     settings = strat_settings.get_settings()
     overrides: Dict[str, Any] = {}
+    if active_strategy is not None:
+        overrides["active_strategy"] = active_strategy
     if leading_indicator is not None:
         overrides["leading_indicator"] = leading_indicator
     if signal_expiry is not None:
@@ -250,6 +252,7 @@ async def run_backtest(
     confirmations: Optional[str] = None,
     sl_timeframe: Optional[str] = None,
     ttp: Optional[str] = None,
+    active_strategy: Optional[str] = None,
     max_drawdown_pct: Optional[float] = None,
     max_consecutive_losses: Optional[int] = None,
     max_daily_loss_pct: Optional[float] = None,
@@ -274,7 +277,7 @@ async def run_backtest(
     settings = _build_settings(
         leading_indicator, signal_expiry, alternate_signal, rr_ratio,
         sl_lookback, atr_fallback, atr_mult, confirmations,
-        sl_timeframe=sl_timeframe, ttp=ttp,
+        sl_timeframe=sl_timeframe, ttp=ttp, active_strategy=active_strategy,
     )
 
     kwargs = _engine_kwargs(
@@ -365,6 +368,7 @@ async def run_backtest_scan(
     confirmations: Optional[str] = None,
     sl_timeframe: Optional[str] = None,
     ttp: Optional[str] = None,
+    active_strategy: Optional[str] = None,
     max_position_age_hours: Optional[float] = None,
     min_signal_strength: Optional[float] = None,
     initial_equity: Optional[float] = None,
@@ -395,7 +399,7 @@ async def run_backtest_scan(
     return await _run_scan(
         symbol_list, interval, limit, source, ai_filter, ai_threshold, ab_mode,
         leading_indicator, signal_expiry, alternate_signal, rr_ratio, sl_lookback,
-        atr_fallback, atr_mult, confirmations, sl_timeframe, ttp,
+        atr_fallback, atr_mult, confirmations, sl_timeframe, ttp, active_strategy,
         max_position_age_hours, min_signal_strength, initial_equity, risk_per_trade,
         fee_rate, leverage, max_drawdown_pct, max_consecutive_losses,
         max_daily_loss_pct, min_equity, trailing_activate_pct, trailing_sl_pct,
@@ -407,7 +411,7 @@ async def run_backtest_scan(
 async def _run_scan(
     symbol_list, interval, limit, source, ai_filter, ai_threshold, ab_mode,
     leading_indicator, signal_expiry, alternate_signal, rr_ratio, sl_lookback,
-    atr_fallback, atr_mult, confirmations, sl_timeframe, ttp,
+    atr_fallback, atr_mult, confirmations, sl_timeframe, ttp, active_strategy,
     max_position_age_hours, min_signal_strength, initial_equity, risk_per_trade,
     fee_rate, leverage, max_drawdown_pct, max_consecutive_losses,
     max_daily_loss_pct, min_equity, trailing_activate_pct, trailing_sl_pct,
@@ -418,7 +422,7 @@ async def _run_scan(
     settings = _build_settings(
         leading_indicator, signal_expiry, alternate_signal, rr_ratio,
         sl_lookback, atr_fallback, atr_mult, confirmations,
-        sl_timeframe=sl_timeframe, ttp=ttp,
+        sl_timeframe=sl_timeframe, ttp=ttp, active_strategy=active_strategy,
     )
     kwargs = _engine_kwargs(
         initial_equity, risk_per_trade, fee_rate, leverage,
@@ -550,6 +554,7 @@ async def scan_start(
     confirmations: Optional[str] = None,
     sl_timeframe: Optional[str] = None,
     ttp: Optional[str] = None,
+    active_strategy: Optional[str] = None,
     max_position_age_hours: Optional[float] = None,
     min_signal_strength: Optional[float] = None,
     initial_equity: Optional[float] = None,
@@ -617,11 +622,11 @@ async def scan_start(
                 symbol_list, interval, limit, source, ai_filter, ai_threshold,
                 ab_mode, leading_indicator, signal_expiry, alternate_signal,
                 rr_ratio, sl_lookback, atr_fallback, atr_mult, confirmations,
-                sl_timeframe, ttp, max_position_age_hours, min_signal_strength,
-                initial_equity, risk_per_trade, fee_rate, leverage,
-                max_drawdown_pct, max_consecutive_losses, max_daily_loss_pct,
-                min_equity, trailing_activate_pct, trailing_sl_pct,
-                trailing_min_move_pct, breakeven_activate_pct,
+                sl_timeframe, ttp, active_strategy, max_position_age_hours,
+                min_signal_strength, initial_equity, risk_per_trade, fee_rate,
+                leverage, max_drawdown_pct, max_consecutive_losses,
+                max_daily_loss_pct, min_equity, trailing_activate_pct,
+                trailing_sl_pct, trailing_min_move_pct, breakeven_activate_pct,
                 on_progress=on_progress,
             )
             job["result"] = result

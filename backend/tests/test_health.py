@@ -160,10 +160,10 @@ def test_dashboard_has_priority_watchlist():
     client = TestClient(app)
     resp = client.get("/dashboard/html")
     assert resp.status_code == 200
-    assert "Priority Watchlist" in resp.text
+    assert "Öncelikli İzleme" in resp.text
     assert "badge-paper" in resp.text
-    assert "Equity Curve" in resp.text
-    assert "PnL by Symbol" in resp.text
+    assert "Equity Eğrisi" in resp.text
+    assert "Sembol Bazlı PnL" in resp.text
     client.close()
 
 
@@ -290,7 +290,7 @@ def test_dashboard_positions_table_has_protection():
     client = TestClient(app)
     resp = client.get("/dashboard/html")
     assert resp.status_code == 200
-    assert "<th>Protection</th>" in resp.text
+    assert "<th>Koruma</th>" in resp.text
     assert "badge-protected" in resp.text
     assert "badge-unprotected" in resp.text
     client.close()
@@ -300,7 +300,7 @@ def test_dashboard_positions_table_has_actions():
     client = TestClient(app)
     resp = client.get("/dashboard/html")
     assert resp.status_code == 200
-    assert "<th>Actions</th>" in resp.text
+    assert "<th>İşlem</th>" in resp.text
     assert "applyPos" in resp.text
     assert "closePos" in resp.text
     assert "/api/v1/positions/" in resp.text
@@ -558,7 +558,7 @@ def test_dashboard_has_live_signals_card():
     client = TestClient(app)
     resp = client.get("/dashboard/html")
     assert resp.status_code == 200
-    assert "Live Signals" in resp.text
+    assert "Canlı Sinyaller" in resp.text
     client.close()
 
 
@@ -566,7 +566,7 @@ def test_dashboard_signals_show_strength_column():
     client = TestClient(app)
     resp = client.get("/dashboard/html")
     assert resp.status_code == 200
-    assert "Guc" in resp.text
+    assert "Güç" in resp.text
     assert "s.strength" in resp.text
     assert "badge-buy" in resp.text
     client.close()
@@ -810,7 +810,7 @@ def test_dashboard_has_coin_scores_card():
     client = TestClient(app)
     resp = client.get("/dashboard/html")
     assert resp.status_code == 200
-    assert "Coin Scores" in resp.text
+    assert "Coin Skorları" in resp.text
     assert "loadScores" in resp.text
     assert 'id="scoreBody"' in resp.text
     assert "/api/v1/market/scores" in resp.text
@@ -821,7 +821,7 @@ def test_dashboard_has_market_regime_card():
     client = TestClient(app)
     resp = client.get("/dashboard/html")
     assert resp.status_code == 200
-    assert "Market Regime" in resp.text
+    assert "Piyasa Rejimi" in resp.text
     assert "loadRegimes" in resp.text
     assert 'id="regimeBody"' in resp.text
     assert "/api/v1/market/regimes" in resp.text

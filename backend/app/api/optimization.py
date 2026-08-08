@@ -4,6 +4,7 @@ GridSearch uzerinde sembol + grid boyutlari query parametresi ile
 calistirilabilen grid arama saglar. Grid boyutlari virgulle ayrilmis
 listeler halinde verilir (orn. rangefilt_length=2,3,4).
 """
+import math
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
@@ -12,6 +13,7 @@ from app.data import loader
 from app.optimization.search import (
     DEFAULT_GRID,
     DEFAULT_TTP_GRID,
+    DEFAULT_V24_GRID,
     GridSearch,
     best_settings_to_file,
 )
@@ -25,9 +27,13 @@ def _jsonable(obj: Any) -> Any:
         return {k: _jsonable(v) for k, v in obj.items()}
     if isinstance(obj, (list, tuple)):
         return [_jsonable(v) for v in obj]
+    if isinstance(obj, float):
+        if not math.isfinite(obj):
+            return None
+        return obj
     if hasattr(obj, "item"):
         try:
-            return obj.item()
+            return _jsonable(obj.item())
         except Exception:
             return obj
     return obj
@@ -56,6 +62,7 @@ async def optimize_defaults():
     return {
         "grid": DEFAULT_GRID,
         "ttp_grid": DEFAULT_TTP_GRID,
+        "v24_grid": DEFAULT_V24_GRID,
         "objectives": ["combined", "return", "sharpe", "pf"],
     }
 
@@ -78,10 +85,14 @@ async def run_optimize(
     atr_len: Optional[str] = None,
     tp_long_rr: Optional[str] = None,
     tp_short_rr: Optional[str] = None,
+    ema_fast: Optional[str] = None,
+    ema_slow: Optional[str] = None,
+    rsi_long: Optional[str] = None,
+    rsi_short: Optional[str] = None,
     save_to_file: bool = False,
 ):
-    if strategy not in ("v23", "ttp"):
-        raise HTTPException(status_code=400, detail="Strateji v23 veya ttp olabilir")
+    if strategy not in ("v23", "ttp", "v24"):
+        raise HTTPException(status_code=400, detail="Strateji v23, ttp veya v24 olabilir")
     symbol_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
     if not symbol_list:
         raise HTTPException(status_code=400, detail="En az bir sembol gerekli")
@@ -101,6 +112,18 @@ async def run_optimize(
             "tp_short_rr": _split_floats(tp_short_rr),
         }
         default_grid = DEFAULT_TTP_GRID
+    elif strategy == "v24":
+        int_fields = {
+            "ema_fast": _split_ints(ema_fast),
+            "ema_slow": _split_ints(ema_slow),
+            "sl_lookback": _split_ints(sl_lookback),
+        }
+        float_fields = {
+            "rsi_long": _split_floats(rsi_long),
+            "rsi_short": _split_floats(rsi_short),
+            "rr_ratio": _split_floats(rr_ratio),
+        }
+        default_grid = DEFAULT_V24_GRID
     else:
         int_fields = {
             "rangefilt_length": _split_ints(rangefilt_length),
@@ -118,14 +141,16 @@ async def run_optimize(
         if value:
             grid[key] = value
 
-    search = GridSearch(
-        grid=grid or None,
-        objective=objective,
-        max_workers=max_workers,
-        strategy=strategy,
-    )
     try:
+        search = GridSearch(
+            grid=grid or None,
+            objective=objective,
+            max_workers=max_workers,
+            strategy=strategy,
+        )
         result = search.run(symbols=symbol_list, interval=interval, limit=int(limit))
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Optimizasyon hatasi: {e}")
 

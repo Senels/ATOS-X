@@ -14,7 +14,7 @@ from typing import Any, Dict
 logger = logging.getLogger("app.strategy.settings")
 
 DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
-    # Aktif strateji secimi: v23 (TradeBotV23) | ttp (TTPTSL)
+    # Aktif strateji secimi: v23 (TradeBotV23) | ttp (TTPTSL) | v24 (v24 Lite)
     "active_strategy": "v23",
     # Leading indicator secimi
     "leading_indicator": "Range Filter",
@@ -84,9 +84,19 @@ DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
     # Range Filter parametreleri
     "rangefilt_length": 3,
     "range_filt_mult": 2.5,
+    # v24 Lite parametreleri (tradebot_v24.py; Pine v6 karsiligi)
+    "v24": {
+        "ema_fast": 50,
+        "ema_slow": 200,
+        "rsi_len": 14,
+        "rsi_long": 55,
+        "rsi_short": 45,
+        "rr_ratio": 1.8,
+        "sl_lookback": 5,
+        "atr_mult": 1.5,
+    },
     # TTPTSL strateji parametreleri (optimize_ttp.py unified/OOS sonuclari)
-    "ttp": {
-        "fast_ma_len": 31,
+    "ttp": {        "fast_ma_len": 31,
         "slow_ma_len": 92,
         "atr_len": 24,
         "sl_method": "atr",
@@ -235,7 +245,10 @@ def apply_optimized() -> Dict[str, Any]:
     if isinstance(payload.get("ttp"), dict):
         update_settings({"ttp": payload["ttp"]})
         applied.append("ttp")
-    if payload.get("active_strategy") in ("v23", "ttp"):
+    if isinstance(payload.get("v24"), dict):
+        update_settings({"v24": payload["v24"]})
+        applied.append("v24")
+    if payload.get("active_strategy") in ("v23", "ttp", "v24"):
         update_settings({"active_strategy": payload["active_strategy"]})
         applied.append("active_strategy")
     if applied:

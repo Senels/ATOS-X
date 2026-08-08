@@ -1,4 +1,5 @@
 ﻿import asyncio
+import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
@@ -1980,6 +1981,71 @@ async def ai_stats(limit_hours: int = 0):
         stats["last_trained_at"] = None
     return stats
 
+def _clear_data(db, mode: str) -> dict:
+    """Dashboard veri temizligi: 'history' | 'all'. Sayilarla doner."""
+    import sqlite3
+    conn = sqlite3.connect(db.db_path)
+    counts = {}
+    for t in ("signals", "backtest_runs", "risk_events", "performance",
+              "predictions", "price_alerts"):
+        counts[t] = conn.execute(f"DELETE FROM {t}").rowcount
+    counts["trades_closed"] = conn.execute(
+        "DELETE FROM trades WHERE status = 'CLOSED'").rowcount
+    if mode == "all":
+        counts["trades_open"] = conn.execute(
+            "DELETE FROM trades WHERE status = 'OPEN'").rowcount
+        now = datetime.utcnow().strftime("%Y-%m-%d")
+        for k, v in {
+            "equity": "10000.0", "peak_equity": "10000.0",
+            "drawdown_pct": "0.0", "day_pnl": "0.0",
+            "day_start_date": now, "consecutive_losses": "0",
+            "risk_halted": "0", "loss_halted": "0",
+            "daily_loss_halted": "0", "equity_halted": "0",
+        }.items():
+            conn.execute("UPDATE app_state SET value = ? WHERE key = ?", (v, k))
+    conn.commit()
+    conn.close()
+    return counts
+
+
+@app.post("/api/v1/data/clear")
+async def data_clear(mode: str = "history"):
+    """Dashboard veri temizleme (yalnizca dashboard arayuzunden).
+
+    - history: kapanan trade'ler + sinyal + backtest + risk olayi +
+      performans + AI tahmini kayitlari silinir; acik pozisyonlar ve
+      equity korunur.
+    - all: ek olarak tum acik trade kayitlari silinir ve app_state
+      (equity 10.000$ dahil) sifirlanir. Canli modda acik pozisyon
+      varken engellenir.
+    Her iki modda da islem oncesi DB yedegi alinir.
+    """
+    db = getattr(app.state, "db", None)
+    if not db:
+        return {"ok": False, "error": "not_running"}
+    mode = (mode or "history").lower()
+    if mode not in ("history", "all"):
+        return {"ok": False, "error": "mode history|all olmali"}
+    if (mode == "all" and auto_trader
+            and auto_trader.trading_mode == "live"
+            and auto_trader.active_positions):
+        return {"ok": False,
+                "error": "canli modda acik pozisyon varken tam sifirlama engellendi"}
+    backup = await asyncio.to_thread(db.backup)
+    if not backup.get("ok"):
+        return {"ok": False, "error": "yedek alinamadi: %s" % backup.get("error", "?")}
+    counts = await asyncio.to_thread(_clear_data, db, mode)
+    if auto_trader:
+        auto_trader.trade_history = []
+        if mode == "all":
+            auto_trader.active_positions = {}
+            auto_trader.risk_events = []
+            auto_trader._persist_risk_state()
+    return {"ok": True, "mode": mode, "backup": backup.get("path"),
+            "counts": counts,
+            "message": "Tam sifirlama tamamlandi" if mode == "all" else "Gecmis temizlendi"}
+
+
 @app.post("/api/v1/backup")
 async def trigger_backup():
     db = getattr(app.state, "db", None)
@@ -2225,4 +2291,48 @@ async def backtest_html():
             return HTMLResponse(content=f.read())
     except:
         return HTMLResponse(content="<h1>Backtest not found</h1>")
+
+_ASSISTANT_FILE = _APP_DIR / "data" / "assistant_messages.json"
+
+
+def _load_assistant_messages() -> list:
+    if _ASSISTANT_FILE.exists():
+        try:
+            with _ASSISTANT_FILE.open("r", encoding="utf-8") as f:
+                msgs = json.load(f)
+            return msgs if isinstance(msgs, list) else []
+        except Exception:
+            return []
+    return []
+
+
+def _save_assistant_messages(msgs: list) -> None:
+    _ASSISTANT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with _ASSISTANT_FILE.open("w", encoding="utf-8") as f:
+        json.dump(msgs[-500:], f, ensure_ascii=False, indent=2)
+
+
+@app.get("/api/v1/assistant/messages")
+async def assistant_messages():
+    return {"messages": _load_assistant_messages()[-200:]}
+
+
+@app.post("/api/v1/assistant/messages")
+async def assistant_post(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    text = str(body.get("text", "")).strip()
+    sender = body.get("sender", "user")
+    if not text:
+        return {"ok": False, "error": "empty"}
+    msgs = _load_assistant_messages()
+    msgs.append({
+        "sender": sender if sender in ("user", "ai") else "user",
+        "text": text,
+        "ts": datetime.utcnow().isoformat(),
+    })
+    _save_assistant_messages(msgs)
+    return {"ok": True, "messages": _load_assistant_messages()[-200:]}
 

@@ -83,7 +83,7 @@ def test_dashboard_has_data_freshness_card():
     resp = c.get("/dashboard/html")
     c.close()
     assert resp.status_code == 200
-    assert "Data Freshness" in resp.text
+    assert "Veri Tazeliği" in resp.text
     assert "dataFreshBody" in resp.text
     assert "loadDataStatus" in resp.text
     assert "/api/v1/data/status" in resp.text

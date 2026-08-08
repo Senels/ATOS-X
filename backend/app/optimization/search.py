@@ -1,8 +1,9 @@
 """Parametre optimizasyonu - TradeBotV23 + TTPTSL + BacktestEngine grid search.
 
-Grid search, ProcessPoolExecutor ile paralel calisir. Calisan process'lerde
-veri yukleme `_init_worker` ile bir kez yapilir (her sembol icin CSV okunur);
-her kombinasyon tum semboller uzerinde degerlendirilip ortalama skorla siralanir.
+Grid search, ThreadPoolExecutor ile paralel calisir (Windows'ta spawn +
+`python -m uvicorn` kombinasyonunda ProcessPoolExecutor kullanilamaz;
+cocuk surecler uvicorn'un __main__'ini yeniden calistirir). pandas/numpy
+ic islemleri GIL'i biraktigi icin thread paralelligi yeterli hiz saglar.
 
 Strateji secimi (`strategy`): "v23" parametreleri duz (top-level) settings
 anahtarlarina, "ttp" parametreleri `settings["ttp"]` bloguna yazilir ve
@@ -43,6 +44,17 @@ DEFAULT_TTP_GRID: Dict[str, List[Any]] = {
     "tp_short_rr": [1.5, 1.95],
 }
 
+# v24 Lite icin grid: parametreler `v24` blogunda (rr_ratio/sl_lookback/atr_mult
+# dahil) - namespace "v24" olarak yazilir.
+DEFAULT_V24_GRID: Dict[str, List[Any]] = {
+    "ema_fast": [20, 50, 100],
+    "ema_slow": [100, 150, 200],
+    "rsi_long": [50, 55, 60],
+    "rsi_short": [40, 45, 50],
+    "rr_ratio": [1.0, 1.8, 2.5],
+    "sl_lookback": [3, 5, 7],
+}
+
 _CTX: Dict[str, Any] = {}
 
 
@@ -73,9 +85,10 @@ def _init_worker(ctx: Dict[str, Any]) -> None:
     _CTX = ctx
 
 
-def _evaluate_combo(combo: Dict[str, Any]) -> Dict[str, Any]:
-    """Bir parametre kombinasyonunu _CTX sembollerinde degerlendirir."""
-    ctx = _CTX
+def _evaluate_combo(combo: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Bir parametre kombinasyonunu ctx sembollerinde degerlendirir."""
+    if ctx is None:
+        ctx = _CTX
     settings = deepcopy(ctx["base_settings"])
     namespace = ctx.get("param_namespace")
     target = settings if namespace is None else settings.setdefault(namespace, {})
@@ -130,7 +143,8 @@ class GridSearch:
     ):
         self.strategy = strategy
         if grid is None:
-            grid = deepcopy(DEFAULT_TTP_GRID if strategy == "ttp" else DEFAULT_GRID)
+            grid = deepcopy(DEFAULT_TTP_GRID if strategy == "ttp" else
+                            DEFAULT_V24_GRID if strategy == "v24" else DEFAULT_GRID)
         self.grid = grid
         self.objective = objective
         self.max_workers = max_workers or 1
@@ -176,21 +190,17 @@ class GridSearch:
             "interval": interval,
             "limit": int(limit),
             "objective": self.objective,
-            "param_namespace": None if self.strategy == "v23" else "ttp",
+            "param_namespace": None if self.strategy == "v23" else self.strategy,
         }
 
         if self.max_workers > 1:
-            from concurrent.futures import ProcessPoolExecutor
+            from concurrent.futures import ThreadPoolExecutor
+            from functools import partial
 
-            with ProcessPoolExecutor(
-                max_workers=self.max_workers,
-                initializer=_init_worker,
-                initargs=(ctx,),
-            ) as ex:
-                results = list(ex.map(_evaluate_combo, combos))
+            with ThreadPoolExecutor(max_workers=self.max_workers) as ex:
+                results = list(ex.map(partial(_evaluate_combo, ctx=ctx), combos))
         else:
-            _init_worker(ctx)
-            results = [_evaluate_combo(combo) for combo in combos]
+            results = [_evaluate_combo(combo, ctx) for combo in combos]
 
         results.sort(key=lambda r: r["score"], reverse=True)
         return {"results": results, "best": results[0] if results else None}
@@ -204,8 +214,8 @@ def best_settings_to_file(
     """En iyi kombinasyonu optimized_settings.json dosyasina yazar.
 
     "ttp" stratejisinde parametreler `ttp` blogu olarak + `active_strategy`
-    switch'i ile yazilir (apply_optimized + `_defaults` merge uyumlu); "v23"
-    duz (top-level) formati korunur.
+    switch'i ile yazilir (apply_optimized + `_defaults` merge uyumlu); "v24"
+    icin `v24` blogu; "v23" duz (top-level) formati korunur.
     """
     if path is None:
         path = Path(strat_settings._OPTIMIZED_FILE)
@@ -213,11 +223,11 @@ def best_settings_to_file(
 
     score = round(float(best["score"]), 4)
     count = best.get("count", 0)
-    if strategy == "ttp":
+    if strategy in ("ttp", "v24"):
         payload: Dict[str, Any] = {
-            "active_strategy": "ttp",
-            "ttp": dict(best["combo"]),
-            "_strategy": "ttp",
+            "active_strategy": strategy,
+            strategy: dict(best["combo"]),
+            "_strategy": strategy,
             "_objective_score": score,
             "_symbols_count": count,
         }

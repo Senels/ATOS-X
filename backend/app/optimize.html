@@ -60,12 +60,18 @@ tr:hover { background:rgba(59,130,246,0.05); }
 <div class="field"><label>Limit (bar)</label><input id="limit" type="number" value="300" min="50"></div>
 <div class="field"><label>Objective</label><select id="objective"><option value="combined">Combined</option><option value="return">Return</option><option value="sharpe">Sharpe</option><option value="pf">Profit Factor</option></select></div>
 <div class="field"><label>Max Workers</label><input id="max_workers" type="number" value="1" min="1" max="8"></div>
-<div class="field"><label>Strategy</label><select id="strategy" onchange="onStrategyChange()"><option value="v23">v23 (Range Filter)</option><option value="ttp">TTPTSL (MA Crossover)</option></select></div>
+<div class="field"><label>Strategy</label><select id="strategy" onchange="onStrategyChange()"><option value="v23">v23 (Range Filter)</option><option value="v24">v24 Lite (EMA/RSI)</option><option value="ttp">TTPTSL (MA Crossover)</option></select></div>
 <div class="field v23-field"><label>rangefilt_length</label><input id="rangefilt_length" placeholder="2,3,4,5"><div class="hint">Bos = varsayilan grid</div></div>
 <div class="field v23-field"><label>range_filt_mult</label><input id="range_filt_mult" placeholder="1.5,2.0,2.5,3.0"><div class="hint">Bos = varsayilan grid</div></div>
 <div class="field v23-field"><label>signal_expiry</label><input id="signal_expiry" placeholder="1,2,3,4"><div class="hint">Bos = varsayilan grid</div></div>
 <div class="field v23-field"><label>rr_ratio</label><input id="rr_ratio" placeholder="1.0,1.5,2.0,3.0"><div class="hint">Bos = varsayilan grid</div></div>
 <div class="field v23-field"><label>sl_lookback</label><input id="sl_lookback" placeholder="3,5,7"><div class="hint">Bos = varsayilan grid</div></div>
+<div class="field v24-field hidden"><label>ema_fast</label><input id="ema_fast" placeholder="20,50,100"><div class="hint">Bos = varsayilan grid</div></div>
+<div class="field v24-field hidden"><label>ema_slow</label><input id="ema_slow" placeholder="100,150,200"><div class="hint">Bos = varsayilan grid</div></div>
+<div class="field v24-field hidden"><label>rsi_long</label><input id="rsi_long" placeholder="50,55,60"><div class="hint">Bos = varsayilan grid</div></div>
+<div class="field v24-field hidden"><label>rsi_short</label><input id="rsi_short" placeholder="40,45,50"><div class="hint">Bos = varsayilan grid</div></div>
+<div class="field v24-field hidden"><label>rr_ratio (v24)</label><input id="v24_rr_ratio" placeholder="1.0,1.8,2.5"><div class="hint">Bos = varsayilan grid</div></div>
+<div class="field v24-field hidden"><label>sl_lookback (v24)</label><input id="v24_sl_lookback" placeholder="3,5,7"><div class="hint">Bos = varsayilan grid</div></div>
 <div class="field ttp-field hidden"><label>fast_ma_len</label><input id="fast_ma_len" placeholder="15,25,31"><div class="hint">Bos = varsayilan grid</div></div>
 <div class="field ttp-field hidden"><label>slow_ma_len</label><input id="slow_ma_len" placeholder="60,92,120"><div class="hint">Bos = varsayilan grid</div></div>
 <div class="field ttp-field hidden"><label>atr_len</label><input id="atr_len" placeholder="14,24"><div class="hint">Bos = varsayilan grid</div></div>
@@ -112,12 +118,14 @@ window.fetch = function(url, opts) {
 };
 const GRID_KEYS = ['rangefilt_length','range_filt_mult','signal_expiry','rr_ratio','sl_lookback'];
 const TTP_GRID_KEYS = ['fast_ma_len','slow_ma_len','atr_len','tp_long_rr','tp_short_rr'];
+const V24_GRID_KEYS = ['ema_fast','ema_slow','rsi_long','rsi_short','v24_rr_ratio','v24_sl_lookback'];
 let currentKeys = GRID_KEYS;
 function onStrategyChange() {
-const ttp = document.getElementById('strategy').value === 'ttp';
-document.querySelectorAll('.v23-field').forEach(el => el.classList.toggle('hidden', ttp));
-document.querySelectorAll('.ttp-field').forEach(el => el.classList.toggle('hidden', !ttp));
-currentKeys = ttp ? TTP_GRID_KEYS : GRID_KEYS;
+const v = document.getElementById('strategy').value;
+document.querySelectorAll('.v23-field').forEach(el => el.classList.toggle('hidden', v !== 'v23'));
+document.querySelectorAll('.ttp-field').forEach(el => el.classList.toggle('hidden', v !== 'ttp'));
+document.querySelectorAll('.v24-field').forEach(el => el.classList.toggle('hidden', v !== 'v24'));
+currentKeys = v === 'ttp' ? TTP_GRID_KEYS : (v === 'v24' ? V24_GRID_KEYS : GRID_KEYS);
 const th = document.getElementById('comboHeader');
 if (th) th.textContent = currentKeys.map(k => k.toUpperCase()).join(' | ');
 }
@@ -152,8 +160,9 @@ strategy: document.getElementById('strategy').value,
 save_to_file: document.getElementById('save_to_file').checked
 });
 currentKeys.forEach(k => {
+const apiKey = k === 'v24_rr_ratio' ? 'rr_ratio' : (k === 'v24_sl_lookback' ? 'sl_lookback' : k);
 const v = document.getElementById(k).value.trim();
-if (v) params.set(k, v);
+if (v) params.set(apiKey, v);
 });
 try {
 const r = await fetch('/api/v1/optimize?' + params.toString());

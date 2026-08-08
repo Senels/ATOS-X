@@ -1,4 +1,6 @@
 from decimal import Decimal
+
+
 class RiskManager:
     def __init__(self):
         self.daily_pnl = Decimal("0")

@@ -1,4 +1,6 @@
 """v23 strateji + backtest motoru icin temel dogrulama testleri."""
+import numpy as np
+import pandas as pd
 import pytest
 
 from app.backtest.engine import BacktestEngine
@@ -281,3 +283,73 @@ def test_backtest_missing_strength_column_keeps_legacy_behavior():
                             min_signal_strength=0.6)
     m = engine.run(df, orders, "4h")
     assert m["total_trades"] == 1
+
+
+# ---------------------------------------------------------------------------
+# v24 Lite (tradebot_v24.py)
+# ---------------------------------------------------------------------------
+def _v24_uptrend(n: int = 500) -> pd.DataFrame:
+    rng = np.random.default_rng(42)
+    t = np.arange(n)
+    close = 100 + t * 0.06 + np.sin(t / 9) * 2.5 + rng.normal(0, 0.35, n)
+    open_ = close + rng.normal(0, 0.1, n)
+    high = np.maximum(open_, close) + np.abs(rng.normal(0, 0.45, n))
+    low = np.minimum(open_, close) - np.abs(rng.normal(0, 0.45, n))
+    return pd.DataFrame({"open": open_, "high": high, "low": low,
+                         "close": close, "volume": rng.uniform(50, 150, n)})
+
+
+def test_v24_factory_selection(monkeypatch, tmp_path):
+    from app.strategy import get_strategy
+    from app.strategy import settings as strat_settings
+    from app.strategy.tradebot_v24 import TradeBotV24
+    monkeypatch.setattr(strat_settings, "_OPTIMIZED_FILE", tmp_path / "none.json")
+    bot = get_strategy({"active_strategy": "v24"})
+    assert isinstance(bot, TradeBotV24)
+    assert bot.get_settings()["v24"]["ema_fast"] == 50
+
+
+def test_v24_analyze_produces_orders():
+    from app.strategy.tradebot_v24 import TradeBotV24
+    df = _v24_uptrend()
+    orders = TradeBotV24().analyze(df)["orders"]
+    assert len(orders) == len(df)
+    assert set(orders.columns) == {"signal", "sl", "tp", "strength"}
+    assert orders["signal"].between(-1, 1).all()
+    assert (orders["strength"] >= 0).all()
+
+
+def test_v24_uptrend_has_long_signals():
+    from app.strategy.tradebot_v24 import TradeBotV24
+    df = _v24_uptrend()
+    orders = TradeBotV24().analyze(df)["orders"]
+    assert (orders["signal"] == 1).any()
+
+
+def test_v24_sl_tp_valid_and_rr():
+    from app.strategy.tradebot_v24 import TradeBotV24
+    df = _v24_uptrend()
+    bot = TradeBotV24()
+    rr = float(bot.get_settings()["v24"]["rr_ratio"])
+    orders = bot.analyze(df)["orders"]
+    for sig in (1, -1):
+        rows = orders[(orders["signal"] == sig) & orders["sl"].notna()]
+        if not len(rows):
+            continue
+        row = rows.iloc[0]
+        close = float(df.loc[row.name, "close"])
+        if sig == 1:
+            assert row["sl"] < close < row["tp"]
+            assert abs(row["tp"] - (close + (close - row["sl"]) * rr)) / close < 1e-6
+        else:
+            assert row["sl"] > close > row["tp"]
+            assert abs(row["tp"] - (close - (row["sl"] - close) * rr)) / close < 1e-6
+
+
+def test_v24_generate_signal_valid():
+    from app.strategy.tradebot_v24 import TradeBotV24
+    s = TradeBotV24().generate_signal(_v24_uptrend())
+    assert s["signal"] in ("BUY", "SELL", "HOLD")
+    assert 0.0 <= s.get("strength", 0.0) <= 1.0
+    if s["signal"] in ("BUY", "SELL"):
+        assert s["sl"] is not None and s["tp"] is not None

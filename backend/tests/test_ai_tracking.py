@@ -344,7 +344,7 @@ def test_dashboard_has_ai_feedback_card():
     client = TestClient(main_mod.app)
     resp = client.get("/dashboard/html")
     assert resp.status_code == 200
-    assert "AI Feedback" in resp.text
+    assert "AI Geri Bildirimi" in resp.text
     assert "loadAIStats" in resp.text
     assert 'id="aiStatsBody"' in resp.text
     assert "/api/v1/ai/stats" in resp.text

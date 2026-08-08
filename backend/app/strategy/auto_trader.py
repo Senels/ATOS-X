@@ -19,6 +19,17 @@ from app.strategy.tradebot_v23 import atr as atr_series
 _SCORE_POOL = 200  # skor bazli siralama icin canli degerlendirilen sembol sayisi
 
 
+def _fmt_px(x: float) -> str:
+    """Kucuk fiyatli sembollerde (0.0032 vb.) .2f yuvarlamasini onler."""
+    if x >= 1000:
+        return f"{x:.0f}"
+    if x >= 1:
+        return f"{x:.2f}"
+    if x >= 0.01:
+        return f"{x:.4f}"
+    return f"{x:.6f}"
+
+
 class AutoTrader:
     """Canli islem motoru: v23 sinyalleri -> risk bazli boyutlandirma -> DB.
 
@@ -380,6 +391,25 @@ class AutoTrader:
         await self.reconcile_positions()
         self._restore_paper_positions()
         await self._close_stale_restores()
+        if not self.paper and self.live_balance is None:
+            # Canli bakiye senkronu basarisiz: equity varsayilan deger
+            # (initial_equity) uzerinden kalir, boyutlandirma yanlis olur.
+            # Motor, gercek bakiye cekilmeden islem dongusune GIRMEZ.
+            logger.critical(
+                "Canli bakiye senkronu yapilamadi; motor durduruluyor "
+                "(yanlis boyutta ilk emir onlenir)"
+            )
+            self._log_risk_event(
+                "balance_sync_blocked",
+                "Canli bakiye senkronu yapilamadi, motor baslatilmadi",
+            )
+            if self.telegram:
+                await self.telegram.send(
+                    "ATOS X UYARI: Canli bakiye senkronu yapilamadi! "
+                    "Motor baslatilmadi — yanlis boyutta emir onlendi."
+                )
+            self.running = False
+            return
         await self._check_concentration()
         await self._notify_startup_state()
         asyncio.create_task(self._refresh_ranking())
@@ -902,6 +932,25 @@ class AutoTrader:
                 )
                 return
 
+            if not self.paper:
+                # Borsada sembolde zaten acik pozisyon varsa (kullaniciya ait
+                # olabilir) girise izin verilmez — mevcut pozisyon buyutulmez.
+                try:
+                    ex_pos = await self.binance.get_position(symbol)
+                except Exception as e:
+                    logger.warning(f"{symbol}: pozisyon kontrolu yapilamadi: {e}")
+                    ex_pos = None
+                if ex_pos is not None:
+                    logger.warning(
+                        f"{symbol}: borsada mevcut pozisyon var (amt "
+                        f"{ex_pos.get('positionAmt')}), cift giris engellendi"
+                    )
+                    self._log_risk_event(
+                        "position_exists_blocked",
+                        f"{symbol} {side} girisi engellendi: borsada pozisyon var",
+                    )
+                    return
+
             order = await self._submit_open(symbol, side, qty)
             if order:
                 self.equity -= float(sizing["entry_fee"])
@@ -1297,6 +1346,26 @@ class AutoTrader:
                 symbol = p["symbol"]
                 if symbol in self.active_positions:
                     continue
+                # SAHIPLIK: DB'de OPEN sistem kaydi yoksa pozisyon kullaniciya
+                # aittir (manuel acilis) — yonetim disi birakilir, ASLA kapatilmaz.
+                db_opened = self.db.get_open_trade_entry_time(symbol)
+                if db_opened is None:
+                    self._log_risk_event(
+                        "foreign_position",
+                        f"{symbol} borsada acik ama sistem kaydi yok; "
+                        f"kullanici pozisyonu sayildi, yonetilmiyor",
+                        side="BUY" if float(p.get("positionAmt", 0)) > 0 else "SELL",
+                    )
+                    logger.warning(
+                        f"{symbol}: borsada acik ama sistem kaydi yok - "
+                        f"kullanici pozisyonu sayildi, yonetim disi"
+                    )
+                    if self.telegram:
+                        await self.telegram.send(
+                            f"ATOS X BILGI: {symbol} borsada acik ama sistem "
+                            f"tarafindan acilmamis - yonetilmiyor, dokunulmuyor."
+                        )
+                    continue
                 info = algo_map.get(symbol, {})
                 ttp = strat_settings.get_settings().get("active_strategy") == "ttp"
                 if info.get("sl_id") is None and (not ttp or info.get("tp_id") is None):
@@ -1311,7 +1380,6 @@ class AutoTrader:
                         )
                     continue
                 amt = float(p["positionAmt"])
-                db_opened = self.db.get_open_trade_entry_time(symbol)
                 db_trailing, db_breakeven = self.db.get_open_trade_protection(symbol)
                 db_entry_ts, db_ttp_tp_hit = self.db.get_open_trade_ttp_state(symbol)
                 restored_open = datetime.utcnow().isoformat()
@@ -1898,8 +1966,8 @@ class AutoTrader:
             pos["breakeven"] = True
             self.db.update_trade_protection(symbol, breakeven=True)
             self._log_risk_event("breakeven_move",
-                                 f"{symbol} SL giris fiyatina tasindi ({entry:.2f})")
-            logger.info(f"{symbol}: SL giris fiyatina tasindi -> {entry:.2f} (kar %{profit_pct:.1f})")
+                                 f"{symbol} SL giris fiyatina tasindi ({_fmt_px(entry)})")
+            logger.info(f"{symbol}: SL giris fiyatina tasindi -> {_fmt_px(entry)} (kar %{profit_pct:.1f})")
             return
         try:
             await self.binance.cancel_algo_order(symbol, pos["sl_order_id"])
@@ -1913,8 +1981,8 @@ class AutoTrader:
             pos["sl_order_id"] = algo["sl"]
             self.db.update_trade_protection(symbol, breakeven=True)
             self._log_risk_event("breakeven_move",
-                                 f"{symbol} SL giris fiyatina tasindi ({entry:.2f})")
-            logger.info(f"{symbol}: SL giris fiyatina tasindi -> {entry:.2f} (kar %{profit_pct:.1f})")
+                                 f"{symbol} SL giris fiyatina tasindi ({_fmt_px(entry)})")
+            logger.info(f"{symbol}: SL giris fiyatina tasindi -> {_fmt_px(entry)} (kar %{profit_pct:.1f})")
         except Exception as e:
             logger.error(f"{symbol}: breakeven SL guncelleme hatasi: {e}")
             last_alert = float(pos.get("sl_alert_ts") or 0)
@@ -1958,11 +2026,11 @@ class AutoTrader:
             self.db.update_trade_protection(symbol, trailing=True)
             if not was_trailing:
                 self._log_risk_event("trailing_activate",
-                                     f"{symbol} SL takibi: kar %{profit_pct:.1f}, SL {new_sl:.2f}")
+                                     f"{symbol} SL takibi: kar %{profit_pct:.1f}, SL {_fmt_px(new_sl)}")
             else:
                 self._log_risk_event("trailing_move",
-                                     f"{symbol} SL {cur_sl:.2f} -> {new_sl:.2f} (kar %{profit_pct:.1f})")
-            logger.info(f"{symbol}: SL takibe girdi -> {new_sl:.2f} (kar %{profit_pct:.1f})")
+                                     f"{symbol} SL {_fmt_px(cur_sl)} -> {_fmt_px(new_sl)} (kar %{profit_pct:.1f})")
+            logger.info(f"{symbol}: SL takibe girdi -> {_fmt_px(new_sl)} (kar %{profit_pct:.1f})")
             return
         try:
             await self.binance.cancel_algo_order(symbol, pos["sl_order_id"])
@@ -1977,11 +2045,11 @@ class AutoTrader:
             self.db.update_trade_protection(symbol, trailing=True)
             if not was_trailing:
                 self._log_risk_event("trailing_activate",
-                                     f"{symbol} SL takibi: kar %{profit_pct:.1f}, SL {new_sl:.2f}")
+                                     f"{symbol} SL takibi: kar %{profit_pct:.1f}, SL {_fmt_px(new_sl)}")
             else:
                 self._log_risk_event("trailing_move",
-                                     f"{symbol} SL {cur_sl:.2f} -> {new_sl:.2f} (kar %{profit_pct:.1f})")
-            logger.info(f"{symbol}: trailing SL {new_sl:.2f} borsaya yerleştirildi")
+                                     f"{symbol} SL {_fmt_px(cur_sl)} -> {_fmt_px(new_sl)} (kar %{profit_pct:.1f})")
+            logger.info(f"{symbol}: trailing SL {_fmt_px(new_sl)} borsaya yerleştirildi")
         except Exception as e:
             logger.error(f"{symbol}: trailing SL guncelleme hatasi: {e}")
             last_alert = float(pos.get("sl_alert_ts") or 0)

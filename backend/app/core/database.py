@@ -196,6 +196,21 @@ class Database:
             "entry_time": r[6],
         } for r in rows]
 
+    def close_all_open_trades(self, reason: str = "mode_switch"):
+        """Tum OPEN kayitlarini kapatir (paper/testnet kalintilari).
+
+        Canliya geciste calistirilir: eski simule kayitlar `reconcile_positions`
+        sahiplik kontrolunde "sistem pozisyonu" gibi gorunmesin — canli modda
+        DB'deki OPEN kaydi yalnizca sistemin gercekten actigi pozisyon demektir.
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            "UPDATE trades SET status = 'CLOSED', reason = ? "
+            "WHERE status = 'OPEN'", (reason,)
+        )
+        conn.commit()
+        conn.close()
+
     def get_open_trade_entry_time(self, symbol: str):
         """Sembolun en guncel OPEN kaydinin acilis zamanini doner (yoksa None)."""
         conn = sqlite3.connect(self.db_path)

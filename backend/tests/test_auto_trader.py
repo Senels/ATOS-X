@@ -91,6 +91,12 @@ class FakeBinance:
             raise Exception("network down")
         return self.open_positions
 
+    async def get_position(self, symbol):
+        for p in self.open_positions:
+            if p["symbol"] == symbol and float(p.get("positionAmt", 0)) != 0:
+                return p
+        return None
+
     async def get_open_algo_orders(self):
         return self.algo_orders
 
@@ -532,6 +538,7 @@ async def test_update_tp_failure_reports_error_and_keeps_old(trader):
 
 async def test_reconcile_restores_exchange_positions(trader):
     tr, fb, db = trader
+    db.save_trade("BTCUSDT", "BUY", 65000.0, 0.5)
     fb.open_positions = [
         {"symbol": "BTCUSDT", "positionAmt": "0.5", "entryPrice": "65000.0"},
     ]
@@ -548,6 +555,45 @@ async def test_reconcile_restores_exchange_positions(trader):
     assert pos["sl_order_id"] == 111
     assert pos["tp_order_id"] == 222
     assert pos["restored"] is True
+
+
+async def test_reconcile_ignores_foreign_position(trader):
+    """DB kaydi olmayan borsa pozisyonu kullaniciya aittir; yonetim disi kalir."""
+    tr, fb, db = trader
+    fb.open_positions = [
+        {"symbol": "BTCUSDT", "positionAmt": "0.5", "entryPrice": "65000.0"},
+    ]
+    fb.algo_orders = [
+        {"symbol": "BTCUSDT", "orderType": "STOP_MARKET", "algoId": 111, "triggerPrice": "63000"},
+    ]
+    await tr.reconcile_positions()
+    assert "BTCUSDT" not in tr.active_positions
+    assert db.get_open_trade_entry_time("BTCUSDT") is None
+
+
+async def test_reconcile_foreign_position_with_algo_still_untouched(trader):
+    """Kullanici pozisyonu SL/TP emrine sahip olsa bile yonetim disi kalir."""
+    tr, fb, db = trader
+    fb.open_positions = [
+        {"symbol": "BTCUSDT", "positionAmt": "-0.5", "entryPrice": "65000.0"},
+    ]
+    fb.algo_orders = [
+        {"symbol": "BTCUSDT", "orderType": "STOP_MARKET", "algoId": 111, "triggerPrice": "67000"},
+        {"symbol": "BTCUSDT", "orderType": "TAKE_PROFIT_MARKET", "algoId": 222, "triggerPrice": "63000"},
+    ]
+    await tr.reconcile_positions()
+    assert "BTCUSDT" not in tr.active_positions
+
+
+async def test_open_position_blocked_when_exchange_position_exists(trader):
+    """Borsada mevcut pozisyon varken cift giris engellenir (kullanici korumasi)."""
+    tr, fb, db = trader
+    fb.open_positions = [
+        {"symbol": "BTCUSDT", "positionAmt": "0.5", "entryPrice": "65000.0"},
+    ]
+    await tr.open_position("BTCUSDT", "BUY", 65000.0, 63000.0, 69000.0)
+    assert "BTCUSDT" not in tr.active_positions
+    assert len(fb.open_calls) == 0
 
 
 async def test_reconcile_restores_db_open_time(trader):
@@ -761,6 +807,7 @@ async def test_reconcile_alerts_on_unprotected(trader):
     tr, fb, db = trader
     tg = FakeTelegram()
     tr.telegram = tg
+    db.save_trade("ETHUSDT", "SELL", 3000.0, 2.0)
     fb.open_positions = [
         {"symbol": "ETHUSDT", "positionAmt": "-2.0", "entryPrice": "3000"},
     ]

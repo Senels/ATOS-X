@@ -154,6 +154,9 @@ def test_get_strategy_ttp_selection():
     assert isinstance(bot, TtpTsl)
 
 
-def test_get_strategy_none_uses_defaults():
+def test_get_strategy_none_uses_defaults(monkeypatch, tmp_path):
+    from app.strategy import settings as strat_settings
+    monkeypatch.setattr(strat_settings, "_OPTIMIZED_FILE", tmp_path / "none.json")
+    monkeypatch.setattr(strat_settings, "_state", strat_settings._defaults())
     bot = get_strategy()
     assert isinstance(bot, TradeBotV23) or isinstance(bot, TtpTsl)

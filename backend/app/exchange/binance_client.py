@@ -192,6 +192,24 @@ class BinanceClient:
         except Exception as e:
             raise Exception(f"Pozisyon kapatma hatasi: {e}")
 
+    async def get_position(self, symbol: str) -> Optional[dict]:
+        """Semboldeki acik pozisyon bilgisi (positionAmt != 0); yoksa None.
+
+        Canli hesapta kullaniciya ait (sistem kaydi olmayan) pozisyonlari
+        ayirt etmek icin kullanilir — sistem bu pozisyonlara dokunmamalidir.
+        """
+        if not self.client:
+            await self.connect()
+        try:
+            position = await self._run(
+                self.client.futures_position_information, symbol=symbol
+            )
+        except Exception as e:
+            raise Exception(f"Pozisyon sorgulama hatasi: {e}")
+        if not position or float(position[0].get('positionAmt', 0)) == 0:
+            return None
+        return position[0]
+
     async def get_open_positions(self) -> list:
         """Borsadaki tum acik pozisyonlari dondurur (positionAmt != 0).
 

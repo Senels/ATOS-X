@@ -1,9 +1,14 @@
 {
-  "rangefilt_length": 2,
-  "range_filt_mult": 2.0,
-  "signal_expiry": 1,
-  "rr_ratio": 1.0,
-  "sl_lookback": 5,
-  "_objective_score": 28.7028,
-  "_symbols_count": 10
+  "active_strategy": "v24",
+  "v24": {
+    "ema_fast": 20,
+    "ema_slow": 200,
+    "sl_lookback": 5,
+    "rsi_long": 50.0,
+    "rsi_short": 40.0,
+    "rr_ratio": 1.0
+  },
+  "_strategy": "v24",
+  "_objective_score": 27.2607,
+  "_symbols_count": 5
 }
