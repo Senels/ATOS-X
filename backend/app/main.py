@@ -1,10 +1,12 @@
 ﻿import asyncio
 import json
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -45,16 +47,21 @@ ws = BinanceWebSocket()
 telegram = TelegramNotifier()
 auto_trader = None
 daily_report_task = None
-system_status = {"status": "initializing", "start_time": utc_now(),
-                 "start_commit": git_head()}
+system_status = {
+    "status": "initializing",
+    "start_time": utc_now(),
+    "start_commit": git_head(),
+}
 _PRICE_ALERTS = {}  # symbol -> [{price, side, created}]
 _alarm_task = None
 _backup_task = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     global auto_trader, daily_report_task, _alarm_task, _backup_task
     import os
+
     if os.environ.get("ATOS_TEST_MODE"):
         yield
         return
@@ -65,12 +72,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     for attempt in range(1, 6):
         if await app.state.binance.connect():
             break
-        logger.warning(f"Binance baglanti denemesi {attempt}/5 basarisiz, 10s sonra tekrar")
+        logger.warning(
+            f"Binance baglanti denemesi {attempt}/5 basarisiz, 10s sonra tekrar"
+        )
         await asyncio.sleep(10)
     else:
         system_status["status"] = "degraded"
-        logger.error("Binance baglantisi kurulamadi; AutoTrader yeniden denemeye devam edecek")
-        await telegram.send("ATOS X: Binance baglantisi kurulamadi, degrade modda basladi")
+        logger.error(
+            "Binance baglantisi kurulamadi; AutoTrader yeniden denemeye devam edecek"
+        )
+        await telegram.send(
+            "ATOS X: Binance baglantisi kurulamadi, degrade modda basladi"
+        )
     app.state.db = Database(os.getenv("DB_PATH", "atos.db"))
 
     auto_trader = AutoTrader(app.state.binance, telegram=telegram)
@@ -109,9 +122,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await ws.stop()
     await app.state.binance.close()
 
+
 async def on_price_update(symbol: str, price: float):
     if auto_trader:
         auto_trader.update_price(symbol, price)
+
 
 async def _signal_for_symbol(symbol: str, interval: str = "4h") -> dict:
     """Canli kline'dan v23 sinyali hesaplar; hata durumunda bos dict doner."""
@@ -124,6 +139,7 @@ async def _signal_for_symbol(symbol: str, interval: str = "4h") -> dict:
     except Exception as e:
         logger.error(f"Sinyal hesap hatasi {symbol}: {e}")
         return {}
+
 
 async def _send_symbol_signal(symbol: str, interval: str = "4h"):
     """Bir sembolun sinyalini Telegram'a gonderir (AI tahmini dahil)."""
@@ -143,14 +159,25 @@ async def _send_symbol_signal(symbol: str, interval: str = "4h"):
                 ai_confidence = ai.get("confidence")
         except Exception as e:
             logger.warning(f"AI tahmini alinamadi {symbol}: {e}")
-    await telegram.send_signal(symbol, signal, sig.get("price") or 0.0,
-                               sig.get("reason", ""), sig.get("sl"), sig.get("tp"),
-                               strength=sig.get("strength"),
-                               ai_direction=ai_direction, ai_confidence=ai_confidence)
+    await telegram.send_signal(
+        symbol,
+        signal,
+        sig.get("price") or 0.0,
+        sig.get("reason", ""),
+        sig.get("sl"),
+        sig.get("tp"),
+        strength=sig.get("strength"),
+        ai_direction=ai_direction,
+        ai_confidence=ai_confidence,
+    )
 
-async def _send_batch_signals(symbols: list, interval: str = "4h", sig_filter: str = None):
+
+async def _send_batch_signals(
+    symbols: list, interval: str = "4h", sig_filter: str = None
+):
     """Tarama listesi icin toplu sinyal ozetini Telegram'a gonderir."""
     from app.strategy.coin_intel import trend_regime
+
     arrows = {"BUY": "🟢", "SELL": "🔴", "HOLD": "⚪"}
     trend_icons = {"UPTREND": "📈", "DOWNTREND": "📉", "RANGE": "➡️"}
     header = f"ATOS X tarama ({interval}"
@@ -188,11 +215,14 @@ async def _send_batch_signals(symbols: list, interval: str = "4h", sig_filter: s
                 trend_str = f" {ti}" if ti else ""
         except Exception:
             pass
-        lines.append(f"{sym} {arrow} {signal} ${price:.4g}{extra} "
-                     f"guc:%{sig.get('strength', 0) * 100:.0f}{trend_str} - {sig.get('reason', '')[:40]}")
+        lines.append(
+            f"{sym} {arrow} {signal} ${price:.4g}{extra} "
+            f"guc:%{sig.get('strength', 0) * 100:.0f}{trend_str} - {sig.get('reason', '')[:40]}"
+        )
     if len(lines) == 1:
         lines.append("Sinyal alinamadi")
     await telegram.send("\n".join(lines))
+
 
 async def _set_sl(symbol: str, new_sl: float):
     """Pozisyonun SL'sini gunceller ve sonucu Telegram'a bildirir."""
@@ -209,6 +239,7 @@ async def _set_sl(symbol: str, new_sl: float):
     }.get(res.get("error"), f"ATOS X: SL guncellenemedi ({res.get('error')})")
     await telegram.send(msg)
 
+
 async def _set_tp(symbol: str, new_tp: float):
     """Pozisyonun TP'sini gunceller ve sonucu Telegram'a bildirir."""
     res = await auto_trader.update_tp(symbol, new_tp)
@@ -223,6 +254,7 @@ async def _set_tp(symbol: str, new_tp: float):
         "tp_above_entry": f"ATOS X: {symbol} SELL pozisyonunda TP giris fiyatinin ALTINDA olmali",
     }.get(res.get("error"), f"ATOS X: TP guncellenemedi ({res.get('error')})")
     await telegram.send(msg)
+
 
 async def _ws_sync_loop():
     """WebSocket fiyat aboneliklerini tarama listesine gore hizalar (mark fiyatlari icin).
@@ -242,6 +274,7 @@ async def _ws_sync_loop():
         except Exception as e:
             logger.error(f"WebSocket sembol senkronizasyonu hatasi: {e}")
 
+
 async def _alarm_loop():
     """Fiyat alarmlarini kontrol eder; esik asilinca Telegram'dan bildirir."""
     while True:
@@ -258,9 +291,15 @@ async def _alarm_loop():
                     continue
                 still = []
                 for a in alerts:
-                    hit = price >= a["price"] if a["side"] == "above" else price <= a["price"]
+                    hit = (
+                        price >= a["price"]
+                        if a["side"] == "above"
+                        else price <= a["price"]
+                    )
                     if hit:
-                        dir_word = "ustune cikti" if a["side"] == "above" else "altina indi"
+                        dir_word = (
+                            "ustune cikti" if a["side"] == "above" else "altina indi"
+                        )
                         await telegram.send(
                             f"⏰ ATOS X ALARM: {sym} ${price:g} "
                             f"{a['price']:g} {dir_word} (esik {a['side']})"
@@ -275,6 +314,7 @@ async def _alarm_loop():
         except Exception as e:
             logger.error(f"Alarm kontrol hatasi: {e}")
 
+
 def _load_alarms():
     """Kalici fiyat alarmlarini DB'den bellege yukler."""
     db = getattr(app.state, "db", None)
@@ -283,10 +323,15 @@ def _load_alarms():
     rows = db.get_price_alerts()
     _PRICE_ALERTS.clear()
     for r in rows:
-        _PRICE_ALERTS.setdefault(r["symbol"], []).append({
-            "price": r["price"], "side": r["side"], "created": r["created"],
-        })
+        _PRICE_ALERTS.setdefault(r["symbol"], []).append(
+            {
+                "price": r["price"],
+                "side": r["side"],
+                "created": r["created"],
+            }
+        )
     return len(rows)
+
 
 def _alarm_list() -> str:
     if not _PRICE_ALERTS:
@@ -298,6 +343,7 @@ def _alarm_list() -> str:
             lines.append(f"  {sym} {side_word} ${a['price']:g}")
     return "\n".join(lines)
 
+
 async def _notify_backup_failure(res: dict):
     """Yedekleme hatasini Telegram'dan bildirir (bildirim hatasi sessiz gecilir)."""
     try:
@@ -305,6 +351,7 @@ async def _notify_backup_failure(res: dict):
         await telegram.send(f"ATOS X UYARI: DB yedekleme basarisiz ({err})")
     except Exception as e:
         logger.error(f"Yedekleme hata bildirimi gonderilemedi: {e}")
+
 
 async def _backup_loop():
     """Periyodik DB yedeklemesi (her 6 saatte bir); bloklamadan calisir."""
@@ -325,14 +372,17 @@ async def _backup_loop():
             logger.error(f"DB yedekleme hatasi: {res}")
             await _notify_backup_failure(res)
 
+
 def _protected_count() -> int:
     """Exchange-side SL/TP ile korunan acik pozisyon sayisi."""
     if not auto_trader:
         return 0
     return sum(
-        1 for p in list(auto_trader.active_positions.values())
+        1
+        for p in list(auto_trader.active_positions.values())
         if p.get("sl_order_id") or p.get("tp_order_id")
     )
+
 
 def _position_upnl(pos: dict, mark: float | None):
     """Pozisyonun gerceklesmemis PnL'i ve yuzdesi (fiyat yoksa None)."""
@@ -346,6 +396,7 @@ def _position_upnl(pos: dict, mark: float | None):
     pct = (upnl / notional * 100.0) if notional else 0.0
     return upnl, pct
 
+
 def _positions_payload() -> dict:
     """Acil pozisyonlari koruma durumu ve gerceklesmemis PnL isaretli doner."""
     positions = auto_trader.active_positions if auto_trader else {}
@@ -353,20 +404,25 @@ def _positions_payload() -> dict:
     for symbol, pos in positions.items():
         mark = auto_trader.live_prices.get(symbol) if auto_trader else None
         upnl, pct = _position_upnl(pos, mark)
-        enriched[symbol] = {**pos,
-                            "protected": bool(pos.get("sl_order_id") or pos.get("tp_order_id")),
-                            "trailing": bool(pos.get("trailing")),
-                            "breakeven": bool(pos.get("breakeven")),
-                            "mark": mark,
-                            "upnl": upnl,
-                            "upnl_pct": pct}
+        enriched[symbol] = {
+            **pos,
+            "protected": bool(pos.get("sl_order_id") or pos.get("tp_order_id")),
+            "trailing": bool(pos.get("trailing")),
+            "breakeven": bool(pos.get("breakeven")),
+            "mark": mark,
+            "upnl": upnl,
+            "upnl_pct": pct,
+        }
     return {
         "positions": enriched,
         "count": len(positions),
         "protected": sum(1 for p in enriched.values() if p["protected"]),
         "unprotected": sum(1 for p in enriched.values() if not p["protected"]),
-        "total_upnl": sum(p["upnl"] for p in enriched.values() if p["upnl"] is not None),
+        "total_upnl": sum(
+            p["upnl"] for p in enriched.values() if p["upnl"] is not None
+        ),
     }
+
 
 def _run_later(coro) -> bool:
     """Calisan event loop varsa coroutine'i arka planda calistirir."""
@@ -376,6 +432,7 @@ def _run_later(coro) -> bool:
         return False
     asyncio.create_task(coro)
     return True
+
 
 # /koruma komutu ile canli ayarlanabilen risk anahtarlari (takma ad -> settings key)
 _EDITABLE_RISK_KEYS = {
@@ -410,10 +467,21 @@ _EDITABLE_RISK_KEYS = {
     "ai_retrain_symbols": "ai_retrain_symbols",
     "ai_retrain_epochs": "ai_retrain_epochs",
 }
-_INT_RISK_KEYS = {"max_open_positions", "max_consecutive_losses", "max_position_age_hours",
-                  "ai_retrain_min_samples", "ai_retrain_symbols", "ai_retrain_epochs",
-                  "scan_limit"}
-_BOOL_RISK_KEYS = {"use_decision_council", "use_score_ranking", "use_ai_model", "ai_auto_retrain"}
+_INT_RISK_KEYS = {
+    "max_open_positions",
+    "max_consecutive_losses",
+    "max_position_age_hours",
+    "ai_retrain_min_samples",
+    "ai_retrain_symbols",
+    "ai_retrain_epochs",
+    "scan_limit",
+}
+_BOOL_RISK_KEYS = {
+    "use_decision_council",
+    "use_score_ranking",
+    "use_ai_model",
+    "ai_auto_retrain",
+}
 _STR_RISK_KEYS = {"ai_model_path"}
 
 
@@ -438,56 +506,59 @@ def _format_koruma() -> str:
         "(anahtarlar: " + ", ".join(sorted(_EDITABLE_RISK_KEYS)) + ")"
     )
 
+
 def _telegram_command(text: str):
     """Telegram komutlarini yanitlar; bilinmeyen komutlar None doner."""
     cmd = text.strip().lower()
     if not cmd.startswith("/"):
         return None
     if cmd.startswith("/yardim") or cmd.startswith("/help"):
-        return ("ATOS X komutlari:\n"
-                "/durum - sistem durumu\n"
-                "/blok - aktif engeller\n"
-                "/pozisyon - acik pozisyonlar\n"
-                "/kapat <SEMBOL> - tek pozisyonu kapatir\n"
-                "/sl <SEMBOL> <FIYAT> - acik pozisyonun SL'sini gunceller\n"
-                "/sl breakeven [SEMBOL] - SL'leri giris fiyatina tasir\n"
-                "/tp <SEMBOL> <FIYAT> - acik pozisyonun TP'sini gunceller\n"
-                "/durdur - acil durdurma (tum pozisyonlari kapatir)\n"
-                "/giris [acik|kapali] - yeni pozisyon girislerini durdur/devam ettir\n"
-                "/kapatall [SEMBOLLER] - acik tum/sectik pozisyonlari kapatir (onay gerekli)\n"
-                "/sinyal <SEMBOL> - sembol icin canli sinyal gonder\n"
-                "/sinyalall [N] - ilk N sembolun toplu tarama ozeti\n"
-                "/koruma [ANAHTAR] [DEGER] - risk ayarlarini gor/degistir\n"
-                "/ac - motoru yeniden baslatir\n"
-                "/rapor [GUN] - gunluk rapor (varsayilan: 1 gun)\n"
-                "/risk - risk durumu\n"
-                "/gecmis [N] [SEMBOL] - son N islem (sembol ile filtrelenir)\n"
-                "/istatistik - islem performansi ozeti\n"
-                "/veri - veri tazeligi ozeti (ok/esk/esik)\n"
-                "/backfill [SEMBOLLER] [GUN] - eksik/eski CSV verisini tazeler\n"
-                "/temizle [hepsi] - kapanan islem gecmisini temizler (hepsi: +sinyal/backtest/risk/performans)\n"
-                "/izleme [N] - oncelik listesi + canli skor siralamasi\n"
-                "/performans - equity curve ozeti + aylik istatistik\n"
-                "/ai - AI tahmin dogruluk istatistikleri\n"
-                "/son - son kapanan islem detayi\n"
-                "/islem - bugunun kapanan islemleri\n"
-                "/bekleyen - bekleyen TP/SL emirleri\n"
-                "/bakiye - bakiye + pozisyon ozeti\n"
-                "/alarm <SEMBOL> <FIYAT> [ust/alt] - fiyat alarmi ekle\n"
-                "/alarm - aktif alarmlari listele\n"
-                "/alarm temizle - tum alarmlari sil\n"
-                "/ayarla - tum ayarlari ozet goruntusu\n"
-                "/yedek - DB yedegini aninda al\n"
-                "/yedekler - mevcut yedek listesi\n"
-                "/geriyukle <YEDEK> - yedekten geri yukler (motor duruken)\n"
-                "/yardim - bu liste\n"
-                "\n── Analitik (Sprint 20) ──\n"
-                "/sharpe - portfoy Sharpe/Sortino/Calmar metrikleri\n"
-                "/var - anlık VaR ve CVaR (tarihsel sim.)\n"
-                "/stres - varsayilan stres testi senaryolari\n"
-                "/mtf <SEMBOL> - multi-timeframe karar ozeti\n"
-                "/aylik - son 12 ay getiri ozeti (emojili)\n"
-                "/export - son 200 islemi CSV formatinda gosterir")
+        return (
+            "ATOS X komutlari:\n"
+            "/durum - sistem durumu\n"
+            "/blok - aktif engeller\n"
+            "/pozisyon - acik pozisyonlar\n"
+            "/kapat <SEMBOL> - tek pozisyonu kapatir\n"
+            "/sl <SEMBOL> <FIYAT> - acik pozisyonun SL'sini gunceller\n"
+            "/sl breakeven [SEMBOL] - SL'leri giris fiyatina tasir\n"
+            "/tp <SEMBOL> <FIYAT> - acik pozisyonun TP'sini gunceller\n"
+            "/durdur - acil durdurma (tum pozisyonlari kapatir)\n"
+            "/giris [acik|kapali] - yeni pozisyon girislerini durdur/devam ettir\n"
+            "/kapatall [SEMBOLLER] - acik tum/sectik pozisyonlari kapatir (onay gerekli)\n"
+            "/sinyal <SEMBOL> - sembol icin canli sinyal gonder\n"
+            "/sinyalall [N] - ilk N sembolun toplu tarama ozeti\n"
+            "/koruma [ANAHTAR] [DEGER] - risk ayarlarini gor/degistir\n"
+            "/ac - motoru yeniden baslatir\n"
+            "/rapor [GUN] - gunluk rapor (varsayilan: 1 gun)\n"
+            "/risk - risk durumu\n"
+            "/gecmis [N] [SEMBOL] - son N islem (sembol ile filtrelenir)\n"
+            "/istatistik - islem performansi ozeti\n"
+            "/veri - veri tazeligi ozeti (ok/esk/esik)\n"
+            "/backfill [SEMBOLLER] [GUN] - eksik/eski CSV verisini tazeler\n"
+            "/temizle [hepsi] - kapanan islem gecmisini temizler (hepsi: +sinyal/backtest/risk/performans)\n"
+            "/izleme [N] - oncelik listesi + canli skor siralamasi\n"
+            "/performans - equity curve ozeti + aylik istatistik\n"
+            "/ai - AI tahmin dogruluk istatistikleri\n"
+            "/son - son kapanan islem detayi\n"
+            "/islem - bugunun kapanan islemleri\n"
+            "/bekleyen - bekleyen TP/SL emirleri\n"
+            "/bakiye - bakiye + pozisyon ozeti\n"
+            "/alarm <SEMBOL> <FIYAT> [ust/alt] - fiyat alarmi ekle\n"
+            "/alarm - aktif alarmlari listele\n"
+            "/alarm temizle - tum alarmlari sil\n"
+            "/ayarla - tum ayarlari ozet goruntusu\n"
+            "/yedek - DB yedegini aninda al\n"
+            "/yedekler - mevcut yedek listesi\n"
+            "/geriyukle <YEDEK> - yedekten geri yukler (motor duruken)\n"
+            "/yardim - bu liste\n"
+            "\n── Analitik (Sprint 20) ──\n"
+            "/sharpe - portfoy Sharpe/Sortino/Calmar metrikleri\n"
+            "/var - anlık VaR ve CVaR (tarihsel sim.)\n"
+            "/stres - varsayilan stres testi senaryolari\n"
+            "/mtf <SEMBOL> - multi-timeframe karar ozeti\n"
+            "/aylik - son 12 ay getiri ozeti (emojili)\n"
+            "/export - son 200 islemi CSV formatinda gosterir"
+        )
     if cmd.startswith("/blok"):
         blocks = sorted(auto_trader._conc_blocks) if auto_trader else []
         return f"ATOS X aktif engeller: {', '.join(blocks) if blocks else 'yok'}"
@@ -499,7 +570,11 @@ def _telegram_command(text: str):
         lines = ["ATOS X pozisyonlar:"]
         now = utc_now()
         for sym, pos in auto_trader.active_positions.items():
-            prot = "korumali" if (pos.get("sl_order_id") or pos.get("tp_order_id")) else "KORUMASIZ"
+            prot = (
+                "korumali"
+                if (pos.get("sl_order_id") or pos.get("tp_order_id"))
+                else "KORUMASIZ"
+            )
             if pos.get("trailing"):
                 prot += " + TRAILING"
             if pos.get("breakeven"):
@@ -536,8 +611,10 @@ def _telegram_command(text: str):
             return "ATOS X: kullanim /koruma <anahtar> <deger> (anahtarlar icin /koruma yaz)"
         key = parts[1].lower()
         if key not in _EDITABLE_RISK_KEYS:
-            return (f"ATOS X: bilinmeyen anahtar '{key}'. "
-                    "Mevcut anahtarlar: " + ", ".join(sorted(_EDITABLE_RISK_KEYS)))
+            return (
+                f"ATOS X: bilinmeyen anahtar '{key}'. "
+                "Mevcut anahtarlar: " + ", ".join(sorted(_EDITABLE_RISK_KEYS))
+            )
         settings_key = _EDITABLE_RISK_KEYS[key]
         if settings_key in _STR_RISK_KEYS:
             value = parts[2]
@@ -550,8 +627,12 @@ def _telegram_command(text: str):
                 value = bool(value)
             elif settings_key in _INT_RISK_KEYS:
                 value = int(value)
-            elif settings_key in ("council_min_confidence", "min_signal_strength",
-                                  "ai_min_confidence", "ai_retrain_min_acc"):
+            elif settings_key in (
+                "council_min_confidence",
+                "min_signal_strength",
+                "ai_min_confidence",
+                "ai_retrain_min_acc",
+            ):
                 value = max(0.0, min(1.0, value))
         strat_settings.update_settings({settings_key: value})
         strat_settings.persist()
@@ -580,8 +661,11 @@ def _telegram_command(text: str):
             if not target:
                 return "ATOS X: belirtilen sembollerde acik pozisyon yok"
             if not confirmed:
-                return (f"ATOS X: {len(target)} pozisyon kapatilacak ({', '.join(target)})\n"
-                        "Devam icin: /kapatall <SEMBOLLER> onay")
+                return (
+                    f"ATOS X: {len(target)} pozisyon kapatilacak ({', '.join(target)})\n"
+                    "Devam icin: /kapatall <SEMBOLLER> onay"
+                )
+
             async def _close_selected():
                 for s in target:
                     price = auto_trader.live_prices.get(s)
@@ -590,13 +674,16 @@ def _telegram_command(text: str):
                         continue
                     await auto_trader.close_position(s, price, "manual_close_all")
                 await telegram.send(f"ATOS X: {len(target)} pozisyon kapatildi")
+
             if not _run_later(_close_selected()):
                 return "ATOS X: komut arka planda calistirilamadi"
             return f"ATOS X: {len(target)} pozisyon kapatiliyor"
         if not confirmed:
             n = len(auto_trader.active_positions)
-            return (f"ATOS X: {n} pozisyon kapatilacak ({', '.join(syms)})\n"
-                    "Devam icin: /kapatall onay")
+            return (
+                f"ATOS X: {n} pozisyon kapatilacak ({', '.join(syms)})\n"
+                "Devam icin: /kapatall onay"
+            )
         if not _run_later(auto_trader.close_all("manual_close_all")):
             return "ATOS X: komut arka planda calistirilamadi"
         return f"ATOS X: {len(auto_trader.active_positions)} pozisyon kapatiliyor"
@@ -638,7 +725,9 @@ def _telegram_command(text: str):
                 if entry is not None:
                     auto_trader.active_positions[s]["sl"] = entry
                     count += 1
-            return f"ATOS X: {count} pozisyonun SL'si giris fiyatina tasindi (breakeven)"
+            return (
+                f"ATOS X: {count} pozisyonun SL'si giris fiyatina tasindi (breakeven)"
+            )
         if len(parts) == 3 and parts[1].upper() == "ALL":
             arg = parts[2]
             syms = list(auto_trader.active_positions.keys())
@@ -662,7 +751,7 @@ def _telegram_command(text: str):
                         new_sl = entry - (entry - price) * pct
                     auto_trader.active_positions[s]["sl"] = new_sl
                     count += 1
-                return f"ATOS X: {count} pozisyonun SL guncellendi (%{pct*100:.0f} mesafe)"
+                return f"ATOS X: {count} pozisyonun SL guncellendi (%{pct * 100:.0f} mesafe)"
             try:
                 new_sl = float(arg)
             except ValueError:
@@ -709,7 +798,7 @@ def _telegram_command(text: str):
                         new_tp = entry - (entry - price) * pct
                     auto_trader.active_positions[s]["tp"] = new_tp
                     count += 1
-                return f"ATOS X: {count} pozisyonun TP guncellendi (%{pct*100:.0f} mesafe)"
+                return f"ATOS X: {count} pozisyonun TP guncellendi (%{pct * 100:.0f} mesafe)"
             try:
                 new_tp = float(arg)
             except ValueError:
@@ -764,7 +853,11 @@ def _telegram_command(text: str):
             return "ATOS X: motor calismiyor"
         parts = text.strip().split()
         if len(parts) == 1:
-            state = "KAPALI (acik pozisyonlar korunuyor)" if auto_trader.halt_entries else "acik"
+            state = (
+                "KAPALI (acik pozisyonlar korunuyor)"
+                if auto_trader.halt_entries
+                else "acik"
+            )
             return f"ATOS X: yeni girisler {state}"
         sub = parts[1].lower()
         if sub in ("kapali", "dur", "off", "0"):
@@ -775,9 +868,7 @@ def _telegram_command(text: str):
             return "ATOS X: yeni girisler durduruldu (acik pozisyonlar korunuyor)"
         if sub in ("acik", "ac", "on", "1"):
             auto_trader.halt_entries = False
-            auto_trader._log_risk_event(
-                "halt_entries", "Yeni girisler yeniden acildi"
-            )
+            auto_trader._log_risk_event("halt_entries", "Yeni girisler yeniden acildi")
             return "ATOS X: yeni girisler yeniden acildi"
         return "ATOS X: kullanim /giris acik | /giris kapali"
     if cmd.startswith("/durdur") or cmd.startswith("/stop"):
@@ -787,8 +878,10 @@ def _telegram_command(text: str):
         confirmed = len(parts) > 1 and parts[1].lower() == "onay"
         if not confirmed:
             n = len(auto_trader.active_positions)
-            return (f"ATOS X: motor durdurulacak ve {n} pozisyon kapatilacak\n"
-                    "Devam icin: /durdur onay")
+            return (
+                f"ATOS X: motor durdurulacak ve {n} pozisyon kapatilacak\n"
+                "Devam icin: /durdur onay"
+            )
         if not _run_later(auto_trader.stop()):
             return "ATOS X: komut arka planda calistirilamadi"
         return "ATOS X: DURDURULDU - tum pozisyonlar kapatiliyor, yeni girisler kapali"
@@ -812,7 +905,11 @@ def _telegram_command(text: str):
         entries = "KAPALI" if auto_trader.halt_entries else "acik"
         events = auto_trader.risk_events
         last_evt = events[-1] if events else None
-        evt_line = f"{last_evt['type']} ({last_evt['time'][:16].replace('T',' ')})" if last_evt else "yok"
+        evt_line = (
+            f"{last_evt['type']} ({last_evt['time'][:16].replace('T', ' ')})"
+            if last_evt
+            else "yok"
+        )
         loss_line = "AKTIF" if auto_trader.loss_halted else "yok"
         daily_line = "AKTIF" if auto_trader.daily_loss_halted else "yok"
         eq_line = "AKTIF" if auto_trader.equity_halted else "yok"
@@ -832,10 +929,12 @@ def _telegram_command(text: str):
         prot_line = f"Pozisyon: {len(pos)} ({prot_detail})"
         if extras:
             prot_line += " | " + " ".join(extras)
-        upnl = _positions_payload()['total_upnl']
+        upnl = _positions_payload()["total_upnl"]
         upnl_sign = "+" if upnl >= 0 else ""
         now = utc_now()
-        max_age_h = float(strat_settings.get_settings().get("max_position_age_hours", 0))
+        max_age_h = float(
+            strat_settings.get_settings().get("max_position_age_hours", 0)
+        )
         old_syms = []
         if max_age_h > 0:
             for s, p in pos.items():
@@ -864,17 +963,24 @@ def _telegram_command(text: str):
         try:
             aist = auto_trader.db.ai_stats()
             if aist.get("total"):
-                ai_line = (f"AI: {aist['total']} kayit (cozumlenen {aist['resolved']}, "
-                           f"bekleyen {aist['pending']})"
-                           + (f" | acc %{aist['accuracy'] * 100:.0f}"
-                              if aist["resolved"] else " | cozum bekleniyor"))
+                ai_line = (
+                    f"AI: {aist['total']} kayit (cozumlenen {aist['resolved']}, "
+                    f"bekleyen {aist['pending']})"
+                    + (
+                        f" | acc %{aist['accuracy'] * 100:.0f}"
+                        if aist["resolved"]
+                        else " | cozum bekleniyor"
+                    )
+                )
             else:
                 ai_line = "AI: kayit yok"
         except Exception:
             ai_line = "AI: okunamadi"
         lines.append(ai_line)
         if old_syms:
-            lines.append(f"Uzun pozisyonlar: {', '.join(old_syms)} (>{max_age_h * 0.8:.0f}h)")
+            lines.append(
+                f"Uzun pozisyonlar: {', '.join(old_syms)} (>{max_age_h * 0.8:.0f}h)"
+            )
         return "\n".join(lines)
     if cmd.startswith("/rapor") or cmd.startswith("/report"):
         if not auto_trader:
@@ -890,9 +996,13 @@ def _telegram_command(text: str):
         hist = auto_trader.trade_history
         protection_stats = {
             "trailing": sum(1 for t in hist if t.get("trailing")),
-            "trailing_pnl": sum(t.get("pnl", 0) or 0 for t in hist if t.get("trailing")),
+            "trailing_pnl": sum(
+                t.get("pnl", 0) or 0 for t in hist if t.get("trailing")
+            ),
             "breakeven": sum(1 for t in hist if t.get("breakeven")),
-            "breakeven_pnl": sum(t.get("pnl", 0) or 0 for t in hist if t.get("breakeven")),
+            "breakeven_pnl": sum(
+                t.get("pnl", 0) or 0 for t in hist if t.get("breakeven")
+            ),
         }
         closed_today = [t for t in trades if t[6] is not None]
         worst_sym = None
@@ -901,9 +1011,13 @@ def _telegram_command(text: str):
             for t in closed_today:
                 by_sym[t[1]] = by_sym.get(t[1], 0.0) + t[6]
             worst_sym = min(by_sym.items(), key=lambda kv: kv[1]) if by_sym else None
-        if not _run_later(telegram.send_daily_summary(
-                trades, auto_trader.equity, auto_trader.active_positions,
-                auto_trader.top_symbols, marks=auto_trader.live_prices,
+        if not _run_later(
+            telegram.send_daily_summary(
+                trades,
+                auto_trader.equity,
+                auto_trader.active_positions,
+                auto_trader.top_symbols,
+                marks=auto_trader.live_prices,
                 risk_events=auto_trader.risk_events,
                 loss_halted=auto_trader.loss_halted,
                 daily_loss_halted=auto_trader.daily_loss_halted,
@@ -913,7 +1027,9 @@ def _telegram_command(text: str):
                 worst_sym=worst_sym,
                 data_status=_data_freshness(300),
                 protection_stats=protection_stats,
-                days=days)):
+                days=days,
+            )
+        ):
             return "ATOS X: komut arka planda calistirilamadi"
         return f"ATOS X: {days} gunluk rapor gonderiliyor"
     if cmd.startswith("/risk"):
@@ -956,8 +1072,10 @@ def _telegram_command(text: str):
                 )
             if total_notional > 0:
                 eq = auto_trader.equity or 1
-                lines.append(f"Toplam notional: ${total_notional:.2f} "
-                             f"(%{total_notional / eq * 100:.0f} equity)")
+                lines.append(
+                    f"Toplam notional: ${total_notional:.2f} "
+                    f"(%{total_notional / eq * 100:.0f} equity)"
+                )
         return "\n".join(lines)
     if cmd.startswith("/gecmis") or cmd.startswith("/history"):
         if not auto_trader:
@@ -988,7 +1106,9 @@ def _telegram_command(text: str):
         win_rate = len(wins) / len(pnls) * 100 if pnls else 0.0
         gross_w = sum(p for p in pnls if p > 0)
         gross_l = abs(sum(p for p in pnls if p <= 0))
-        pf = gross_w / gross_l if gross_l > 0 else (float("inf") if gross_w > 0 else 0.0)
+        pf = (
+            gross_w / gross_l if gross_l > 0 else (float("inf") if gross_w > 0 else 0.0)
+        )
         pf_str = "inf" if pf == float("inf") else f"{pf:.2f}"
         lines.append(f"Net: {net:+.2f} | Kazanma: %{win_rate:.0f} | PF: {pf_str}")
         for t in reversed(history):
@@ -1015,7 +1135,9 @@ def _telegram_command(text: str):
         net = sum(pnls)
         gross_w = sum(wins)
         gross_l = abs(sum(losses))
-        pf = gross_w / gross_l if gross_l > 0 else (float("inf") if gross_w > 0 else 0.0)
+        pf = (
+            gross_w / gross_l if gross_l > 0 else (float("inf") if gross_w > 0 else 0.0)
+        )
         pf_str = "inf" if pf == float("inf") else f"{pf:.2f}"
         avg_w = gross_w / len(wins) if wins else 0.0
         avg_l = gross_l / len(losses) if losses else 0.0
@@ -1052,9 +1174,13 @@ def _telegram_command(text: str):
         ]
         bad = [r for r in st["rows"] if r["state"] != "ok"]
         if bad:
-            lines.append("Eski/Eksik: " + ", ".join(
-                f"{r['symbol']}({r['age_hours'] if r['age_hours'] is not None else 'yok'}s)"
-                for r in bad[:15]))
+            lines.append(
+                "Eski/Eksik: "
+                + ", ".join(
+                    f"{r['symbol']}({r['age_hours'] if r['age_hours'] is not None else 'yok'}s)"
+                    for r in bad[:15]
+                )
+            )
         return "\n".join(lines)
     if cmd.startswith("/backfill"):
         if not auto_trader or not auto_trader.binance:
@@ -1076,8 +1202,10 @@ def _telegram_command(text: str):
         days = max(1, min(days, 90))
         if not _run_later(_run_backfill(symbols, days)):
             return "ATOS X: motor calismiyor"
-        return (f"ATOS X backfill basladi ({src} {len(symbols)} sembol, "
-                f"{days} gun): {', '.join(symbols[:8])}")
+        return (
+            f"ATOS X backfill basladi ({src} {len(symbols)} sembol, "
+            f"{days} gun): {', '.join(symbols[:8])}"
+        )
     if cmd.startswith("/temizle"):
         if not auto_trader:
             return "ATOS X: motor calismiyor"
@@ -1086,21 +1214,27 @@ def _telegram_command(text: str):
         confirm = len(parts) > 1 and parts[1].lower() == "onay"
         hard_and_confirm = hard and len(parts) > 2 and parts[2].lower() == "onay"
         if hard and not hard_and_confirm and not confirm:
-            return ("ATOS X: /temizle hepsi TUM verileri siler!\n"
-                    "Onay icin: /temizle hepsi onay")
+            return (
+                "ATOS X: /temizle hepsi TUM verileri siler!\n"
+                "Onay icin: /temizle hepsi onay"
+            )
         if hard_and_confirm:
             n_closed = auto_trader.db.clear_closed_trades()
             auto_trader.trade_history = []
             counts = auto_trader.db.clear_operational()
-            return ("ATOS X temizlendi (hepsi):\n"
-                    f"Kapanan islem: {n_closed}\n"
-                    f"Sinyal: {counts['signals']} | Backtest: {counts['backtest_runs']} | "
-                    f"Risk olayi: {counts['risk_events']} | Performans: {counts['performance']}")
+            return (
+                "ATOS X temizlendi (hepsi):\n"
+                f"Kapanan islem: {n_closed}\n"
+                f"Sinyal: {counts['signals']} | Backtest: {counts['backtest_runs']} | "
+                f"Risk olayi: {counts['risk_events']} | Performans: {counts['performance']}"
+            )
         n_closed = auto_trader.db.clear_closed_trades()
         auto_trader.trade_history = []
-        return ("ATOS X kapanan islem gecmisi temizlendi.\n"
-                f"Silinen kayit: {n_closed}\n"
-                "Diger tablolar icin: /temizle hepsi (onay gerekli)")
+        return (
+            "ATOS X kapanan islem gecmisi temizlendi.\n"
+            f"Silinen kayit: {n_closed}\n"
+            "Diger tablolar icin: /temizle hepsi (onay gerekli)"
+        )
     if cmd.startswith("/izleme"):
         if not auto_trader:
             return "ATOS X: motor calismiyor"
@@ -1132,7 +1266,7 @@ def _telegram_command(text: str):
         sharpe = 0.0
         if total >= 2:
             var = sum((p - avg_pnl) ** 2 for p in pnls) / (total - 1)
-            std = var ** 0.5
+            std = var**0.5
             sharpe = avg_pnl / std if std > 0 else 0.0
         win_streak = loss_streak = cur_w = cur_l = 0
         for p in pnls:
@@ -1169,7 +1303,9 @@ def _telegram_command(text: str):
             for m, d in months:
                 mwr = d["wins"] / d["count"] * 100 if d["count"] else 0
                 sign = "+" if d["pnl"] >= 0 else ""
-                lines.append(f"  {m}: {d['count']} islem {sign}{d['pnl']:.2f} (%{mwr:.0f})")
+                lines.append(
+                    f"  {m}: {d['count']} islem {sign}{d['pnl']:.2f} (%{mwr:.0f})"
+                )
         return "\n".join(lines)
     if cmd.startswith("/ai"):
         if not auto_trader:
@@ -1180,6 +1316,7 @@ def _telegram_command(text: str):
             return f"ATOS X: AI istatistik hatasi: {e}"
         try:
             from app.ai.retrain import last_trained_at
+
             s = strat_settings.get_settings()
             last = last_trained_at(str(s.get("ai_model_path", "ai_direction")))
             retrain_line = ""
@@ -1194,10 +1331,11 @@ def _telegram_command(text: str):
         except Exception:
             last, retrain_line = None, ""
         if stats["resolved"] == 0:
-            return ("ATOS X AI tahmin istatistikleri:\n"
-                    f"Toplam: {stats['total']} | Bekleyen: {stats['pending']}\n"
-                    "Henuz cozumlenmis tahmin yok"
-                    + retrain_line)
+            return (
+                "ATOS X AI tahmin istatistikleri:\n"
+                f"Toplam: {stats['total']} | Bekleyen: {stats['pending']}\n"
+                "Henuz cozumlenmis tahmin yok" + retrain_line
+            )
         lines = [
             "ATOS X AI tahmin istatistikleri:",
             f"Toplam: {stats['total']} | Cozumlenen: {stats['resolved']} | "
@@ -1262,14 +1400,15 @@ def _telegram_command(text: str):
             sign = "+" if pnl >= 0 else ""
             lines.append(f"  {sym} {side} ${exit_p:g} {sign}{pnl:.2f}")
         if len(closed) > 15:
-            lines.append(f"  ...+{len(closed)-15} daha")
+            lines.append(f"  ...+{len(closed) - 15} daha")
         total_pnl = sum(t[6] or 0 for t in closed)
         wins = sum(1 for t in closed if (t[6] or 0) > 0)
-        lines.append(f"Toplam: {total_pnl:+.2f} ({wins}W/{len(closed)-wins}L)")
+        lines.append(f"Toplam: {total_pnl:+.2f} ({wins}W/{len(closed) - wins}L)")
         return "\n".join(lines)
     if cmd.startswith("/bekleyen"):
         if not auto_trader or not auto_trader.binance:
             return "ATOS X: motor calismiyor"
+
         async def _fetch_orders():
             try:
                 orders = await auto_trader.binance.get_open_algo_orders()
@@ -1287,8 +1426,9 @@ def _telegram_command(text: str):
                 otype = "TP" if "TP" in str(o.get("ordType", "")).upper() else "SL"
                 lines.append(f"  {sym} {otype} {side} @{tp}")
             if len(orders) > 15:
-                lines.append(f"  ...+{len(orders)-15} daha")
+                lines.append(f"  ...+{len(orders) - 15} daha")
             await telegram.send("\n".join(lines))
+
         _run_later(_fetch_orders())
         return "ATOS X: bekleyen emirler sorgulanıyor"
     if cmd.startswith("/alarm"):
@@ -1319,11 +1459,13 @@ def _telegram_command(text: str):
                 return f"ATOS X: {sym} zaten ${current:g} - esik ${target:g} altinda"
             if sym not in _PRICE_ALERTS:
                 _PRICE_ALERTS[sym] = []
-            if any(a["price"] == target and a["side"] == side for a in _PRICE_ALERTS[sym]):
+            if any(
+                a["price"] == target and a["side"] == side for a in _PRICE_ALERTS[sym]
+            ):
                 return f"ATOS X: {sym} icin ${target:g} ({side}) alarmi zaten mevcut"
-            _PRICE_ALERTS[sym].append({
-                "price": target, "side": side, "created": utc_now().isoformat()
-            })
+            _PRICE_ALERTS[sym].append(
+                {"price": target, "side": side, "created": utc_now().isoformat()}
+            )
             db = getattr(app.state, "db", None)
             if db is not None:
                 db.save_price_alert(sym, target, side)
@@ -1334,7 +1476,7 @@ def _telegram_command(text: str):
         if not auto_trader:
             return "ATOS X: motor calismiyor"
         pos = auto_trader.active_positions
-        upnl = _positions_payload()['total_upnl']
+        upnl = _positions_payload()["total_upnl"]
         total_eq = auto_trader.equity + upnl
         long_n = sum(1 for p in pos.values() if p.get("side") == "BUY")
         short_n = len(pos) - long_n
@@ -1378,7 +1520,7 @@ def _telegram_command(text: str):
         lines = [
             "ATOS X ayarlar:",
             f"Indikator: {s.get('leading_indicator', '')}",
-            f"Risk/trade: %{s['risk_per_trade']*100:.1f} | Kaldirac: {s['max_leverage']}",
+            f"Risk/trade: %{s['risk_per_trade'] * 100:.1f} | Kaldirac: {s['max_leverage']}",
             f"Pozisyon limit: {s['max_open_positions']} | Max yas: {s['max_position_age_hours']}sa",
             f"R:R: {s.get('rr_ratio', 1.5)} | ATR: {s.get('atr_mult', 1.5)}",
             f"Trailing: %{s.get('trailing_activate_pct', 0):g} on / %{s.get('trailing_sl_pct', 0):g} off",
@@ -1397,12 +1539,15 @@ def _telegram_command(text: str):
         base = Path(db.db_path).parent / "backups"
         if not base.is_dir():
             return "ATOS X: yedek yok"
-        files = sorted(base.glob(f"{Path(db.db_path).stem}_backup_*.db"),
-                       reverse=True)[:20]
+        files = sorted(base.glob(f"{Path(db.db_path).stem}_backup_*.db"), reverse=True)[
+            :20
+        ]
         if not files:
             return "ATOS X: yedek yok"
-        lines = [f"{i + 1}. {f.name} ({f.stat().st_size // 1024} KB)"
-                 for i, f in enumerate(files)]
+        lines = [
+            f"{i + 1}. {f.name} ({f.stat().st_size // 1024} KB)"
+            for i, f in enumerate(files)
+        ]
         return "ATOS X: son yedekler\n" + "\n".join(lines)
     if cmd.startswith("/yedek"):
         db = getattr(app.state, "db", None)
@@ -1440,6 +1585,7 @@ def _telegram_command(text: str):
             return "ATOS X: islem gecmisi yok"
         try:
             from app.strategy.analytics import portfolio_stats
+
             stats = portfolio_stats(hist)
             lines = [
                 "ATOS X Portfoy Metrikleri:",
@@ -1468,9 +1614,11 @@ def _telegram_command(text: str):
             return "ATOS X: VaR icin yetersiz islem (min 5)"
         try:
             from app.strategy.var import cvar, historical_var
+
             pnls = [(t.get("pnl") or 0) for t in hist]
             notionals = [
-                float(t.get("entry") or 1) * float(t.get("qty", t.get("quantity", 1)) or 1)
+                float(t.get("entry") or 1)
+                * float(t.get("qty", t.get("quantity", 1)) or 1)
                 for t in hist
             ]
             returns = [p / max(n, 1.0) for p, n in zip(pnls, notionals)]
@@ -1480,8 +1628,8 @@ def _telegram_command(text: str):
             return (
                 "ATOS X VaR (tarihsel):\n"
                 f"Equity: ${eq:.2f}\n"
-                f"VaR %95: %{var95*100:.2f} = ${eq*abs(var95):.2f}\n"
-                f"CVaR %95: %{cvar95*100:.2f} = ${eq*abs(cvar95):.2f}\n"
+                f"VaR %95: %{var95 * 100:.2f} = ${eq * abs(var95):.2f}\n"
+                f"CVaR %95: %{cvar95 * 100:.2f} = ${eq * abs(cvar95):.2f}\n"
                 f"Örnek: {len(returns)} islem"
             )
         except Exception as e:
@@ -1492,10 +1640,14 @@ def _telegram_command(text: str):
             return "ATOS X: motor calismiyor"
         try:
             from app.strategy.stress import stress_test
+
             positions = [
-                {"symbol": sym, "side": p.get("side", "BUY"),
-                 "entry_price": float(p.get("entry_price", 0) or 0),
-                 "quantity": float(p.get("quantity", 0) or 0)}
+                {
+                    "symbol": sym,
+                    "side": p.get("side", "BUY"),
+                    "entry_price": float(p.get("entry_price", 0) or 0),
+                    "quantity": float(p.get("quantity", 0) or 0),
+                }
                 for sym, p in auto_trader.active_positions.items()
             ]
             eq = auto_trader.equity or 10000.0
@@ -1521,6 +1673,7 @@ def _telegram_command(text: str):
         sym = parts[1].upper()
         try:
             from app.strategy.multi_tf import get_mtf_context, mtf_vote
+
             s = strat_settings.get_settings()
             intervals = s.get("mtf_intervals", ["4h", "1h"])
             dfs = get_mtf_context(sym, intervals)
@@ -1534,8 +1687,7 @@ def _telegram_command(text: str):
                 arrow = "🟢" if sig == "BUY" else ("🔴" if sig == "SELL" else "⚪")
                 lines.append(f"  {iv}: {arrow} {sig} (agirlik {v['weight']})")
             lines.append(
-                f"Karar: {result['verdict']} "
-                f"(guven {result['confidence']*100:.0f}%)"
+                f"Karar: {result['verdict']} (guven {result['confidence'] * 100:.0f}%)"
             )
             return "\n".join(lines)
         except Exception as e:
@@ -1564,8 +1716,7 @@ def _telegram_command(text: str):
             wr = d["wins"] / d["count"] * 100 if d["count"] else 0
             sign = "+" if d["pnl"] >= 0 else ""
             lines.append(
-                f"{emoji} {month}: {sign}{d['pnl']:.2f} "
-                f"({d['count']} islem, %{wr:.0f})"
+                f"{emoji} {month}: {sign}{d['pnl']:.2f} ({d['count']} islem, %{wr:.0f})"
             )
         return "\n".join(lines)
 
@@ -1578,28 +1729,34 @@ def _telegram_command(text: str):
         lines = ["symbol,side,entry,exit,qty,pnl,reason,time"]
         for t in hist:
             lines.append(
-                f"{t.get('symbol','')},{t.get('side','')},"
-                f"{t.get('entry','')},{t.get('exit','')},"
-                f"{t.get('qty', t.get('quantity',''))},"
-                f"{t.get('pnl','')},"
-                f"{t.get('reason','')},"
-                f"{t.get('time','')}"
+                f"{t.get('symbol', '')},{t.get('side', '')},"
+                f"{t.get('entry', '')},{t.get('exit', '')},"
+                f"{t.get('qty', t.get('quantity', ''))},"
+                f"{t.get('pnl', '')},"
+                f"{t.get('reason', '')},"
+                f"{t.get('time', '')}"
             )
         csv_content = "\n".join(lines)
         # Kısa CSV Telegram mesajı olarak gönder (büyük dosyalar kısaltılır)
         if len(csv_content) > 3800:
             csv_content = csv_content[:3800] + "\n...(kısaltıldı)"
-        return f"ATOS X İşlem Dışa Aktarma ({len(hist)} satır):\n<pre>{csv_content}</pre>"
+        return (
+            f"ATOS X İşlem Dışa Aktarma ({len(hist)} satır):\n<pre>{csv_content}</pre>"
+        )
 
     return None
+
 
 async def _run_backfill(symbols: list, days: int):
     """Arka planda CSV backfill calistirir, sonucu Telegram'dan bildirir."""
     try:
-        res = await backfill_klines(auto_trader.binance, symbols,
-                                    interval="4h", days=days)
-        msg = (f"ATOS X backfill bitti: {len(res.get('written', []))} yazildi, "
-               f"{len(res.get('failed', []))} hatali")
+        res = await backfill_klines(
+            auto_trader.binance, symbols, interval="4h", days=days
+        )
+        msg = (
+            f"ATOS X backfill bitti: {len(res.get('written', []))} yazildi, "
+            f"{len(res.get('failed', []))} hatali"
+        )
         if res.get("skipped"):
             msg += f", {len(res['skipped'])} atlandi"
         if res.get("failed"):
@@ -1609,18 +1766,27 @@ async def _run_backfill(symbols: list, days: int):
         logger.error(f"Backfill hatasi: {e}")
         await telegram.send(f"ATOS X backfill hatasi: {e}")
 
+
 async def _send_watchlist(symbols: list):
     """Oncelik sirasina gore canli coin skorlarini Telegram'a gonderir."""
     try:
         scored = []
         freshness = _data_freshness(len(symbols))
-        fresh_map = {r["symbol"]: r.get("state", "missing") for r in freshness.get("rows", [])}
+        fresh_map = {
+            r["symbol"]: r.get("state", "missing") for r in freshness.get("rows", [])
+        }
         for sym in symbols:
             try:
                 df = loader.load_csv(sym, "4h", limit=30)
                 info = coin_score(df)
-                scored.append((info.get("score", 0.0), info.get("trend", "RANGE"),
-                               info.get("momentum_pct", 0.0), sym))
+                scored.append(
+                    (
+                        info.get("score", 0.0),
+                        info.get("trend", "RANGE"),
+                        info.get("momentum_pct", 0.0),
+                        sym,
+                    )
+                )
             except Exception:
                 scored.append((0.0, "RANGE", 0.0, sym))
         scored.sort(key=lambda x: x[0], reverse=True)
@@ -1636,8 +1802,10 @@ async def _send_watchlist(symbols: list):
         logger.error(f"Watchlist hatasi: {e}")
         await telegram.send(f"ATOS X izleme hatasi: {e}")
 
+
 def _is_connected() -> bool:
     return bool(auto_trader and auto_trader.binance and auto_trader.binance.client)
+
 
 def _data_freshness(limit: int = 100) -> dict:
     """Trading sembollerinin yerel CSV veri tazeligi durumu.
@@ -1646,8 +1814,15 @@ def _data_freshness(limit: int = 100) -> dict:
     otomatik backfill ile birlikte ops gorunurlugu saglar.
     """
     if not auto_trader:
-        return {"ok": False, "error": "not_running", "count": 0,
-                "fresh": 0, "stale": 0, "missing": 0, "rows": []}
+        return {
+            "ok": False,
+            "error": "not_running",
+            "count": 0,
+            "fresh": 0,
+            "stale": 0,
+            "missing": 0,
+            "rows": [],
+        }
     limit = max(1, min(limit, 300))
     symbols = (auto_trader.priority or auto_trader.trading_symbols)[:limit]
     fresh_h = float(strat_settings.get_settings().get("data_freshness_hours", 12.0))
@@ -1665,24 +1840,50 @@ def _data_freshness(limit: int = 100) -> dict:
                 stale += 1
             else:
                 fresh += 1
-            rows.append({"symbol": symbol, "bars": len(df),
-                         "last": last.isoformat(), "age_hours": round(age_h, 2),
-                         "state": state})
+            rows.append(
+                {
+                    "symbol": symbol,
+                    "bars": len(df),
+                    "last": last.isoformat(),
+                    "age_hours": round(age_h, 2),
+                    "state": state,
+                }
+            )
         except Exception:
             missing += 1
-            rows.append({"symbol": symbol, "bars": 0, "last": None,
-                         "age_hours": None, "state": "missing"})
+            rows.append(
+                {
+                    "symbol": symbol,
+                    "bars": 0,
+                    "last": None,
+                    "age_hours": None,
+                    "state": "missing",
+                }
+            )
     order = {"ok": 0, "stale": 1, "missing": 2}
     rows.sort(key=lambda r: (order[r["state"]], r["symbol"]))
-    return {"ok": True, "interval": "4h", "freshness_hours": fresh_h,
-            "count": len(rows), "fresh": fresh, "stale": stale, "missing": missing,
-            "rows": rows}
+    return {
+        "ok": True,
+        "interval": "4h",
+        "freshness_hours": fresh_h,
+        "count": len(rows),
+        "fresh": fresh,
+        "stale": stale,
+        "missing": missing,
+        "rows": rows,
+    }
+
 
 def _concentration_summary() -> dict:
     """Maruziyet ve aktif konsantrasyon engelleri (ops gorunurlugu)."""
     if not auto_trader:
-        return {"long_pct": 0.0, "short_pct": 0.0, "blocks": [],
-                "max_position_pct": 0.0, "max_side_pct": 0.0}
+        return {
+            "long_pct": 0.0,
+            "short_pct": 0.0,
+            "blocks": [],
+            "max_position_pct": 0.0,
+            "max_side_pct": 0.0,
+        }
     equity = auto_trader.equity or 1.0
     long_n = short_n = 0.0
     for p in list(auto_trader.active_positions.values()):
@@ -1699,11 +1900,14 @@ def _concentration_summary() -> dict:
         "max_side_pct": auto_trader.max_side_pct,
     }
 
+
 async def _daily_report_loop():
     """Her gun `DAILY_REPORT_HOUR` saatinde (yerel) ozet raporu gonderir."""
     while True:
         now = datetime.now()
-        target = now.replace(hour=settings.DAILY_REPORT_HOUR, minute=0, second=0, microsecond=0)
+        target = now.replace(
+            hour=settings.DAILY_REPORT_HOUR, minute=0, second=0, microsecond=0
+        )
         if now >= target:
             target += timedelta(days=1)
         await asyncio.sleep((target - now).total_seconds())
@@ -1723,23 +1927,35 @@ async def _daily_report_loop():
                     day_pnl=auto_trader.day_pnl,
                     data_status=_data_freshness(300),
                     protection_stats={
-                        "trailing": sum(1 for t in auto_trader.trade_history
-                                        if t.get("trailing")),
-                        "breakeven": sum(1 for t in auto_trader.trade_history
-                                         if t.get("breakeven")),
+                        "trailing": sum(
+                            1 for t in auto_trader.trade_history if t.get("trailing")
+                        ),
+                        "breakeven": sum(
+                            1 for t in auto_trader.trade_history if t.get("breakeven")
+                        ),
                     },
                 )
         except Exception as e:
             logger.error(f"Gunluk rapor hatasi: {e}")
 
+
 app = FastAPI(title="ATOS X API", version="1.0.0", lifespan=lifespan)
 if settings.ALLOWED_ORIGINS.strip():
     origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
 else:
-    origins = ["http://localhost", "http://127.0.0.1",
-               "http://localhost:8000", "http://127.0.0.1:8000"]
-app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True,
-                   allow_methods=["*"], allow_headers=["*"])
+    origins = [
+        "http://localhost",
+        "http://127.0.0.1",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.add_middleware(APIKeyMiddleware, api_key=settings.API_KEY)
 app.include_router(backtest_router)
 app.include_router(optimize_router)
@@ -1749,9 +1965,15 @@ app.include_router(portfolio_router)
 app.include_router(risk_router)
 app.include_router(agents_router)
 
+
 @app.get("/")
 async def root():
-    return {"message": "🚀 ATOS X", "status": system_status["status"], "version": settings.APP_VERSION}
+    return {
+        "message": "🚀 ATOS X",
+        "status": system_status["status"],
+        "version": settings.APP_VERSION,
+    }
+
 
 @app.get("/health")
 async def health():
@@ -1780,6 +2002,7 @@ async def health():
             "in_sync": system_status.get("start_commit") == git_head(),
         },
     }
+
 
 @app.get("/api/v1/signals")
 async def live_signals(limit: int = 12, interval: str = "4h"):
@@ -1816,21 +2039,24 @@ async def live_signals(limit: int = 12, interval: str = "4h"):
                 ai = ai_predictor.predict(df)
             except Exception:
                 ai = None
-        signals.append({
-            "symbol": symbol,
-            "signal": sig.get("signal", "HOLD"),
-            "price": sig.get("price"),
-            "sl": sig.get("sl"),
-            "tp": sig.get("tp"),
-            "reason": sig.get("reason", ""),
-            "indicator": sig.get("indicator", ""),
-            "strength": sig.get("strength", 0.0),
-            "ai_direction": ai.get("direction") if ai else None,
-            "ai_confidence": ai.get("confidence") if ai else None,
-        })
+        signals.append(
+            {
+                "symbol": symbol,
+                "signal": sig.get("signal", "HOLD"),
+                "price": sig.get("price"),
+                "sl": sig.get("sl"),
+                "tp": sig.get("tp"),
+                "reason": sig.get("reason", ""),
+                "indicator": sig.get("indicator", ""),
+                "strength": sig.get("strength", 0.0),
+                "ai_direction": ai.get("direction") if ai else None,
+                "ai_confidence": ai.get("confidence") if ai else None,
+            }
+        )
     order = {"BUY": 0, "SELL": 1, "HOLD": 2}
     signals.sort(key=lambda s: order.get(s["signal"], 3))
     return {"signals": signals, "count": len(signals), "scanned": candidates}
+
 
 @app.get("/api/v1/market/regime")
 async def market_regime(symbol: str = "BTCUSDT", interval: str = "4h"):
@@ -1844,6 +2070,7 @@ async def market_regime(symbol: str = "BTCUSDT", interval: str = "4h"):
     out["symbol"] = symbol.upper()
     out["interval"] = interval
     return out
+
 
 @app.get("/api/v1/market/regimes")
 async def market_regimes(limit: int = 10, interval: str = "4h"):
@@ -1867,6 +2094,7 @@ async def market_regimes(limit: int = 10, interval: str = "4h"):
     results = await asyncio.gather(*(fetch(s) for s in candidates))
     regimes = [r for r in results if r is not None]
     return {"regimes": regimes, "count": len(regimes), "scanned": candidates}
+
 
 @app.get("/api/v1/market/scores")
 async def market_scores(limit: int = 10, interval: str = "4h"):
@@ -1892,6 +2120,7 @@ async def market_scores(limit: int = 10, interval: str = "4h"):
     scores.sort(key=lambda s: s.get("score", 0.0), reverse=True)
     return {"scores": scores, "count": len(scores), "scanned": candidates}
 
+
 @app.get("/api/v1/market/decision")
 async def market_decision(symbol: str = "BTCUSDT", interval: str = "4h"):
     """Tek sembol icin Decision Council karari."""
@@ -1904,6 +2133,7 @@ async def market_decision(symbol: str = "BTCUSDT", interval: str = "4h"):
     out["symbol"] = symbol.upper()
     out["interval"] = interval
     return out
+
 
 @app.get("/api/v1/market/decisions")
 async def market_decisions(limit: int = 10, interval: str = "4h"):
@@ -1930,40 +2160,64 @@ async def market_decisions(limit: int = 10, interval: str = "4h"):
     decisions.sort(key=lambda d: (order.get(d["verdict"], 3), -d["confidence"]))
     return {"decisions": decisions, "count": len(decisions), "scanned": candidates}
 
+
 @app.post("/api/v1/data/collect")
-async def data_collect(symbols: str = "", interval: str = "4h", bars: int = 400,
-                       skip_stablecoins: bool = True):
+async def data_collect(
+    symbols: str = "",
+    interval: str = "4h",
+    bars: int = 400,
+    skip_stablecoins: bool = True,
+):
     """Belirtilen sembollerin kline'larini CSV arsivine toplar."""
     if not auto_trader or not auto_trader.binance:
         return {"ok": False, "error": "not_running"}
-    syms = [s.strip().upper() for s in symbols.split(",") if s.strip()] \
-        or auto_trader.trading_symbols[:10]
+    syms = [
+        s.strip().upper() for s in symbols.split(",") if s.strip()
+    ] or auto_trader.trading_symbols[:10]
     if not syms:
         return {"ok": False, "error": "empty_symbols"}
-    res = await collect_klines(auto_trader.binance, syms, interval=interval,
-                               bars=bars, skip_stablecoins=skip_stablecoins)
+    res = await collect_klines(
+        auto_trader.binance,
+        syms,
+        interval=interval,
+        bars=bars,
+        skip_stablecoins=skip_stablecoins,
+    )
     res["ok"] = True
     return res
 
+
 @app.post("/api/v1/data/backfill")
-async def data_backfill(symbols: str = "", interval: str = "4h", days: int = 30,
-                        skip_stablecoins: bool = True):
+async def data_backfill(
+    symbols: str = "",
+    interval: str = "4h",
+    days: int = 30,
+    skip_stablecoins: bool = True,
+):
     """Sembollerin gecmis kline'larini parcalar halinde CSV arsivine yazar."""
     if not auto_trader or not auto_trader.binance:
         return {"ok": False, "error": "not_running"}
-    syms = [s.strip().upper() for s in symbols.split(",") if s.strip()] \
-        or auto_trader.trading_symbols[:10]
+    syms = [
+        s.strip().upper() for s in symbols.split(",") if s.strip()
+    ] or auto_trader.trading_symbols[:10]
     if not syms:
         return {"ok": False, "error": "empty_symbols"}
-    res = await backfill_klines(auto_trader.binance, syms, interval=interval,
-                                days=days, skip_stablecoins=skip_stablecoins)
+    res = await backfill_klines(
+        auto_trader.binance,
+        syms,
+        interval=interval,
+        days=days,
+        skip_stablecoins=skip_stablecoins,
+    )
     res["ok"] = True
     return res
+
 
 @app.get("/api/v1/data/status")
 async def data_status(limit: int = 100):
     """Trading sembollerinin CSV veri tazeligi durumu (ok/stale/missing)."""
     return _data_freshness(limit)
+
 
 @app.post("/api/v1/data/backfill/stale")
 async def data_backfill_stale(days: int = 30):
@@ -1973,14 +2227,20 @@ async def data_backfill_stale(days: int = 30):
     st = _data_freshness(300)
     symbols = [r["symbol"] for r in st["rows"] if r["state"] != "ok"][:10]
     if not symbols:
-        return {"ok": True, "written": [], "failed": [], "skipped": [],
-                "symbols": [], "message": "backfill gereken sembol yok"}
+        return {
+            "ok": True,
+            "written": [],
+            "failed": [],
+            "skipped": [],
+            "symbols": [],
+            "message": "backfill gereken sembol yok",
+        }
     days = max(1, min(days, 90))
-    res = await backfill_klines(auto_trader.binance, symbols, interval="4h",
-                                days=days)
+    res = await backfill_klines(auto_trader.binance, symbols, interval="4h", days=days)
     res["ok"] = True
     res["symbols"] = symbols
     return res
+
 
 @app.get("/api/v1/status")
 async def get_status():
@@ -2004,10 +2264,13 @@ async def get_status():
         "paper": auto_trader.paper if auto_trader else True,
         "trading_mode": auto_trader.trading_mode if auto_trader else "paper",
         "halt_entries": auto_trader.halt_entries if auto_trader else False,
-        "live_trading_enabled": auto_trader.live_trading_enabled if auto_trader else False,
+        "live_trading_enabled": auto_trader.live_trading_enabled
+        if auto_trader
+        else False,
         "top_symbols": auto_trader.top_symbols if auto_trader else [],
-        "equity": auto_trader.equity if auto_trader else 10000
+        "equity": auto_trader.equity if auto_trader else 10000,
     }
+
 
 @app.get("/api/v1/priority")
 async def get_priority():
@@ -2019,6 +2282,7 @@ async def get_priority():
         "symbols": auto_trader.priority,
     }
 
+
 @app.get("/api/v1/equity_curve")
 async def equity_curve(points: int = 200):
     points = max(10, min(points, 1000))
@@ -2029,12 +2293,14 @@ async def equity_curve(points: int = 200):
         "open_positions": [r[2] for r in rows],
     }
 
+
 @app.get("/api/v1/trades/summary")
 async def trades_summary():
     if not auto_trader:
         return {"symbols": [], "count": 0}
     symbols = auto_trader.db.get_symbol_pnl(limit=100)
     return {"symbols": symbols, "count": len(symbols)}
+
 
 @app.get("/api/v1/performance/summary")
 async def performance_summary():
@@ -2047,13 +2313,19 @@ async def performance_summary():
 
     def _period_stats(trades, days):
         cutoff = now - timedelta(days=days)
-        sel = [t for t in trades if t.get("time") and datetime.fromisoformat(str(t["time"][:19])) >= cutoff]
+        sel = [
+            t
+            for t in trades
+            if t.get("time") and datetime.fromisoformat(str(t["time"][:19])) >= cutoff
+        ]
         pnls = [t.get("pnl", 0) or 0 for t in sel]
         wins = sum(1 for p in pnls if p > 0)
         losses = sum(1 for p in pnls if p < 0)
         gross_w = sum(p for p in pnls if p > 0)
         gross_l = abs(sum(p for p in pnls if p < 0))
-        pf = gross_w / gross_l if gross_l > 0 else (float("inf") if gross_w > 0 else 0.0)
+        pf = (
+            gross_w / gross_l if gross_l > 0 else (float("inf") if gross_w > 0 else 0.0)
+        )
         period_pnl = round(sum(pnls), 2)
         return {
             "trades": len(pnls),
@@ -2073,10 +2345,15 @@ async def performance_summary():
         "today": _period_stats(hist, 1),
     }
 
+
 # ============ STRATEJİ AYARLARI ENDPOINT'LERİ ============
 @app.get("/api/v1/strategy/settings")
 async def get_strategy_settings():
-    return {"settings": strat_settings.get_settings(), "timestamp": utc_now().isoformat()}
+    return {
+        "settings": strat_settings.get_settings(),
+        "timestamp": utc_now().isoformat(),
+    }
+
 
 @app.post("/api/v1/strategy/settings")
 async def update_strategy_settings(request: Request):
@@ -2088,9 +2365,11 @@ async def update_strategy_settings(request: Request):
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
+
 @app.get("/api/v1/strategy/defaults")
 async def get_default_settings():
     return {"settings": strat_settings.default_settings()}
+
 
 @app.get("/api/v1/signal/{symbol}")
 async def get_signal(symbol: str, interval: str = "4h", limit: int = 400):
@@ -2101,13 +2380,19 @@ async def get_signal(symbol: str, interval: str = "4h", limit: int = 400):
     except Exception as e:
         return {"symbol": symbol, "error": str(e)}
 
+
 @app.get("/api/v1/positions")
 async def get_positions():
     return _positions_payload()
 
+
 @app.get("/api/v1/trades")
 async def get_trades():
-    return {"trades": auto_trader.trade_history[-50:] if auto_trader else [], "count": len(auto_trader.trade_history) if auto_trader else 0}
+    return {
+        "trades": auto_trader.trade_history[-50:] if auto_trader else [],
+        "count": len(auto_trader.trade_history) if auto_trader else 0,
+    }
+
 
 @app.post("/api/v1/emergency_stop")
 async def emergency_stop():
@@ -2115,6 +2400,7 @@ async def emergency_stop():
         await auto_trader.stop()
         return {"status": "ok", "message": "All positions closed"}
     return {"status": "error", "message": "Not running"}
+
 
 @app.post("/api/v1/halt_entries")
 async def halt_entries(payload: dict = None):
@@ -2129,6 +2415,7 @@ async def halt_entries(payload: dict = None):
     )
     return {"ok": True, "halt_entries": auto_trader.halt_entries}
 
+
 @app.get("/api/v1/backups")
 async def list_backups():
     db = getattr(app.state, "db", None)
@@ -2137,12 +2424,20 @@ async def list_backups():
     base = Path(db.db_path).parent / "backups"
     items = []
     if base.is_dir():
-        for f in sorted(base.glob(f"{Path(db.db_path).stem}_backup_*.db"),
-                        reverse=True)[:50]:
+        for f in sorted(
+            base.glob(f"{Path(db.db_path).stem}_backup_*.db"), reverse=True
+        )[:50]:
             st = f.stat()
-            items.append({"name": f.name, "path": str(f), "size": st.st_size,
-                          "modified": datetime.fromtimestamp(st.st_mtime).isoformat()})
+            items.append(
+                {
+                    "name": f.name,
+                    "path": str(f),
+                    "size": st.st_size,
+                    "modified": datetime.fromtimestamp(st.st_mtime).isoformat(),
+                }
+            )
     return {"ok": True, "items": items}
+
 
 @app.get("/api/v1/ai/stats")
 async def ai_stats(limit_hours: int = 0):
@@ -2153,37 +2448,54 @@ async def ai_stats(limit_hours: int = 0):
     stats = await asyncio.to_thread(db.ai_stats, limit_hours)
     try:
         from app.ai.retrain import last_trained_at
+
         s = strat_settings.get_settings()
         stats["auto_retrain"] = bool(s.get("ai_auto_retrain", False))
         stats["model_name"] = str(s.get("ai_model_path", "ai_direction"))
         stats["last_trained_at"] = last_trained_at(
-            str(s.get("ai_model_path", "ai_direction")))
+            str(s.get("ai_model_path", "ai_direction"))
+        )
     except Exception:
         stats["auto_retrain"] = False
         stats["model_name"] = None
         stats["last_trained_at"] = None
     return stats
 
+
 def _clear_data(db, mode: str) -> dict:
     """Dashboard veri temizligi: 'history' | 'all'. Sayilarla doner."""
     import sqlite3
+
     conn = sqlite3.connect(db.db_path)
     counts = {}
-    for t in ("signals", "backtest_runs", "risk_events", "performance",
-              "predictions", "price_alerts"):
+    for t in (
+        "signals",
+        "backtest_runs",
+        "risk_events",
+        "performance",
+        "predictions",
+        "price_alerts",
+    ):
         counts[t] = conn.execute(f"DELETE FROM {t}").rowcount
     counts["trades_closed"] = conn.execute(
-        "DELETE FROM trades WHERE status = 'CLOSED'").rowcount
+        "DELETE FROM trades WHERE status = 'CLOSED'"
+    ).rowcount
     if mode == "all":
         counts["trades_open"] = conn.execute(
-            "DELETE FROM trades WHERE status = 'OPEN'").rowcount
+            "DELETE FROM trades WHERE status = 'OPEN'"
+        ).rowcount
         now = datetime.utcnow().strftime("%Y-%m-%d")
         for k, v in {
-            "equity": "10000.0", "peak_equity": "10000.0",
-            "drawdown_pct": "0.0", "day_pnl": "0.0",
-            "day_start_date": now, "consecutive_losses": "0",
-            "risk_halted": "0", "loss_halted": "0",
-            "daily_loss_halted": "0", "equity_halted": "0",
+            "equity": "10000.0",
+            "peak_equity": "10000.0",
+            "drawdown_pct": "0.0",
+            "day_pnl": "0.0",
+            "day_start_date": now,
+            "consecutive_losses": "0",
+            "risk_halted": "0",
+            "loss_halted": "0",
+            "daily_loss_halted": "0",
+            "equity_halted": "0",
         }.items():
             conn.execute("UPDATE app_state SET value = ? WHERE key = ?", (v, k))
     conn.commit()
@@ -2209,11 +2521,16 @@ async def data_clear(mode: str = "history"):
     mode = (mode or "history").lower()
     if mode not in ("history", "all"):
         return {"ok": False, "error": "mode history|all olmali"}
-    if (mode == "all" and auto_trader
-            and auto_trader.trading_mode == "live"
-            and auto_trader.active_positions):
-        return {"ok": False,
-                "error": "canli modda acik pozisyon varken tam sifirlama engellendi"}
+    if (
+        mode == "all"
+        and auto_trader
+        and auto_trader.trading_mode == "live"
+        and auto_trader.active_positions
+    ):
+        return {
+            "ok": False,
+            "error": "canli modda acik pozisyon varken tam sifirlama engellendi",
+        }
     backup = await asyncio.to_thread(db.backup)
     if not backup.get("ok"):
         return {"ok": False, "error": "yedek alinamadi: %s" % backup.get("error", "?")}
@@ -2224,9 +2541,13 @@ async def data_clear(mode: str = "history"):
             auto_trader.active_positions = {}
             auto_trader.risk_events = []
             auto_trader._persist_risk_state()
-    return {"ok": True, "mode": mode, "backup": backup.get("path"),
-            "counts": counts,
-            "message": "Tam sifirlama tamamlandi" if mode == "all" else "Gecmis temizlendi"}
+    return {
+        "ok": True,
+        "mode": mode,
+        "backup": backup.get("path"),
+        "counts": counts,
+        "message": "Tam sifirlama tamamlandi" if mode == "all" else "Gecmis temizlendi",
+    }
 
 
 @app.post("/api/v1/backup")
@@ -2235,6 +2556,7 @@ async def trigger_backup():
     if not db:
         return {"ok": False, "error": "not_running"}
     return await asyncio.to_thread(db.backup)
+
 
 @app.post("/api/v1/backup/restore")
 async def restore_backup(payload: dict = None):
@@ -2249,12 +2571,14 @@ async def restore_backup(payload: dict = None):
         return {"ok": False, "error": "path_gerekli"}
     return await asyncio.to_thread(db.restore, path)
 
+
 @app.get("/api/v1/risk/events")
 async def risk_events(limit: int = 50, type: str = ""):
     events = auto_trader.risk_events if auto_trader else []
     if type:
         events = [e for e in events if e["type"] == type]
     return {"events": events[-limit:], "count": len(events[-limit:])}
+
 
 @app.get("/api/v1/risk/positions")
 async def risk_positions():
@@ -2313,10 +2637,12 @@ async def risk_positions():
         "equity": round(equity, 2),
         "total_notional": round(sum(p["notional"] for p in out.values()), 2),
         "total_risk_amount": round(
-            sum(p["risk_amount"] for p in out.values() if p["risk_amount"] is not None), 2
+            sum(p["risk_amount"] for p in out.values() if p["risk_amount"] is not None),
+            2,
         ),
         "max_position_pct": auto_trader.max_position_pct if auto_trader else 0.0,
     }
+
 
 @app.get("/api/v1/portfolio")
 async def portfolio():
@@ -2331,25 +2657,35 @@ async def portfolio():
         upnl, pct = _position_upnl(pos, mark)
         if upnl is not None:
             total_unrealized += upnl
-        positions.append({
-            "symbol": symbol,
-            "side": pos["side"],
-            "quantity": float(pos["quantity"]),
-            "entry": float(pos["entry_price"]),
-            "mark": mark,
-            "notional": round(float(pos["entry_price"]) * float(pos["quantity"]), 2),
-            "upnl": upnl,
-            "upnl_pct": pct,
-            "sl": pos.get("sl"),
-            "tp": pos.get("tp"),
-            "protected": bool(pos.get("sl_order_id") or pos.get("tp_order_id")),
-        })
+        positions.append(
+            {
+                "symbol": symbol,
+                "side": pos["side"],
+                "quantity": float(pos["quantity"]),
+                "entry": float(pos["entry_price"]),
+                "mark": mark,
+                "notional": round(
+                    float(pos["entry_price"]) * float(pos["quantity"]), 2
+                ),
+                "upnl": upnl,
+                "upnl_pct": pct,
+                "sl": pos.get("sl"),
+                "tp": pos.get("tp"),
+                "protected": bool(pos.get("sl_order_id") or pos.get("tp_order_id")),
+            }
+        )
     equity = auto_trader.equity or 0.0
     peak = auto_trader.peak_equity or equity
     unrealized = bal.get("unrealized") if bal else round(total_unrealized, 2)
-    unrealized_pct = round(unrealized / equity * 100.0, 2) if equity and unrealized is not None else None
+    unrealized_pct = (
+        round(unrealized / equity * 100.0, 2)
+        if equity and unrealized is not None
+        else None
+    )
     day_pnl = auto_trader.day_pnl
-    day_pnl_pct = round(day_pnl / equity * 100.0, 2) if equity and day_pnl is not None else None
+    day_pnl_pct = (
+        round(day_pnl / equity * 100.0, 2) if equity and day_pnl is not None else None
+    )
     return {
         "mode": auto_trader.trading_mode,
         "synced": bool(bal),
@@ -2367,6 +2703,7 @@ async def portfolio():
         "total_notional": round(sum(p["notional"] for p in positions), 2),
     }
 
+
 @app.post("/api/v1/positions/{symbol}/sl")
 async def position_update_sl(symbol: str, request: Request):
     """Dashboard/API'den acik pozisyonun SL'sini gunceller."""
@@ -2379,6 +2716,7 @@ async def position_update_sl(symbol: str, request: Request):
         return {"ok": False, "error": "invalid_body"}
     return await auto_trader.update_sl(symbol.upper(), price)
 
+
 @app.post("/api/v1/positions/{symbol}/tp")
 async def position_update_tp(symbol: str, request: Request):
     """Dashboard/API'den acik pozisyonun TP'sini gunceller."""
@@ -2390,6 +2728,7 @@ async def position_update_tp(symbol: str, request: Request):
     except Exception:
         return {"ok": False, "error": "invalid_body"}
     return await auto_trader.update_tp(symbol.upper(), price)
+
 
 @app.post("/api/v1/positions/{symbol}/close")
 async def position_close(symbol: str):
@@ -2411,6 +2750,7 @@ async def position_close(symbol: str):
     await auto_trader.close_position(sym, price, "dashboard_close")
     return {"ok": True, "symbol": sym, "price": price}
 
+
 @app.get("/dashboard/metrics")
 async def metrics():
     try:
@@ -2430,7 +2770,9 @@ async def metrics():
             "risk_halted": auto_trader.risk_halted if auto_trader else False,
             "loss_halted": auto_trader.loss_halted if auto_trader else False,
             "consecutive_losses": auto_trader.consecutive_losses if auto_trader else 0,
-            "daily_loss_halted": auto_trader.daily_loss_halted if auto_trader else False,
+            "daily_loss_halted": auto_trader.daily_loss_halted
+            if auto_trader
+            else False,
             "day_pnl": auto_trader.day_pnl if auto_trader else 0.0,
             "equity_halted": auto_trader.equity_halted if auto_trader else False,
             "min_equity": auto_trader.min_equity if auto_trader else 0.0,
@@ -2438,10 +2780,11 @@ async def metrics():
             "halt_entries": auto_trader.halt_entries if auto_trader else False,
             "trading": auto_trader.running if auto_trader else False,
             "risk_events": auto_trader.risk_events[-10:] if auto_trader else [],
-            "uptime": int((utc_now() - system_status["start_time"]).total_seconds())
+            "uptime": int((utc_now() - system_status["start_time"]).total_seconds()),
         }
     except Exception as e:
         return {"error": str(e)}
+
 
 @app.get("/dashboard/html")
 async def dashboard_html():
@@ -2452,6 +2795,7 @@ async def dashboard_html():
         logger.warning(f"Dashboard HTML okunamadi: {e}")
         return HTMLResponse(content="<h1>Dashboard not found</h1>")
 
+
 @app.get("/dashboard/settings")
 async def settings_html():
     try:
@@ -2460,6 +2804,7 @@ async def settings_html():
     except OSError as e:
         logger.warning(f"Strategy settings HTML okunamadi: {e}")
         return HTMLResponse(content="<h1>Settings not found</h1>")
+
 
 @app.get("/optimize/html")
 async def optimize_html():
@@ -2470,6 +2815,7 @@ async def optimize_html():
         logger.warning(f"Optimize HTML okunamadi: {e}")
         return HTMLResponse(content="<h1>Optimize not found</h1>")
 
+
 @app.get("/backtest/html")
 async def backtest_html():
     try:
@@ -2479,7 +2825,140 @@ async def backtest_html():
         logger.warning(f"Backtest HTML okunamadi: {e}")
         return HTMLResponse(content="<h1>Backtest not found</h1>")
 
+
 _ASSISTANT_FILE = _APP_DIR / "data" / "assistant_messages.json"
+
+
+def _build_assistant_system_prompt() -> str:
+    mode = (
+        "PAPER"
+        if os.getenv("BINANCE_TESTNET", "True").lower() in ("true", "1")
+        else "CANLI"
+    )
+    trading = auto_trader.running if auto_trader else False
+    halt = auto_trader.halt_entries if auto_trader else False
+    symbols_count = len(auto_trader.trading_symbols) if auto_trader else 0
+    priority_count = (
+        len(auto_trader.priority) if auto_trader and auto_trader.priority else 0
+    )
+
+    db = getattr(app.state, "db", None) or Database(os.getenv("DB_PATH", "atos.db"))
+    state = db.get_all_state() if db else {}
+    equity = state.get("equity", "?")
+    peak = state.get("peak_equity", "?")
+    drawdown = state.get("drawdown_pct", "?")
+    day_pnl = state.get("day_pnl", "?")
+    day_start = state.get("day_start_date", "?")
+    risk_halted = state.get("risk_halted", "0") == "1"
+    loss_halted = state.get("loss_halted", "0") == "1"
+    daily_halted = state.get("daily_loss_halted", "0") == "1"
+    consec_losses = state.get("consecutive_losses", "0")
+
+    open_trades = db.list_open_trades() if db else []
+    closed_count = db.get_closed_trades(limit=9999) if db else []
+    closed_count = len(closed_count) if isinstance(closed_count, list) else 0
+    recent_trades = db.get_trades(limit=5) if db else []
+
+    signals_count = 0
+    pending_preds = 0
+    try:
+        conn = __import__("sqlite3").connect(db.db_path)
+        signals_count = conn.execute("SELECT COUNT(*) FROM signals").fetchone()[0]
+        pending_preds = conn.execute(
+            "SELECT COUNT(*) FROM predictions WHERE resolved=0"
+        ).fetchone()[0]
+        conn.close()
+    except Exception:
+        pass
+
+    halt_reasons = []
+    if risk_halted:
+        halt_reasons.append("RISK HALT")
+    if loss_halted:
+        halt_reasons.append("ARKADAN ARDIK ZARAR")
+    if daily_halted:
+        halt_reasons.append("GUNLUK ZARAR LIMITI")
+    halt_str = ", ".join(halt_reasons) if halt_reasons else "Yok"
+
+    trades_summary = ""
+    if recent_trades:
+        trades_lines = []
+        for t in recent_trades[:5]:
+            sym = t.get("symbol", "?")
+            direction = t.get("direction", "?")
+            pnl = t.get("pnl", "?")
+            reason = t.get("close_reason", "-")
+            trades_lines.append(f"  {sym} {direction} PnL={pnl} ({reason})")
+        trades_summary = "\nSon trade'ler:\n" + "\n".join(trades_lines)
+
+    open_summary = ""
+    if open_trades:
+        open_lines = []
+        for t in open_trades[:5]:
+            sym = t.get("symbol", "?")
+            direction = t.get("direction", "?")
+            entry = t.get("entry_price", "?")
+            sl = t.get("stop_loss", "-")
+            tp = t.get("take_profit", "-")
+            open_lines.append(f"  {sym} {direction} giris={entry} SL={sl} TP={tp}")
+        open_summary = "\nAktif pozisyonlar:\n" + "\n".join(open_lines)
+
+    return (
+        f"Sen ATOS X trading bot'inin AI ortagisin. Binance USDT-M Futures, {mode} modda calisiyorsun.\n"
+        f"\n=== SISTEM DURUMU (gercek veri) ===\n"
+        f"Mod: {mode}\n"
+        f"Trading: {'ACIK' if trading else 'KAPALI'}\n"
+        f"Giris izni: {'KAPALI (halt)' if halt else 'acik'}\n"
+        f"Engelleyiciler: {halt_str}\n"
+        f"Takip edilen coin: {symbols_count}\n"
+        f"Oncelikli izleme listesi: {priority_count} coin\n"
+        f"\n=== PORTFOY ===\n"
+        f"Equity: ${equity}\n"
+        f"Peak equity: ${peak}\n"
+        f"Drawdown: %{drawdown}\n"
+        f"Gun PnL: ${day_pnl} (baslangic: {day_start})\n"
+        f"Ardisik zarar: {consec_losses}\n"
+        f"Aktif pozisyon: {len(open_trades)}\n"
+        f"Kapanmis trade toplam: {closed_count}\n"
+        f"\n=== AI & KONSEY ===\n"
+        f"Toplam sinyal: {signals_count}\n"
+        f"Bekleyen AI tahmin: {pending_preds}\n"
+        f"{open_summary}"
+        f"{trades_summary}\n"
+        f"\n=== KURALLAR ===\n"
+        f"Kullaniciya kisa ve net Turkce cevaplar ver.\n"
+        f"Yatirim tavsiyesi verme, sadece sistem durumu ve gozlem paylas.\n"
+        f"Yukaridaki veriler GERCEK ve guncel — bunlara dayanarak cevap ver.\n"
+        f"Sayilar lafta degil, gercek DB degerleri."
+    )
+
+
+def _generate_ai_response(msgs: list) -> str:
+    api_key = os.getenv("NVIDIA_API_KEY")
+    if not api_key:
+        return "AI yaniti su an kullanilamiyor (NVIDIA_API_KEY eksik)."
+    system_prompt = _build_assistant_system_prompt()
+    chat_msgs = [{"role": "system", "content": system_prompt}]
+    for m in msgs[-20:]:
+        role = "user" if m.get("sender") == "user" else "assistant"
+        chat_msgs.append({"role": role, "content": m.get("text", "")})
+    try:
+        r = httpx.post(
+            "https://integrate.api.nvidia.com/v1/chat/completions",
+            json={
+                "model": "meta/llama-3.1-8b-instruct",
+                "messages": chat_msgs,
+                "max_tokens": 800,
+                "temperature": 0.7,
+            },
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=30,
+        )
+        if r.status_code == 200:
+            return r.json()["choices"][0]["message"]["content"].strip()
+        return f"AI yaniti alinamadi (HTTP {r.status_code})."
+    except Exception as e:
+        return f"AI yaniti hatasi: {e}"
 
 
 def _load_assistant_messages() -> list:
@@ -2515,11 +2994,21 @@ async def assistant_post(request: Request):
     if not text:
         return {"ok": False, "error": "empty"}
     msgs = _load_assistant_messages()
-    msgs.append({
-        "sender": sender if sender in ("user", "ai") else "user",
-        "text": text,
-        "ts": datetime.utcnow().isoformat(),
-    })
+    msgs.append(
+        {
+            "sender": sender if sender in ("user", "ai") else "user",
+            "text": text,
+            "ts": datetime.utcnow().isoformat(),
+        }
+    )
+    if sender == "user":
+        ai_text = await asyncio.to_thread(_generate_ai_response, msgs)
+        msgs.append(
+            {
+                "sender": "ai",
+                "text": ai_text,
+                "ts": datetime.utcnow().isoformat(),
+            }
+        )
     _save_assistant_messages(msgs)
     return {"ok": True, "messages": _load_assistant_messages()[-200:]}
-
