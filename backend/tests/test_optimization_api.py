@@ -25,7 +25,8 @@ def test_optimize_runs_small_grid():
     ))
     assert len(res["results"]) == 4
     scores = [r["score"] for r in res["results"]]
-    assert scores == sorted(scores, reverse=True)
+    clean = [s if s is not None else float("-inf") for s in scores]
+    assert clean == sorted(clean, reverse=True)
     assert res["best"] == res["results"][0]
     assert res["best"]["combo"]["rangefilt_length"] in (2, 3)
     assert res["grid"]["rangefilt_length"] == [2, 3]

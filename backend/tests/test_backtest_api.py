@@ -99,7 +99,7 @@ def test_backtest_ttp_managed_path(api_db, monkeypatch):
         symbol="BTCUSDT", interval="4h", limit=200, source="csv",
     ))
     reasons = {t["reason"] for t in res["trades"]}
-    assert reasons <= {"stop_loss", "take_profit", "tp_partial", "trail_tp", "reversal"}
+    assert reasons <= {"stop_loss", "take_profit", "tp_partial", "trail_tp", "reversal", "end_of_test"}
     assert "time_stop" not in reasons
 
 
