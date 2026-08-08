@@ -5,6 +5,7 @@ from typing import Callable, Dict, List
 
 from loguru import logger
 
+
 @dataclass
 class Event:
     type: str
