@@ -283,13 +283,16 @@ class BacktestEngine:
 
     # ------------------------------------------------------------------
     def position_size(self, entry: float, sl: float, equity: float,
-                      atr_ratio: Optional[float] = None) -> Dict[str, float]:
+                      atr_ratio: Optional[float] = None,
+                      agent_adjusts: Optional[Dict[str, float]] = None) -> Dict[str, float]:
         """Risk bazli pozisyon boyutlandirma (backtest + canli ortak).
 
         qty = risk_amari / SL mesafesi; notional kaldirac siniriyla cappili.
         `atr_ratio` = sinyal bari ATR% / 20 bar ortalama ATR%. Rejim yuksekse
         (`> vol_mult_hi`) risk `vol_mult_factor` ile kucultulur; dusukse
         normal risk korunur (asiri kucuk pozisyon istemeyiz).
+        `agent_adjusts` (ajan konseyinin boyut mudahalesi): size_mult 0-1
+        arasi carpan olarak uygulanir (yalnizca kucultur).
         """
         sl_dist = abs(entry - sl)
         if sl_dist <= 0:
@@ -299,6 +302,8 @@ class BacktestEngine:
                 and atr_ratio > self.vol_mult_hi:
             risk_amt *= self.vol_mult_factor
         qty = risk_amt / sl_dist
+        if agent_adjusts:
+            qty *= float(agent_adjusts.get("size_mult", 1.0))
         max_notional = equity * self.max_leverage
         if qty * entry > max_notional:
             qty = max_notional / entry

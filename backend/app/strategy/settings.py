@@ -50,6 +50,10 @@ DEFAULT_STRATEGY_SETTINGS: Dict[str, Any] = {
     "use_decision_council": True,   # True iken girisler council kararina ve min guvene tabi
     "council_min_confidence": 0.6,  # Council kararina gerekli minimum guven (0-1)
     "min_signal_strength": 0.6,     # Sinyal gucu esigi (0-1; alti giris engellenir; 0 = devre disi)
+    # Agent Council: 48 uzman finansal ajan oylamasi kapisi (app/agents/)
+    "use_agent_council": True,      # True iken girisler ajan konseyi kararina ve min guvene tabi
+    "agent_min_confidence": 0.5,    # Ajan konseyi kararina gerekli minimum guven (0-1)
+    "agents": {},                   # Ajan bazli ayarlar: {"ajan_id": {"enabled": bool, "weight": float}}
     # Volatilite rejimi pozisyon boyutlandirma: sinyal bari ATR% 20 bar
     # ortalamasinin vol_mult_hi katinin ustundeyse risk vol_mult_factor ile kucultur
     "vol_sizing_enabled": True,     # True iken yuksek ATR rejiminde risk carpani uygulanir

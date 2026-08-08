@@ -124,6 +124,17 @@ class AutoTrader:
         self._last_reconcile = 0.0
         self._last_perf = 0.0
         self.live_balance = None
+        self._agent_klines_map = {}
+        self._agent_macro = {}
+        self._agent_micro = {}
+        self._agent_corr = {}
+        self._agent_data_ts = 0.0
+        self._agent_oi_cache: dict = {}
+        try:
+            from app.marketdata.whale_tracker import WhaleTracker
+            self._whale = WhaleTracker()
+        except Exception:
+            self._whale = None
 
     def _resolve_mode(self) -> str:
         """Calisma modunu belirler: paper / kill-switch / testnet / live."""
@@ -326,6 +337,116 @@ class AutoTrader:
                 logger.error(f"Veri tazelik dongusu hatasi: {e}")
                 await asyncio.sleep(300)
 
+    async def _agent_market_data_loop(self):
+        """Ajan konseyi icin piyasa geneli verileri toplar (macro/micro/corr).
+
+        - macro (Stooq DXY/VIX/SPX/GLD/EURUSD): 6 saat TTL cache, ilk cagri hizli
+        - micro (OI/funding/L-S/taker/orderbook/premium/whale): ~5 dk'da bir,
+          yalnizca oncelikli ~20 sembol icin (200 sembol x 6 fapi cagrisi cok agir)
+        - korelasyon matrisi: ~30 dk'da bir, son klines_map uzerinden
+        Hatalar sessiz gecilir; veri yoksa ajanlar cekimser kalir.
+        """
+        while self.running:
+            try:
+                try:
+                    from app.marketdata.stooq import macro_summary
+                    self._agent_macro = macro_summary() or {}
+                except Exception as e:
+                    logger.warning(f"Makro veri hatasi: {e}")
+                try:
+                    await self._collect_agent_micro()
+                except Exception as e:
+                    logger.warning(f"Mikro veri hatasi: {e}")
+                try:
+                    from app.marketdata.correlation import correlation_report
+                    symbols = (self.priority or list(self._agent_klines_map.keys()))
+                    if symbols:
+                        self._agent_corr = correlation_report(
+                            self._agent_klines_map, symbols, lookback=90, top_n=40) or {}
+                except Exception as e:
+                    logger.warning(f"Korelasyon hatasi: {e}")
+                await asyncio.sleep(300)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Ajan veri dongusu hatasi: {e}")
+                await asyncio.sleep(300)
+
+    async def _collect_agent_micro(self):
+        """Oncelikli sembollerin mikro yapi verilerini toplar (5 dk cache)."""
+        from app.marketdata.binance_extra import BinanceExtraData
+        extra = BinanceExtraData(self.binance)
+        top = (self.priority or self.trading_symbols or list(self._agent_klines_map.keys()))[:20]
+        micro = {}
+        for sym in top:
+            entry = {}
+            try:
+                oi = await extra.open_interest(sym)
+                if oi:
+                    hist = self._agent_oi_cache.setdefault(sym, [])
+                    hist.append(oi["oi"])
+                    del hist[:-10]
+                    k = self._agent_klines_map.get(sym)
+                    price_trend = 0.0
+                    if k is not None and len(k) > 3:
+                        c = k["close"]
+                        price_trend = (float(c.iloc[-1]) / float(c.iloc[-4]) - 1)
+                    entry["open_interest"] = {"history": list(hist), "price_trend": round(price_trend, 4)}
+            except Exception:
+                pass
+            try:
+                f = await extra.funding_rate(sym)
+                if f:
+                    entry["funding"] = {"last": f["last"], "avg10": f["avg10"]}
+            except Exception:
+                pass
+            try:
+                ls = await extra.long_short_ratio(sym)
+                if ls:
+                    entry["long_short"] = ls
+            except Exception:
+                pass
+            try:
+                tk = await extra.taker_flow(sym)
+                if tk:
+                    entry["taker"] = tk
+            except Exception:
+                pass
+            try:
+                ob = await extra.orderbook(sym)
+                if ob:
+                    entry["orderbook"] = ob
+            except Exception:
+                pass
+            try:
+                pm = await extra.premium_index(sym)
+                if pm:
+                    entry["premium"] = pm
+            except Exception:
+                pass
+            try:
+                k = self._agent_klines_map.get(sym)
+                if k is not None and len(k) > 1 and "open_interest" in entry:
+                    hi = float(k["high"].tail(24).max())
+                    lo = float(k["low"].tail(24).min())
+                    close = float(k["close"].iloc[-1])
+                    pos = (close - lo) / (hi - lo) if hi > lo else 0.5
+                    hist = entry["open_interest"]["history"]
+                    oi_high = len(hist) > 1 and hist[-1] > hist[0] * 1.05
+                    entry["liquidation"] = {"position_pct": round(pos, 3), "oi_high": oi_high}
+            except Exception:
+                pass
+            if self._whale is not None:
+                try:
+                    w = self._whale.flow(sym)
+                    if w:
+                        entry["whale"] = w
+                except Exception:
+                    pass
+            if entry:
+                micro[sym] = entry
+        self._agent_micro = micro
+
     def update_price(self, symbol: str, price: float):
         self.live_prices[symbol] = float(price)
 
@@ -415,6 +536,7 @@ class AutoTrader:
         await self._notify_startup_state()
         asyncio.create_task(self._refresh_ranking())
         asyncio.create_task(self._data_backfill_loop())
+        asyncio.create_task(self._agent_market_data_loop())
 
         while self.running:
             try:
@@ -444,6 +566,7 @@ class AutoTrader:
                 candidates = self._filter_banned(candidates, s)
 
                 klines_map = await self._fetch_klines_batch(candidates)
+                self._agent_klines_map = klines_map
                 try:
                     self._resolve_pending_predictions(klines_map)
                 except Exception as e:
@@ -460,12 +583,25 @@ class AutoTrader:
                     signal["atr_ratio"] = self._signal_atr_ratio(klines)
 
                     if signal.get("signal") in ("BUY", "SELL") and signal.get("sl") and signal.get("tp"):
-                        allow_ai, ai_info, allow, decision, allow_str, str_info = \
-                            self._gate_and_record(symbol, signal, klines, s)
+                        allow_ai, ai_info, allow, decision, allow_str, str_info, \
+                            allow_agents, agent_info = self._gate_and_record(symbol, signal, klines, s)
                         if not allow:
                             logger.info(
                                 f"{symbol}: council karari sinyali engelledi"
                                 f" ({decision['verdict']}, guven {decision['confidence']})"
+                            )
+                            continue
+                        if not allow_agents:
+                            logger.info(
+                                f"{symbol}: ajan konseyi sinyali engelledi"
+                                f" ({agent_info['verdict']}, guven {agent_info['confidence']})"
+                            )
+                            self._log_risk_event(
+                                "agent_gate_block",
+                                f"{symbol} {signal['signal']} sinyali ajan konseyi tarafindan engellendi"
+                                f" ({agent_info.get('verdict')}, "
+                                f"blok: {','.join(agent_info.get('block_sources', []))})",
+                                confidence=float(agent_info.get("confidence", 0.0)),
                             )
                             continue
                         if not allow_str:
@@ -506,6 +642,11 @@ class AutoTrader:
                         if ai_info:
                             entry["ai_direction"] = ai_info["direction"]
                             entry["ai_confidence"] = ai_info["confidence"]
+                        if agent_info:
+                            entry["agent_confidence"] = agent_info.get("confidence")
+                            entry["agent_verdict"] = agent_info.get("verdict")
+                            entry["agent_votes"] = agent_info.get("votes")
+                            entry["agent_adjusts"] = agent_info.get("adjusts")
                         signals.append(entry)
                         logger.info(f"{symbol}: {signal['signal']} @ {price}")
 
@@ -526,21 +667,23 @@ class AutoTrader:
                 await asyncio.sleep(10)
 
     def _gate_and_record(self, symbol: str, signal: dict, klines, settings: dict):
-        """Uc kapinin tamamini isletir ve sinyali her durumda AI kaydina yazar.
+        """Kapilarin tamamini isletir ve sinyali her durumda AI kaydina yazar.
 
         Kayit kapilardan ONCE yapilir ki council/guc engeli sinyali AI feedback
         dongusunden kacirmasin (`executed` yalnizca tum kapilar gecerse 1).
-        Donus: (allow_ai, ai_info, allow, decision, allow_str, str_info).
+        Donus: (allow_ai, ai_info, allow, decision, allow_str, str_info,
+                allow_agents, agent_info).
         """
         allow_ai, ai_info = self._ai_gate(signal, klines, settings)
         allow, decision = self._council_gate(signal["signal"], klines, settings)
         allow_str, str_info = self._strength_gate(signal, settings)
+        allow_agents, agent_info = self._agent_gate(symbol, signal, klines, settings)
         try:
             self._record_prediction(symbol, signal, decision, ai_info,
-                                    executed=bool(allow and allow_str and allow_ai))
+                                    executed=bool(allow and allow_str and allow_ai and allow_agents))
         except Exception as e:
             logger.warning(f"AI tahmin kaydi hatasi {symbol}: {e}")
-        return allow_ai, ai_info, allow, decision, allow_str, str_info
+        return allow_ai, ai_info, allow, decision, allow_str, str_info, allow_agents, agent_info
 
     def _scan_limit(self) -> int:
         """Tarama limiti: ayarlardan (runtime degistirilebilir), yoksa sabitten."""
@@ -581,6 +724,59 @@ class AutoTrader:
         if strength < threshold:
             return False, {"strength": strength, "threshold": threshold}
         return True, None
+
+    def _agent_gate(self, symbol: str, signal: dict, klines, settings: dict):
+        """48 ajan konseyi kapisi (app/agents).
+
+        `use_agent_council` kapaliysa gecirir. Acikken tum etkin ajanlar
+        calistirilir; herhangi bir risk ajani `block` dediyse, konsey karari
+        sinyal yonunde degilse veya guven `agent_min_confidence` altindaysa
+        sinyal reddedilir. Risk ajanlarinin boyut ayarlamalari (size_mult)
+        `adjusts` olarak bilgiye eklenir ve gecen sinyaller open_position'da
+        uygulanir. Donus: (allow, agent_info|None).
+        """
+        if not settings.get("use_agent_council", False):
+            return True, None
+        try:
+            from app.agents.context import AgentContext
+            from app.agents.orchestrator import (aggregate, collect_adjustments,
+                                                 run_for_symbol)
+            ctx = AgentContext(
+                symbol=symbol,
+                df=klines,
+                klines_map=self._agent_klines_map or {symbol: klines},
+                prices=dict(self.live_prices or {}),
+                macro=self._agent_macro,
+                micro=(self._agent_micro or {}).get(symbol, {}),
+                portfolio=[{"symbol": s, "side": p.get("side"), "status": "OPEN"}
+                           for s, p in self.active_positions.items()],
+                settings=settings,
+                corr=self._agent_corr,
+                extra={
+                    "drawdown_pct": float(self.drawdown_pct or 0.0),
+                    "risk_halted": bool(self.risk_halted),
+                    "predictor": self._ai_predictor() if settings.get("use_ai_model") else None,
+                    "pattern_winrate": None,
+                },
+            )
+            results = run_for_symbol(ctx, settings)
+            adjusts = collect_adjustments(results)
+            if adjusts["blocked"]:
+                info = {"verdict": "BLOCK", "confidence": 0.0, "votes": len(results),
+                        "blocked": True, "block_sources": adjusts["block_sources"],
+                        "adjusts": adjusts}
+                return False, info
+            verdict, confidence, net, buy, sell = aggregate(results)
+            info = {"verdict": verdict, "confidence": confidence, "net": net,
+                    "buy": buy, "sell": sell, "votes": len(results),
+                    "blocked": False, "adjusts": adjusts}
+            threshold = float(settings.get("agent_min_confidence", 0.5) or 0.0)
+            if verdict != signal.get("signal") or confidence < threshold:
+                return False, info
+            return True, info
+        except Exception as e:
+            logger.warning(f"{symbol}: ajan konseyi hatasi: {e}")
+            return True, None
 
     def _ai_gate(self, signal, df, settings):
         """TensorFlow AI yon tahmini kapisi.
@@ -800,7 +996,8 @@ class AutoTrader:
                     continue
                 side = "LONG" if signal["signal"] == "BUY" else "SHORT"
                 notional = self._projected_notional(signal["price"], signal["sl"],
-                                                    signal.get("atr_ratio"))
+                                                    signal.get("atr_ratio"),
+                                                    signal.get("agent_adjusts"))
                 if await self._blocked_by_side(side, notional):
                     logger.warning(
                         f"{symbol}: {side} yonunde asiri pozisyon, giris engellendi"
@@ -820,6 +1017,7 @@ class AutoTrader:
                     ai_direction=signal.get("ai_direction"),
                     ai_confidence=signal.get("ai_confidence"),
                     atr_ratio=signal.get("atr_ratio"),
+                    agent_adjusts=signal.get("agent_adjusts"),
                 )
 
     def _apply_risk_settings(self, s: dict):
@@ -853,11 +1051,13 @@ class AutoTrader:
             pass
         return 1.0
 
-    def _projected_notional(self, price: float, sl: float, atr_ratio: float = None) -> float:
+    def _projected_notional(self, price: float, sl: float, atr_ratio: float = None,
+                            agent_adjusts: dict = None) -> float:
         """Yeni bir pozisyonun boyutlandirma sonrasi nominal degeri."""
         try:
             sizing = self.engine.position_size(price, sl, self.equity,
-                                               atr_ratio=atr_ratio)
+                                               atr_ratio=atr_ratio,
+                                               agent_adjusts=agent_adjusts)
             return price * float(sizing["qty"])
         except Exception:
             return 0.0
@@ -912,11 +1112,12 @@ class AutoTrader:
 
     async def open_position(self, symbol: str, side: str, price: float, sl: float, tp: float, reason: str = "", strength: float = 0.0, entry_ts=None,
                             council_confidence: float = None, ai_direction: str = None, ai_confidence: float = None,
-                            atr_ratio: float = None):
+                            atr_ratio: float = None, agent_adjusts: dict = None):
         try:
             side = "BUY" if side == "BUY" else "SELL"
             sizing = self.engine.position_size(price, sl, self.equity,
-                                               atr_ratio=atr_ratio)
+                                               atr_ratio=atr_ratio,
+                                               agent_adjusts=agent_adjusts)
             qty = float(sizing["qty"])
             if qty <= 0:
                 return

@@ -139,9 +139,11 @@ def test_gate_and_record_records_even_when_council_blocks(trader, monkeypatch):
                         lambda *a, **k: (False, {"verdict": "HOLD", "confidence": 0.06}))
     monkeypatch.setattr(t, "_strength_gate", lambda *a, **k: (True, None))
     monkeypatch.setattr(t, "_ai_gate", lambda *a, **k: (True, {"direction": "BUY", "confidence": 0.8}))
-    allow_ai, ai_info, allow, decision, allow_str, str_info = \
+    monkeypatch.setattr(t, "_agent_gate", lambda *a, **k: (True, None))
+    allow_ai, ai_info, allow, decision, allow_str, str_info, allow_agents, agent_info = \
         t._gate_and_record("BTCUSDT", sig, klines, {})
-    assert allow is False and allow_str is True and allow_ai is True
+    assert allow is False and allow_str is True and allow_ai is True and allow_agents is True
+    assert agent_info is None
     pending = db.list_pending_predictions()
     assert len(pending) == 1
     assert pending[0]["ai_direction"] == "BUY"
@@ -156,9 +158,11 @@ def test_gate_and_record_executed_when_all_gates_pass(trader, monkeypatch):
                         lambda *a, **k: (True, {"verdict": "SELL", "confidence": 0.7}))
     monkeypatch.setattr(t, "_strength_gate", lambda *a, **k: (True, None))
     monkeypatch.setattr(t, "_ai_gate", lambda *a, **k: (True, {"direction": "SELL", "confidence": 0.9}))
-    allow_ai, ai_info, allow, decision, allow_str, str_info = \
+    monkeypatch.setattr(t, "_agent_gate", lambda *a, **k: (True, {"verdict": "SELL", "confidence": 0.6}))
+    allow_ai, ai_info, allow, decision, allow_str, str_info, allow_agents, agent_info = \
         t._gate_and_record("BTCUSDT", sig, klines, {})
-    assert allow and allow_str and allow_ai
+    assert allow and allow_str and allow_ai and allow_agents
+    assert agent_info["verdict"] == "SELL"
     pending = db.list_pending_predictions()
     assert len(pending) == 1
     assert pending[0]["executed"] == 1
@@ -171,6 +175,7 @@ def test_gate_and_record_dedup_same_bar(trader, monkeypatch):
     monkeypatch.setattr(t, "_council_gate", lambda *a, **k: (False, {"verdict": "HOLD"}))
     monkeypatch.setattr(t, "_strength_gate", lambda *a, **k: (True, None))
     monkeypatch.setattr(t, "_ai_gate", lambda *a, **k: (True, {"direction": "BUY"}))
+    monkeypatch.setattr(t, "_agent_gate", lambda *a, **k: (True, None))
     t._gate_and_record("BTCUSDT", sig, klines, {})
     t._gate_and_record("BTCUSDT", sig, klines, {})
     assert len(db.list_pending_predictions()) == 1
