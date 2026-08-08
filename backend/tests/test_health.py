@@ -841,3 +841,21 @@ def test_settings_has_intelligence_toggles():
     assert "use_score_ranking" in resp.text
     assert "council_min_confidence" in resp.text
     assert "min_signal_strength" in resp.text
+
+
+def test_metrics_endpoint_returns_prometheus_format():
+    """The /metrics endpoint should return Prometheus text-format content."""
+    client = TestClient(app)
+    resp = client.get("/metrics")
+    client.close()
+    assert resp.status_code == 200
+    # Prometheus text format always starts with a comment or metric line
+    assert "atos_" in resp.text or resp.text.startswith("#")
+
+
+def test_metrics_endpoint_content_type():
+    """The /metrics endpoint should return a text/plain content-type."""
+    client = TestClient(app)
+    resp = client.get("/metrics")
+    client.close()
+    assert "text/plain" in resp.headers.get("content-type", "")

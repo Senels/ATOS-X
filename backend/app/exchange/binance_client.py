@@ -7,6 +7,7 @@ import pandas as pd
 import urllib3
 from binance.client import Client
 from dotenv import load_dotenv
+from loguru import logger
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 load_dotenv()
@@ -45,12 +46,12 @@ class BinanceClient:
                 ping=False,
                 requests_params={'timeout': 30},
             )
-            print(f"[BINANCE] baglandi (testnet={self.testnet})")
+            logger.info(f"[BINANCE] baglandi (testnet={self.testnet})")
             await self.load_all_symbols()
             await self._sync_time_offset()
             return True
         except Exception as e:
-            print(f"[BINANCE] baglanti hatasi: {e}")
+            logger.error(f"[BINANCE] baglanti hatasi: {e}")
             return False
 
     async def _sync_time_offset(self):
@@ -62,9 +63,9 @@ class BinanceClient:
             offset = server_ms - int(time.time() * 1000)
             if abs(offset) > 500:
                 self.client.timestamp_offset = offset
-                print(f"  [TIME] offset {offset:+d}ms applied")
+                logger.debug(f"  [TIME] offset {offset:+d}ms applied")
         except Exception as e:
-            print(f"  [TIME] sync failed: {e}")
+            logger.warning(f"  [TIME] sync failed: {e}")
 
     async def _run(self, fn, *args, **kwargs):
         """Senkron python-binance cagrisini olay dongusunu bloke etmeden calistirir."""
@@ -85,10 +86,10 @@ class BinanceClient:
                 if s['symbol'].endswith('USDT') and s['status'] == 'TRADING'
                 and not is_stablecoin_symbol(s['symbol'])
             ]
-            print(f"[BINANCE] {len(self.all_symbols)} USDT cifti yuklendi")
+            logger.info(f"[BINANCE] {len(self.all_symbols)} USDT cifti yuklendi")
             return self.all_symbols
         except Exception as e:
-            print(f"[BINANCE] sembol yukleme hatasi: {e}")
+            logger.error(f"[BINANCE] sembol yukleme hatasi: {e}")
             return ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT"]
 
     def _filter(self, symbol: str, ftype: str, default: str = "0.00000001"):
@@ -120,7 +121,7 @@ class BinanceClient:
             tickers = await self._run(self.client.futures_ticker)
             return {t['symbol']: float(t['lastPrice']) for t in tickers if t['symbol'].endswith('USDT')}
         except Exception as e:
-            print(f"[BINANCE] ticker hatasi: {e}")
+            logger.warning(f"[BINANCE] ticker hatasi: {e}")
             return {}
 
     async def get_price(self, symbol: str = "BTCUSDT") -> Optional[float]:
@@ -248,7 +249,7 @@ class BinanceClient:
         result = {"sl": None, "tp": None}
         side = 'SELL' if position_side.upper() == 'LONG' else 'BUY'
         if not await self._wait_for_position(symbol):
-            print(f"  TP/SL error {symbol}: pozisyon bulunamadi")
+            logger.warning(f"  TP/SL error {symbol}: pozisyon bulunamadi")
             return result
         if sl_price:
             try:
@@ -259,7 +260,7 @@ class BinanceClient:
                 )
                 result["sl"] = sl.get('algoId') or sl.get('orderId') or sl.get('order_id')
             except Exception as e:
-                print(f"  SL error {symbol}: {e}")
+                logger.error(f"  SL error {symbol}: {e}")
         if tp_price:
             try:
                 tp = await self._run(
@@ -269,7 +270,7 @@ class BinanceClient:
                 )
                 result["tp"] = tp.get('algoId') or tp.get('orderId') or tp.get('order_id')
             except Exception as e:
-                print(f"  TP error {symbol}: {e}")
+                logger.error(f"  TP error {symbol}: {e}")
         return result
 
     async def _wait_for_position(self, symbol: str, timeout: float = 5.0) -> bool:
@@ -298,7 +299,7 @@ class BinanceClient:
                 self.client.futures_cancel_algo_order, symbol=symbol, algoId=algo_id,
             )
         except Exception as e:
-            print(f"  Cancel error {symbol} order {algo_id}: {e}")
+            logger.error(f"  Cancel error {symbol} order {algo_id}: {e}")
             return None
 
     async def get_open_algo_orders(self, symbol: str | None = None):

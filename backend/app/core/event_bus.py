@@ -3,6 +3,7 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Dict, List
 
+from loguru import logger
 
 @dataclass
 class Event:
@@ -27,6 +28,6 @@ class EventBus:
                     else:
                         handler(evt)
                 except Exception as e:
-                    print(f"[BUS ERROR] {evt.type}: {e}")
+                    logger.error(f"[BUS ERROR] {evt.type}: {e}")
             self.queue.task_done()
 bus = EventBus()
