@@ -12,6 +12,7 @@ AI denetimi:
 """
 import asyncio
 import os
+import re
 import time
 import uuid
 from typing import Any, Dict, Optional
@@ -36,9 +37,18 @@ _CACHE_MAX_AGE_SEC = 12 * 3600
 
 _scan_jobs: Dict[str, Dict[str, Any]] = {}
 
+_TOKEN_RE = re.compile(r"^[A-Za-z0-9_\-]{1,32}$")
+
+
+def _safe_token(value: str) -> str:
+    """Sembol veya interval değerini doğrular; geçersizse HTTPException fırlatır."""
+    if not _TOKEN_RE.match(value):
+        raise HTTPException(status_code=422, detail=f"Geçersiz değer: {value!r}")
+    return value
+
 
 def _cache_path(interval: str, symbol: str) -> str:
-    return os.path.join(_CACHE_DIR, interval, f"{symbol}.csv")
+    return os.path.join(_CACHE_DIR, _safe_token(interval), f"{_safe_token(symbol)}.csv")
 
 
 def _cache_fresh(path: str) -> bool:
@@ -679,3 +689,84 @@ async def strategy_signal(
     bot = get_strategy(strat_settings.get_settings())
     signal = bot.generate_signal(df)
     return {"symbol": symbol, "interval": interval, **signal}
+
+
+# ── Monte Carlo ──────────────────────────────────────────────────────────────
+
+@router.post("/backtest/monte-carlo")
+async def backtest_monte_carlo(
+    symbol: str = "BTCUSDT",
+    interval: str = "4h",
+    limit: int = 1000,
+    source: str = "csv",
+    n_sims: int = 1000,
+    initial_equity: Optional[float] = None,
+):
+    """Backtest trade dizisinden Monte Carlo bootstrap simülasyonu.
+
+    ``n_sims`` farklı sıra permütasyonu oluşturarak equity güven bantları
+    ve en kötü drawdown tahminini döndürür.
+    """
+    from app.backtest.monte_carlo import run_monte_carlo
+
+    try:
+        df = await _load_data(symbol, interval, limit, source)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Veri yuklenemedi: {e}")
+
+    settings = strat_settings.get_settings()
+    bot = get_strategy(settings)
+    orders = bot.analyze(df)["orders"]
+    kwargs = _engine_kwargs(initial_equity=initial_equity)
+    result = BacktestEngine(**kwargs).run(df, orders, interval)
+
+    trades = result.get("trades", [])
+    if not trades:
+        raise HTTPException(status_code=400, detail="Backtest'te trade yok — Monte Carlo yapılamaz")
+
+    pnls = [float(t.get("pnl", 0)) for t in trades]
+    equity = float(kwargs.get("initial_equity", 10000.0))
+    mc = run_monte_carlo(pnls, equity, n_sims=n_sims)
+    mc["backtest_summary"] = {
+        "total_trades": result.get("total_trades"),
+        "win_rate": result.get("win_rate"),
+        "sharpe": result.get("sharpe"),
+        "max_drawdown_pct": result.get("max_drawdown_pct"),
+    }
+    return mc
+
+
+# ── Walk-Forward ─────────────────────────────────────────────────────────────
+
+@router.post("/backtest/walk-forward")
+async def backtest_walk_forward(
+    symbol: str = "BTCUSDT",
+    interval: str = "4h",
+    limit: int = 1000,
+    n_splits: int = 5,
+    train_frac: float = 0.7,
+    strategy: str = "v23",
+    objective: str = "combined",
+):
+    """Walk-forward optimizasyon: IS/OOS overfitting analizi.
+
+    Her fold için eğitim bölümünde GridSearch, test bölümünde OOS değerlendirme
+    yapılır. Overfitting oranı (IS/OOS farkı) raporlanır.
+    """
+    import asyncio
+
+    from app.optimization.walk_forward import walk_forward
+
+    result = await asyncio.to_thread(
+        walk_forward,
+        symbol=symbol,
+        interval=interval,
+        n_splits=n_splits,
+        train_frac=train_frac,
+        strategy=strategy,
+        objective=objective,
+        limit=limit,
+    )
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result

@@ -79,13 +79,17 @@ def _vote(primary: str, trend: str, momentum_pct: float,
 
 
 def decide(df: pd.DataFrame, settings: Optional[Dict[str, Any]] = None,
-           primary_signal: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+           primary_signal: Optional[Dict[str, Any]] = None,
+           **kwargs) -> Dict[str, Any]:
     """DataFrame'den karar: birincil sinyal + trend + momentum + volatilite oylamasi.
 
     `primary_signal` verilirse (ornek `{"signal": "BUY", "source": "ttp"}`)
     v23 hesaplanmaz; verilen sinyal birincil oy olur. Verilmezse `settings`
     aktif stratejisine gore v23 (TradeBotV23) veya ttp (TtpTsl) birincil
     tetiktir — boylece endpoint/dashboard kararlari gercek kapinin aynisi olur.
+
+    `symbol` keyword argumani verilirse ve `mtf_enabled=True` ise cok zaman
+    dilimi oyu da dahil edilir.
     """
     cfg = settings if settings is not None else strat_settings.get_settings()
     if primary_signal:
@@ -138,6 +142,30 @@ def decide(df: pd.DataFrame, settings: Optional[Dict[str, Any]] = None,
     else:
         reason = "Yetersiz uzlasma"
 
+    # MTF oyu (mtf_enabled aktifse ve CSV verisi varsa)
+    mtf_result = None
+    if cfg.get("mtf_enabled"):
+        try:
+            from app.strategy.multi_tf import get_mtf_context, mtf_vote
+            intervals = cfg.get("mtf_intervals", ["4h", "1h"])
+            weights = cfg.get("mtf_weights")
+            # symbol bilgisi yoksa atliyoruz; caller tarafindan saglanmali
+            symbol = kwargs.get("symbol") if kwargs else None
+            if symbol:
+                dfs = get_mtf_context(symbol, intervals)
+                if dfs:
+                    mtf_result = mtf_vote(dfs, cfg, weights)
+                    mtf_verdict = mtf_result.get("verdict", "HOLD")
+                    mtf_conf = float(mtf_result.get("confidence", 0.0))
+                    if mtf_verdict in ("BUY", "SELL"):
+                        votes.append({
+                            "source": "mtf",
+                            "signal": mtf_verdict,
+                            "weight": 0.5 * mtf_conf,
+                        })
+        except Exception:
+            pass
+
     return {
         "verdict": verdict,
         "confidence": confidence,
@@ -148,4 +176,5 @@ def decide(df: pd.DataFrame, settings: Optional[Dict[str, Any]] = None,
         "price": price,
         "sl": sl,
         "tp": tp,
+        "mtf": mtf_result,
     }

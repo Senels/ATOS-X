@@ -1,0 +1,35 @@
+Metadata-Version: 2.4
+Name: atos-x
+Version: 1.0.0
+Summary: Enterprise Autonomous Trading Operating System for Binance Futures
+Author: Senels
+License: MIT
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi>=0.135.0
+Requires-Dist: uvicorn>=0.41.0
+Requires-Dist: websockets>=15.0.0
+Requires-Dist: aiohttp>=3.12.0
+Requires-Dist: python-binance>=1.0.19
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: pandas>=2.0.0
+Requires-Dist: numpy>=1.24.0
+Requires-Dist: joblib>=1.3.0
+Requires-Dist: sqlalchemy>=2.0.0
+Requires-Dist: loguru>=0.7.0
+Requires-Dist: pydantic-settings>=2.13.0
+Requires-Dist: pytest>=8.2.0
+Requires-Dist: httpx>=0.27.0
+Requires-Dist: certifi>=2026.0.0
+Requires-Dist: urllib3>=2.0.0
+Provides-Extra: dev
+Requires-Dist: black>=24.0.0; extra == "dev"
+Requires-Dist: isort>=5.13.0; extra == "dev"
+Requires-Dist: flake8>=7.0.0; extra == "dev"
+Requires-Dist: mypy>=1.8.0; extra == "dev"
+Requires-Dist: ruff>=0.9.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.23.0; extra == "dev"
+Provides-Extra: ai
+Requires-Dist: scikit-learn>=1.3.0; extra == "ai"
+Requires-Dist: tensorflow>=2.15.0; extra == "ai"
+Requires-Dist: joblib>=1.3.0; extra == "ai"

@@ -3,6 +3,7 @@
 Kullanim (backend/ icinden):
     python scripts/train_ai.py [--symbols 400] [--min-bars 300]
         [--horizon 12] [--atr-mult 1.0] [--epochs 30] [--model ai_direction]
+        [--model-type dense|lstm|ensemble]
 
 Kayit: backend/models/<model>/ -> model.keras + scaler.joblib + meta.joblib + metrics.joblib
 """
@@ -23,6 +24,15 @@ def main() -> int:
     ap.add_argument("--atr-mult", type=float, default=1.0)
     ap.add_argument("--epochs", type=int, default=30)
     ap.add_argument("--model", type=str, default="ai_direction")
+    ap.add_argument(
+        "--model-type",
+        type=str,
+        default="dense",
+        choices=["dense", "lstm", "ensemble"],
+        help="Model mimarisi: dense (varsayilan), lstm veya ensemble",
+    )
+    ap.add_argument("--lstm-seq-len", type=int, default=20,
+                    help="LSTM pencere uzunlugu (yalnizca lstm/ensemble)")
     args = ap.parse_args()
 
     try:
@@ -34,13 +44,18 @@ def main() -> int:
             atr_mult=args.atr_mult,
             epochs=args.epochs,
             model_name=args.model,
+            model_type=args.model_type,
+            lstm_seq_len=args.lstm_seq_len,
         )
     except RuntimeError as e:
         print(f"[AI] EGITIM ATLANDI: {e}")
         return 1
 
     print(f"[AI] Model egitildi: {res['model_dir']}")
-    print(f"[AI] Ornek: {res['samples']} | val_loss: {res['val_loss']:.4f} | val_acc: {res['val_acc']:.3f}")
+    mtype = res.get("model_type", "dense")
+    vl = res.get("val_loss") if res.get("val_loss") is not None else res.get("dense", {}).get("val_loss", "?")
+    va = res.get("val_acc") if res.get("val_acc") is not None else res.get("dense", {}).get("val_acc", "?")
+    print(f"[AI] Tip: {mtype} | Ornek: {res['samples']} | val_loss: {vl} | val_acc: {va}")
     return 0
 
 
