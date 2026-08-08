@@ -22,6 +22,7 @@ from app.core.config import ENV_FILE, get_settings
 from app.core.database import Database
 from app.core.security import APIKeyMiddleware
 from app.core.time import utc_now
+from app.core.version import git_head
 from app.data import loader
 from app.data.collector import _INTERVAL_MS
 from app.data.collector import backfill as backfill_klines
@@ -44,7 +45,8 @@ ws = BinanceWebSocket()
 telegram = TelegramNotifier()
 auto_trader = None
 daily_report_task = None
-system_status = {"status": "initializing", "start_time": utc_now()}
+system_status = {"status": "initializing", "start_time": utc_now(),
+                 "start_commit": git_head()}
 _PRICE_ALERTS = {}  # symbol -> [{price, side, created}]
 _alarm_task = None
 _backup_task = None
@@ -1771,7 +1773,12 @@ async def health():
         "trading_mode": auto_trader.trading_mode if auto_trader else "paper",
         "halt_entries": auto_trader.halt_entries if auto_trader else False,
         "trading": auto_trader.running if auto_trader else False,
-        "uptime": int((utc_now() - system_status["start_time"]).total_seconds())
+        "uptime": int((utc_now() - system_status["start_time"]).total_seconds()),
+        "code_version": {
+            "start_commit": system_status.get("start_commit"),
+            "current_commit": git_head(),
+            "in_sync": system_status.get("start_commit") == git_head(),
+        },
     }
 
 @app.get("/api/v1/signals")

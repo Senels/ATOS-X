@@ -111,6 +111,24 @@ def test_health_has_concentration():
     assert "max_side_pct" in conc
 
 
+def test_health_has_code_version():
+    with TestClient(app) as client:
+        resp = client.get("/health")
+    assert resp.status_code == 200
+    cv = resp.json()["code_version"]
+    assert "start_commit" in cv
+    assert "current_commit" in cv
+    assert "in_sync" in cv
+    assert isinstance(cv["in_sync"], bool)
+
+
+def test_git_head_format():
+    head = main_mod.git_head()
+    assert head == "unknown" or (
+        len(head) == 40 and all(c in "0123456789abcdef" for c in head)
+    )
+
+
 def test_status_has_concentration():
     client = TestClient(app)
     resp = client.get("/api/v1/status")

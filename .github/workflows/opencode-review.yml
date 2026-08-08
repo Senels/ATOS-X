@@ -1,0 +1,40 @@
+name: opencode-review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+  issues: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: anomalyco/opencode/github@latest
+        env:
+          # opencode.ai -> Settings -> API Keys sayfasindan uretilen anahtar
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/deepseek-v4-flash-free
+          use_github_token: true
+          prompt: |
+            ATOS X (Binance USDT-M Futures trading bot, FastAPI + SQLite + TensorFlow) pull request ini incele:
+
+            - Dogruluk: bug, edge case, emir/SL-TP mantigi, AI yonelim/prediction kullanimi
+            - Guvenlik: API anahtar yonetimi, canli DB (atos.db) yazma riskleri, input validation
+            - Performans: trading loop gecikmesi, DB erisim oruntuleri
+            - Stil: black 120, isort black profile, ruff temiz (app tests --select E9,F63,F7,F82,F,I)
+            - Testler: backend/tests pytest surei yesil kalmalı (ATOS_TEST_MODE=1)
+            - Konvansiyon: kod/sembol adlari Ingilizce, dokumanlar Turkce
+
+            Bulgulari oncelik sirasina gore PR uzerinde yorumla (file:line referanslari ile).
+            Botu calistirma, canli veriye ve anahtarlara dokunma; sadece incele.
