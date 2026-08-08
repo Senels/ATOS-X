@@ -1,8 +1,9 @@
 import numpy as np
 import pandas as pd
+from starlette.testclient import TestClient
+
 from app import main as main_mod
 from app.main import app
-from starlette.testclient import TestClient
 
 
 class _FakeKlines:

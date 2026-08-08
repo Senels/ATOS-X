@@ -1,2 +1,5 @@
 # Runtime sohbet verisi (AI ortak paneli)
 app/data/assistant_messages.json
+
+# pip install -e yapı çıktısı
+*.egg-info/
