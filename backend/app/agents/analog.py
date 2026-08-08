@@ -12,6 +12,7 @@ tamamlanmis ileri getirileri barindirir). Egitim alt surec tarafindan
 restart'siz yeni bellege gecmeyi saglar.
 """
 import json
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -103,6 +104,7 @@ class AnalogMemory:
         self.codes = np.concatenate(codes)
         self.ts = np.concatenate(tss)
         self.symbols = used
+        self.built_at = time.time()
         self.save()
         return {"rows": int(self.vectors.shape[0]),
                 "symbols": len(self.symbols), "skipped": skipped}

@@ -71,22 +71,42 @@ def record_votes(db, symbol: str, bar_ts: str, results: List[Any],
     return len(rows)
 
 
-def resolve_symbol(db, symbol: str, current_price: float) -> Dict[str, int]:
-    """Sembolun bekleyen oylarini fiyat yonu ile cozumler: hit | miss | na."""
+def resolve_symbol(db, klines, symbol: str, resolution_bars: int = 24) -> Dict[str, int]:
+    """Sembolun bekleyen oylarini bar-bazli cozumler: hit | miss | na.
+
+    Oy barindan `resolution_bars` bar sonraki kapanis, oy anindaki fiyatla
+    karsilastirilir (AI tahmin cozumlemesiyle ayni desen). Veri yetmiyorsa
+    oy bekler; bar_ts bulunamazsa (sembol cikmis/eski) `na`.
+    """
     ensure_table(db)
     counts = {"hit": 0, "miss": 0, "na": 0}
+    if klines is None or len(klines) < 2:
+        return counts
+    try:
+        idxs = list(klines.index.astype(str))
+    except Exception:
+        return counts
     with sqlite3.connect(db.db_path) as conn:
         rows = conn.execute(
-            "SELECT id, vote, price FROM agent_votes "
+            "SELECT id, vote, price, bar_ts FROM agent_votes "
             "WHERE symbol = ? AND outcome = 'pending'", (symbol,)).fetchall()
-        for vid, vote, price in rows:
-            if not price:
+        for vid, vote, price, bar_ts in rows:
+            if not bar_ts:
                 outcome = "na"
-            elif (vote == "BUY" and current_price > price) or \
-                 (vote == "SELL" and current_price < price):
-                outcome = "hit"
             else:
-                outcome = "miss"
+                try:
+                    pos = idxs.index(bar_ts)
+                except ValueError:
+                    outcome = "na"
+                else:
+                    if pos + resolution_bars >= len(klines):
+                        continue
+                    p0 = float(price) if price else float(klines["close"].iloc[pos])
+                    p1 = float(klines["close"].iloc[pos + resolution_bars])
+                    if (vote == "BUY" and p1 > p0) or (vote == "SELL" and p1 < p0):
+                        outcome = "hit"
+                    else:
+                        outcome = "miss"
             conn.execute(
                 "UPDATE agent_votes SET outcome = ?, resolved_at = CURRENT_TIMESTAMP "
                 "WHERE id = ?", (outcome, vid))

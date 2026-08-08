@@ -920,21 +920,23 @@ class AutoTrader:
         finally:
             self._retrain_running = False
 
-    def _resolve_agent_votes(self, klines_map: dict):
-        """Bekleyen ajan oylarini guncel fiyatlarla cozumler (feedback dongusu).
+    def _resolve_agent_votes(self, klines_map: dict, resolution_bars: int = None):
+        """Bekleyen ajan oylarini bar-bazli cozumler (feedback dongusu).
 
-        Bar kapanisi oylarini `agent_votes` tablosunda hit/miss olarak isaretler;
-        sonra bekleyen oylari cozumu yapilmamıs eski kayitlari `na` yapar.
-        Hata sessizce atlanir (tarama dongusu aksamaz).
+        Oy barindan `agent_feedback_horizon` (varsayilan 24) bar sonraki
+        kapanisla karsilastirir; veri yetmiyorsa oy bekler. Cok eski
+        bekleyenler `na` yapilir. Hata sessizce atlanir.
         """
         try:
             from app.agents.feedback import resolve_stale, resolve_symbol
+            if resolution_bars is None:
+                resolution_bars = int(strat_settings.get_settings().get(
+                    "agent_feedback_horizon", 24) or 24)
             for symbol, klines in (klines_map or {}).items():
                 if klines is None or len(klines) == 0:
                     continue
                 try:
-                    resolve_symbol(self.db, symbol,
-                                   float(klines["close"].iloc[-1]))
+                    resolve_symbol(self.db, klines, symbol, resolution_bars)
                 except Exception:
                     continue
             resolve_stale(self.db, days=30)
