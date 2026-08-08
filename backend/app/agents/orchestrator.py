@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Tuple
 from app.agents.base import AgentResult
 from app.agents.deliberation import deliberate
 from app.agents.registry import all_agents
+from loguru import logger
 
 VOTE_THRESHOLD = 0.8
 
@@ -55,7 +56,8 @@ def run_for_symbol(ctx: Any, settings: Dict[str, Any]) -> List[AgentResult]:
             continue
         try:
             res = cfg["agent"].analyze(ctx)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"ajan calistirma hatasi ({cfg.get('name', cfg)}): {e}")
             continue
         if res is None:
             continue

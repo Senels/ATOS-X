@@ -8,6 +8,7 @@ Ağırlık varsayılanları: 4h=1.0, 1h=0.6, 30m=0.4, 15m=0.3
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
+from loguru import logger
 
 from app.data import loader
 from app.strategy import get_strategy
@@ -81,8 +82,8 @@ def get_mtf_context(
             df = loader.load_csv(symbol, iv, limit=limit, data_dir=data_dir)
             if not df.empty:
                 result[iv] = df
-        except (FileNotFoundError, Exception):
-            pass
+        except Exception as e:
+            logger.debug(f"multi-tf veri yuklenemedi (symbol={symbol}, interval={iv}): {e}")
     return result
 
 
@@ -141,8 +142,8 @@ def mtf_vote(
             elif direction == "SELL":
                 sell_score += effective_weight
             signals[interval] = sig
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"gosterge hesaplamasi basarisiz (interval={interval}): {e}")
 
     max_possible = sum(
         float(weights.get(iv, 0.3)) for iv in dfs if not dfs[iv].empty

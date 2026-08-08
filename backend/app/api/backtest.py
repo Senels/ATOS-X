@@ -25,6 +25,7 @@ from app.core.database import Database
 from app.data import loader
 from app.strategy import get_strategy
 from app.strategy import settings as strat_settings
+from loguru import logger
 
 router = APIRouter(prefix="/api/v1", tags=["strategy"])
 _db = Database()
@@ -105,8 +106,8 @@ async def _load_binance_cached(symbol: str, interval: str, limit: int) -> Any:
             df = pd.read_csv(path, index_col=0, parse_dates=True)
             if len(df) >= int(limit):
                 return df.iloc[-int(limit):]
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"onbellek CSV okunamadi (symbol={symbol}): {e}")
     df = await _fetch_binance_history(symbol, interval, max(int(limit), 100))
     os.makedirs(os.path.dirname(path), exist_ok=True)
     df.to_csv(path, encoding="utf-8")
@@ -180,8 +181,8 @@ def _build_settings(
                 cur = dict(settings.get("ttp", {}))
                 cur.update(parsed)
                 overrides["ttp"] = cur
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"ttp override parse edilemedi: {e}")
     if confirmations is not None:
         enabled = confirmations.replace(" ", "").split(",")
         enabled = [e for e in enabled if e]

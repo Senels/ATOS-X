@@ -15,6 +15,7 @@ import pandas as pd
 from app.ai.features import FEATURE_NAMES, build_features
 from app.ai.labeling import make_labels
 from app.data import loader
+from loguru import logger
 
 try:
     import tensorflow as tf  # noqa: F401
@@ -266,7 +267,8 @@ def train_from_archive(interval: str = "4h", max_symbols: int = 400,
     for sym in symbols[:max_symbols]:
         try:
             df = loader.load_csv(sym, interval)
-        except Exception:
+        except Exception as e:
+            logger.debug(f"OHLCV yuklenemedi (symbol={sym}): {e}")
             continue
         if len(df) >= min_bars:
             dfs.append(df)

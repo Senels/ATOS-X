@@ -6,6 +6,7 @@ istatistiklerini gosterir; salt-okunurdur.
 from fastapi import APIRouter, Request
 
 from app.agents.registry import all_agents
+from loguru import logger
 
 router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
 
@@ -53,8 +54,8 @@ async def agent_summary(request: Request):
                 "accuracy": round(sum(1 for x in resolved if x["outcome"] == "hit")
                                   / len(resolved), 4) if resolved else None,
             }
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"ajan istatistigi hesaplanamadi: {e}")
 
     return {
         "memory": memory_summary(),

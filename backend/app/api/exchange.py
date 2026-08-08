@@ -10,6 +10,7 @@ from pathlib import Path
 from fastapi import APIRouter, Request
 
 from app.exchange.binance_client import BinanceClient
+from loguru import logger
 
 router = APIRouter(prefix="/api/v1/exchange", tags=["exchange"])
 
@@ -87,8 +88,8 @@ async def exchange_test(request: Request):
     body: dict = {}
     try:
         body = await request.json()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"istek govdesi JSON olarak parse edilemedi: {e}")
     api_key = (body.get("api_key") or "").strip() or os.getenv("BINANCE_API_KEY", "")
     secret = (body.get("secret") or "").strip() or os.getenv("BINANCE_SECRET_KEY", "")
     testnet = body.get("testnet")
@@ -117,5 +118,5 @@ async def exchange_test(request: Request):
     finally:
         try:
             await client.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"exchange client kapatilirken hata: {e}")
