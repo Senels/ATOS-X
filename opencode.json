@@ -9,8 +9,43 @@
     },
     "sqlite": {
       "type": "local",
-      "command": ["uvx", "mcp-server-sqlite", "--db-path", "backend/atos.db"],
+      "command": ["uvx", "--from", "mcp-server-sqlite", "--with", "mcp<2", "mcp-server-sqlite", "--db-path", "backend/atos.db"],
       "enabled": true
+    },
+    "binance": {
+      "type": "local",
+      "command": ["C:/Users/svkts/AppData/Local/Programs/Python/Python311/python.exe", "C:/Users/svkts/OneDrive/Belgeler/Default Project/.opencode/scripts/binance_mcp.py"],
+      "enabled": true
+    },
+    "playwright": {
+      "type": "local",
+      "command": ["npx", "-y", "@playwright/mcp@latest"],
+      "enabled": true
+    }
+  },
+  "lsp": {
+    "pyright": {
+      "disabled": true
+    },
+    "basedpyright": {
+      "command": ["C:/Users/svkts/AppData/Local/Programs/Python/Python311/Scripts/basedpyright-langserver.exe", "--stdio"],
+      "extensions": [".py", ".pyi"]
+    },
+    "html": {
+      "command": ["C:/Users/svkts/AppData/Roaming/npm/vscode-html-language-server.cmd", "--stdio"],
+      "extensions": [".html"]
+    },
+    "css": {
+      "command": ["C:/Users/svkts/AppData/Roaming/npm/vscode-css-language-server.cmd", "--stdio"],
+      "extensions": [".css"]
+    },
+    "json": {
+      "command": ["C:/Users/svkts/AppData/Roaming/npm/vscode-json-language-server.cmd", "--stdio"],
+      "extensions": [".json"]
+    },
+    "ruff": {
+      "command": ["C:/Users/svkts/AppData/Local/Programs/Python/Python311/Scripts/ruff.exe", "server"],
+      "extensions": [".py"]
     }
   },
   "permission": {

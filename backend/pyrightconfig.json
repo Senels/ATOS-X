@@ -1,0 +1,5 @@
+{
+  "pythonVersion": "3.11",
+  "pythonPath": "C:/Users/svkts/AppData/Local/Programs/Python/Python311/python.exe",
+  "exclude": ["**/node_modules", "**/futures_1m_data"]
+}
