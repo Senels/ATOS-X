@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Bağımlılıkları yükle (paket kodundan önce — önbellek katmanı)
-COPY backend/pyproject.toml backend/README.md ./backend/
+COPY backend/pyproject.toml ./backend/
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -e "./backend[dev]"
 
@@ -37,7 +37,6 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Uygulama kodunu kopyala
 COPY backend/ ./backend/
-COPY legacy/ ./legacy/
 
 # Kullanıcı izinleri
 RUN chown -R atos:atos /app
