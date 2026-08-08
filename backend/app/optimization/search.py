@@ -25,6 +25,7 @@ from app.backtest.engine import BacktestEngine  # noqa: E402
 from app.data import loader  # noqa: E402
 from app.strategy import get_strategy  # noqa: E402
 from app.strategy import settings as strat_settings  # noqa: E402
+from loguru import logger
 
 DEFAULT_GRID: Dict[str, List[Any]] = {
     "rangefilt_length": [2, 3, 4, 5],
@@ -109,7 +110,8 @@ def _evaluate_combo(combo: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None)
             orders = bot.analyze(df)["orders"]
             engine = BacktestEngine(**engine_kwargs)
             metrics = engine.run(df, orders, interval)
-        except Exception:
+        except Exception as e:
+            logger.debug(f"parametre kombinasyonu icin backtest basarisiz: {e}")
             continue
         score = score_metrics(metrics, objective)
         if np.isfinite(score):

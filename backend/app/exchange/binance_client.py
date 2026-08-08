@@ -303,8 +303,8 @@ class BinanceClient:
                 )
                 if position and float(position[0]['positionAmt']) != 0:
                     return True
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"pozisyon durumu kontrol edilemedi (symbol={symbol}): {e}")
             await asyncio.sleep(0.25)
         return False
 

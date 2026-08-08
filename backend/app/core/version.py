@@ -6,6 +6,7 @@ calisma riskini onler).
 """
 
 from pathlib import Path
+from loguru import logger
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _GIT_DIR = _REPO_ROOT / ".git"
@@ -20,6 +21,6 @@ def git_head() -> str:
             head = (_GIT_DIR / ref).read_text(encoding="utf-8").strip()
         if len(head) == 40:
             return head
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"git HEAD okunamadi: {e}")
     return "unknown"

@@ -22,6 +22,7 @@ from app.strategy.coin_intel import coin_score
 from app.strategy.market_intel import trend_regime, volatility_regime
 from app.strategy.tradebot_v23 import TradeBotV23
 from app.strategy.ttp import TtpTsl
+from loguru import logger
 
 _TREND_MAP = {"UP": "BUY", "DOWN": "SELL", "RANGE": None}
 _WEIGHTS: Dict[str, float] = {"v23": 1.0, "trend": 0.4, "momentum": 0.3}
@@ -163,8 +164,8 @@ def decide(df: pd.DataFrame, settings: Optional[Dict[str, Any]] = None,
                             "signal": mtf_verdict,
                             "weight": 0.5 * mtf_conf,
                         })
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"multi-timeframe verdict hesaplanamadi: {e}")
 
     return {
         "verdict": verdict,

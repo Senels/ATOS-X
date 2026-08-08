@@ -225,14 +225,16 @@ class AutoTrader:
         for symbol in self.trading_symbols:
             try:
                 df = loader.load_csv(symbol, "4h", limit=limit)
-            except Exception:
+            except Exception as e:
+                logger.debug(f"OHLCV yuklenemedi (symbol={symbol}): {e}")
                 continue
             if len(df) < 200:
                 continue
             try:
                 orders = bot.analyze(df)["orders"]
                 m = self.engine.run(df, orders, "4h")
-            except Exception:
+            except Exception as e:
+                logger.debug(f"backtest calistirilamadi (symbol={symbol}): {e}")
                 continue
             if m.get("total_trades", 0) < 5:
                 continue
@@ -275,7 +277,8 @@ class AutoTrader:
             try:
                 info = score_symbol(df)
                 scored.append((info["score"], symbol))
-            except Exception:
+            except Exception as e:
+                logger.debug(f"skor hesaplanamadi (symbol={symbol}): {e}")
                 continue
         scored.sort(key=lambda x: x[0], reverse=True)
         reordered = [s for _, s in scored]
@@ -392,38 +395,38 @@ class AutoTrader:
                         c = k["close"]
                         price_trend = (float(c.iloc[-1]) / float(c.iloc[-4]) - 1)
                     entry["open_interest"] = {"history": list(hist), "price_trend": round(price_trend, 4)}
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"open interest verisi alinamadi (symbol={sym}): {e}")
             try:
                 f = await extra.funding_rate(sym)
                 if f:
                     entry["funding"] = {"last": f["last"], "avg10": f["avg10"]}
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"funding rate verisi alinamadi (symbol={sym}): {e}")
             try:
                 ls = await extra.long_short_ratio(sym)
                 if ls:
                     entry["long_short"] = ls
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"long/short oran verisi alinamadi (symbol={sym}): {e}")
             try:
                 tk = await extra.taker_flow(sym)
                 if tk:
                     entry["taker"] = tk
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"taker flow verisi alinamadi (symbol={sym}): {e}")
             try:
                 ob = await extra.orderbook(sym)
                 if ob:
                     entry["orderbook"] = ob
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"orderbook verisi alinamadi (symbol={sym}): {e}")
             try:
                 pm = await extra.premium_index(sym)
                 if pm:
                     entry["premium"] = pm
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"premium index verisi alinamadi (symbol={sym}): {e}")
             try:
                 k = self._agent_klines_map.get(sym)
                 if k is not None and len(k) > 1 and "open_interest" in entry:
@@ -434,15 +437,15 @@ class AutoTrader:
                     hist = entry["open_interest"]["history"]
                     oi_high = len(hist) > 1 and hist[-1] > hist[0] * 1.05
                     entry["liquidation"] = {"position_pct": round(pos, 3), "oi_high": oi_high}
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"likidasyon pozisyonu hesaplanamadi (symbol={sym}): {e}")
             if self._whale is not None:
                 try:
                     w = self._whale.flow(sym)
                     if w:
                         entry["whale"] = w
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"whale flow verisi alinamadi (symbol={sym}): {e}")
             if entry:
                 micro[sym] = entry
         self._agent_micro = micro
@@ -915,8 +918,8 @@ class AutoTrader:
                 try:
                     await self.telegram.send(
                         f"AI yeniden egitimi hata ile sonlandi: {e}")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"AI retrain hata bildirimi Telegram'a gonderilemedi: {e}")
         finally:
             self._retrain_running = False
 
@@ -937,7 +940,8 @@ class AutoTrader:
                     continue
                 try:
                     resolve_symbol(self.db, klines, symbol, resolution_bars)
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"sinyal cozumlemesi basarisiz (symbol={symbol}): {e}")
                     continue
             resolve_stale(self.db, days=30)
         except Exception as e:
@@ -1168,8 +1172,8 @@ class AutoTrader:
             mean20 = float(a.rolling(20).mean().iloc[-1])
             if mean20 > 0 and cur > 0:
                 return cur / mean20
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"volatilite orani hesaplanamadi: {e}")
         return 1.0
 
     def _projected_notional(self, price: float, sl: float, atr_ratio: float = None,
@@ -1418,8 +1422,8 @@ class AutoTrader:
                     await self.binance.set_tp_sl(
                         symbol, "LONG" if side == "BUY" else "SHORT", old_sl, 0.0
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"SL rollback icin borsaya emir gonderilemedi (symbol={symbol}): {e}")
                 return {"ok": False, "error": "exchange_sl_update_failed",
                         "symbol": symbol}
         logger.info(f"{symbol}: SL manuel olarak {old_sl} -> {new_sl}")
@@ -1463,8 +1467,8 @@ class AutoTrader:
                     await self.binance.set_tp_sl(
                         symbol, "LONG" if side == "BUY" else "SHORT", 0.0, old_tp
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"TP rollback icin borsaya emir gonderilemedi (symbol={symbol}): {e}")
                 return {"ok": False, "error": "exchange_tp_update_failed",
                         "symbol": symbol}
         logger.info(f"{symbol}: TP manuel olarak {old_tp} -> {new_tp}")
@@ -1709,8 +1713,8 @@ class AutoTrader:
                 if db_opened:
                     try:
                         restored_open = datetime.fromisoformat(db_opened).isoformat()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"DB'deki acilis zamani parse edilemedi (symbol={symbol}): {e}")
                 self.active_positions[symbol] = {
                     "side": "BUY" if amt > 0 else "SELL",
                     "entry_price": float(p.get("entryPrice", 0)),

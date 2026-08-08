@@ -1,3 +1,5 @@
+import hmac
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
@@ -7,6 +9,7 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
 
     `api_key` bos ise (dev/test) istekler oldugu gibi gecer; dolu ise
     /api/v1 prefix'li tum isteklerde X-API-Key eslesmesi beklenir.
+    Karsilastirma zamanlama saldirilarina karsi `hmac.compare_digest` ile yapilir.
     """
 
     def __init__(self, app, api_key: str = ""):
@@ -14,9 +17,10 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
         self.api_key = (api_key or "").strip()
 
     async def dispatch(self, request, call_next):
-        if (self.api_key and request.url.path.startswith("/api/v1")
-                and request.headers.get("X-API-Key") != self.api_key):
-            return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+        if self.api_key and request.url.path.startswith("/api/v1"):
+            provided = request.headers.get("X-API-Key") or ""
+            if not hmac.compare_digest(provided, self.api_key):
+                return JSONResponse({"detail": "Unauthorized"}, status_code=401)
         return await call_next(request)
 
 

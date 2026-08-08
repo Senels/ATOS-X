@@ -73,8 +73,8 @@ class BinanceWebSocket:
         if ws:
             try:
                 await ws.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"websocket kapatilirken hata (symbol={symbol}): {e}")
         self.callbacks.pop(symbol, None)
 
     async def sync(self, symbols: list, callback):

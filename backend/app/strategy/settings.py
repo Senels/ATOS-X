@@ -209,8 +209,8 @@ def _defaults() -> Dict[str, Any]:
         try:
             with _OPTIMIZED_FILE.open("r", encoding="utf-8") as f:
                 d = _merge(d, json.load(f))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"optimize edilmis ayarlar okunamadi: {e}")
     return d
 
 

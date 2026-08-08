@@ -186,8 +186,8 @@ async def _send_batch_signals(symbols: list, interval: str = "4h", sig_filter: s
                 tr = trend_regime(df)
                 ti = trend_icons.get(tr.get("regime", ""), "")
                 trend_str = f" {ti}" if ti else ""
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"trend rejimi ikon hesaplanamadi (symbol={sym}): {e}")
         lines.append(f"{sym} {arrow} {signal} ${price:.4g}{extra} "
                      f"guc:%{sig.get('strength', 0) * 100:.0f}{trend_str} - {sig.get('reason', '')[:40]}")
     if len(lines) == 1:
@@ -524,8 +524,8 @@ def _telegram_command(text: str):
                     opened = datetime.fromisoformat(ot)
                     age_h = (now - opened).total_seconds() / 3600.0
                     line += f" | {age_h:.1f}h"
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"pozisyon yasi hesaplanamadi: {e}")
             lines.append(line)
         return "\n".join(lines)
     if cmd.startswith("/koruma") or cmd.startswith("/ayar"):
@@ -845,8 +845,8 @@ def _telegram_command(text: str):
                         age = (now - datetime.fromisoformat(ot)).total_seconds() / 3600
                         if age >= max_age_h * 0.8:
                             old_syms.append(f"{s}({age:.0f}h)")
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"pozisyon yasi hesaplanamadi (symbol={s}): {e}")
         lines = [
             "ATOS X durum",
             f"Trade motoru: {trading} (mod: {mode_label}, yeni giris: {entries})",
@@ -1369,8 +1369,8 @@ def _telegram_command(text: str):
                     try:
                         h = (now - datetime.fromisoformat(ot)).total_seconds() / 3600
                         age_h = f" {h:.0f}h"
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"pozisyon yasi hesaplanamadi (symbol={sym}): {e}")
                 lines.append(f"  {sym} {side} ${entry:g} {sign}{pnl:.2f}{age_h}")
         return "\n".join(lines)
     if cmd.startswith("/ayarla"):
