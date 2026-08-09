@@ -117,7 +117,7 @@ tr:hover { background:rgba(59,130,246,0.05); }
 <div class="scan-actions">
 <span class="pill" id="marketCount">Market: -</span>
 <button class="btn" type="button" onclick="loadMarketSymbols()">Listeyi Yenile</button>
-<button class="btn btn-green" id="scanMarketBtn" type="button" onclick="startMarketScan()">Tum Futures Coinlerini Tara</button>
+<button class="btn btn-green" id="scanMarketBtn" type="button" onclick="startMarketScan()" disabled>Tum Futures Coinlerini Tara</button>
 </div>
 </div>
 <div class="progress-track"><div class="progress-bar" id="scanProgress"></div></div>
@@ -167,6 +167,7 @@ window.fetch = function(url, opts) {
   });
 };
 function num(v) { return (v === '' || v === null || v === undefined) ? null : v; }
+let marketReady = false;
 function appendCommonParams(q) {
 const map = {interval:'interval',limit:'limit',
 leading_indicator:'leading_indicator',signal_expiry:'signal_expiry',
@@ -192,6 +193,11 @@ document.getElementById('symbolList').innerHTML = (d.symbols||[]).map(x => '<opt
 } catch(e) {}
 }
 async function loadMarketSymbols() {
+const btn = document.getElementById('scanMarketBtn');
+const err = document.getElementById('scanError');
+marketReady = false;
+btn.disabled = true;
+err.classList.add('hidden'); err.textContent = '';
 try {
 const r = await fetch('/api/v1/backtest/market-symbols');
 const d = await r.json();
@@ -200,8 +206,14 @@ document.getElementById('marketCount').textContent = 'Market: ' + (d.count || 0)
 const dl = document.getElementById('symbolList');
 const existing = new Set(Array.from(dl.options).map(o => o.value));
 (d.symbols||[]).forEach(sym => { if (!existing.has(sym)) dl.innerHTML += '<option value="'+sym+'"></option>'; });
+marketReady = (d.count || 0) > 0;
+btn.disabled = !marketReady;
+document.getElementById('scanStatus').textContent = marketReady ? 'Hazir. Binance Futures tam liste alindi; emir gonderilmez.' : 'Binance market listesi bos dondu.';
 } catch(e) {
 document.getElementById('marketCount').textContent = 'Market: bloklu';
+document.getElementById('scanStatus').textContent = 'Binance Futures tam liste alinamadi. TLS/proxy duzelmeden tum coin taramasi baslatilmaz.';
+err.textContent = 'Blokaj: ' + e.message;
+err.classList.remove('hidden');
 }
 }
 async function run() {
@@ -234,6 +246,11 @@ async function startMarketScan() {
 const btn = document.getElementById('scanMarketBtn');
 const err = document.getElementById('scanError');
 err.classList.add('hidden'); err.textContent = '';
+if (!marketReady) {
+err.textContent = 'Blokaj: Binance Futures tam market listesi alinmadan tum coin taramasi baslatilamaz.';
+err.classList.remove('hidden');
+return;
+}
 document.getElementById('scanResultWrap').classList.add('hidden');
 document.getElementById('scanProgress').style.width = '0%';
 btn.disabled = true;

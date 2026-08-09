@@ -184,6 +184,8 @@ def test_backtest_compare_ui_present():
     assert "/api/v1/backtest/market-symbols" in resp.text
     assert "/api/v1/backtest/scan/start" in resp.text
     assert "symbols', 'market'" in resp.text
+    assert "marketReady" in resp.text
+    assert "disabled>Tum Futures Coinlerini Tara" in resp.text
     client.close()
 
 
