@@ -35,6 +35,21 @@ def test_research_summary_preserves_blocked_state_and_promoted_weights(tmp_path,
     assert body["scorecards"][0]["symbol"] == "BTCUSDT"
 
 
+def test_research_summary_surfaces_download_failure(tmp_path, monkeypatch):
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    (reports / "research_manifest.json").write_text(
+        json.dumps({"status": "DOWNLOAD_FAILED", "blocking_reasons": ["download_failed_exit_1"]}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(research, "_REPO_ROOT", tmp_path)
+    monkeypatch.setattr(research, "_REPORTS_ROOT", reports)
+    monkeypatch.setattr(research, "_REGISTRY_PATH", tmp_path / "backend" / "data" / "agent_registry.json")
+    body = research.build_research_summary()
+    assert body["status"] == "BLOCKED"
+    assert body["blocking_reasons"] == ["download_failed_exit_1"]
+
+
 def test_research_dashboard_route_is_read_only_page():
     client = TestClient(app)
     response = client.get("/dashboard/research")

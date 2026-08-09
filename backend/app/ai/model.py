@@ -10,6 +10,7 @@ import pandas as pd
 
 from app.ai.features import FEATURE_NAMES, build_features
 from app.ai.labeling import make_labels
+from app.ai.sequence import build_sequences
 from app.data.validation.leakage import assert_unique_sorted_timestamps
 from app.data.validation.time_split import PurgedWalkForward
 
@@ -40,6 +41,18 @@ def build_model(n_features: int, n_classes: int = _N_CLASSES):
         tf.keras.layers.Dropout(0.25),
         tf.keras.layers.Dense(64, activation="relu"),
         tf.keras.layers.Dropout(0.25),
+        tf.keras.layers.Dense(32, activation="relu"),
+        tf.keras.layers.Dense(n_classes, activation="softmax"),
+    ])
+    model.compile(optimizer="adam", loss="sparse_categorical_crossentropy", metrics=["accuracy"])
+    return model
+
+
+def build_lstm_model(sequence_length: int, n_features: int, n_classes: int = _N_CLASSES):
+    _require_tf()
+    model = tf.keras.Sequential([
+        tf.keras.Input(shape=(sequence_length, n_features)),
+        tf.keras.layers.LSTM(64, dropout=0.20),
         tf.keras.layers.Dense(32, activation="relu"),
         tf.keras.layers.Dense(n_classes, activation="softmax"),
     ])
@@ -87,7 +100,11 @@ def _archive_frames(interval: str = "4h", max_symbols: int = 400, min_bars: int 
             if len(df) < min_bars:
                 continue
             if "timestamp" in df.columns:
-                df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+                raw_timestamp = df["timestamp"]
+                if pd.api.types.is_numeric_dtype(raw_timestamp):
+                    df["timestamp"] = pd.to_datetime(raw_timestamp, unit="ms", utc=True)
+                else:
+                    df["timestamp"] = pd.to_datetime(raw_timestamp, utc=True)
                 df = df.set_index("timestamp")
             else:
                 df.index = pd.to_datetime(df.index, utc=True)
@@ -123,9 +140,26 @@ def train_from_archive(interval: str = "4h", max_symbols: int = 400,
                        model_name: str = "ai_direction", model_type: str = "dense",
                        lstm_seq_len: int = 20, **kwargs) -> Dict[str, Any]:
     frames = _archive_frames(interval, max_symbols, min_bars)
-    if model_type != "dense":
-        raise RuntimeError("Bu egitim girisi su anda dense icin; LSTM fold-local pipeline ayri API ile calistirilmalidir")
-    return train_from_dataframe(frames, horizon=horizon, atr_mult=atr_mult, epochs=epochs, model_name=model_name, **kwargs)
+    if not frames:
+        raise ValueError("Arsivde yeterli sembol verisi yok")
+    if model_type == "dense":
+        return train_from_dataframe(frames, horizon=horizon, atr_mult=atr_mult, epochs=epochs, model_name=model_name, **kwargs)
+    if model_type == "lstm":
+        return train_lstm_from_dataframe(
+            frames, horizon=horizon, atr_mult=atr_mult, epochs=epochs,
+            model_name=model_name, sequence_length=lstm_seq_len, **kwargs,
+        )
+    if model_type == "ensemble":
+        dense = train_from_dataframe(
+            frames, horizon=horizon, atr_mult=atr_mult, epochs=epochs,
+            model_name=f"{model_name}_dense", **kwargs,
+        )
+        lstm = train_lstm_from_dataframe(
+            frames, horizon=horizon, atr_mult=atr_mult, epochs=epochs,
+            model_name=f"{model_name}_lstm", sequence_length=lstm_seq_len, **kwargs,
+        )
+        return {"model_dir": str(model_dir(model_name)), "model_type": "ensemble", "samples": dense["samples"], "dense": dense, "lstm": lstm}
+    raise ValueError(f"Bilinmeyen model tipi: {model_type}")
 
 
 def train_from_dataframe(dfs: List[pd.DataFrame], horizon: int = 12,
@@ -164,6 +198,57 @@ def train_from_dataframe(dfs: List[pd.DataFrame], horizon: int = 12,
     metrics = {"samples": len(X), "folds": len(fold_metrics), "mean_val_acc": float(np.mean([f["val_acc"] for f in fold_metrics])), "mean_test_acc": float(np.mean([f["test_acc"] for f in fold_metrics])), "best_test_acc": float(np.max([f["test_acc"] for f in fold_metrics]))}
     joblib.dump(metrics, out_dir / "metrics.joblib")
     return {"model_dir": str(out_dir), "model_type": "dense", **metrics}
+
+
+def train_lstm_from_dataframe(dfs: List[pd.DataFrame], horizon: int = 12,
+                              atr_mult: float = 1.0, epochs: int = 30,
+                              seed: int = 7, model_name: str = "ai_direction_lstm",
+                              sequence_length: int = 20, **kwargs) -> Dict[str, Any]:
+    """Train an LSTM with sequences built independently inside every fold."""
+    _require_tf()
+    np.random.seed(seed)
+    try:
+        tf.random.set_seed(seed)
+    except AttributeError:
+        pass
+    if sequence_length < 2:
+        raise ValueError("sequence_length en az 2 olmali")
+    prepared = [_prepare_dataframe(df, horizon, atr_mult) for df in dfs]
+    prepared = [(X, y) for X, y, _ in prepared if len(X)]
+    if not prepared:
+        raise ValueError("Egitim icin yeterli veri yok")
+    fold_metrics = []
+    final_model = final_scaler = None
+    total_samples = 0
+    for X, y in prepared:
+        folds = _folds(len(X), horizon, kwargs.get("embargo", 0))
+        for fold_no, (train_w, val_w, test_w) in enumerate(folds, start=1):
+            from sklearn.preprocessing import StandardScaler
+            scaler = StandardScaler()
+            X_train = scaler.fit_transform(X[train_w.start:train_w.end]).astype(np.float32)
+            X_val = scaler.transform(X[val_w.start:val_w.end]).astype(np.float32)
+            X_test = scaler.transform(X[test_w.start:test_w.end]).astype(np.float32)
+            train_seq = build_sequences(X_train, y[train_w.start:train_w.end], sequence_length)
+            val_seq = build_sequences(X_val, y[val_w.start:val_w.end], sequence_length)
+            test_seq = build_sequences(X_test, y[test_w.start:test_w.end], sequence_length)
+            if not len(train_seq.X) or not len(val_seq.X) or not len(test_seq.X):
+                continue
+            model = build_lstm_model(sequence_length, X.shape[1])
+            history = model.fit(train_seq.X, train_seq.y, validation_data=(val_seq.X, val_seq.y), epochs=epochs, batch_size=256, verbose=0)
+            test_loss, test_acc = model.evaluate(test_seq.X, test_seq.y, verbose=0)
+            fold_metrics.append({"fold": fold_no, "val_loss": float(history.history["val_loss"][-1]), "val_acc": float(history.history["val_accuracy"][-1]), "test_loss": float(test_loss), "test_acc": float(test_acc)})
+            final_model, final_scaler = model, scaler
+            total_samples += len(X)
+    if final_model is None or final_scaler is None:
+        raise ValueError("LSTM foldleri sequence_length icin yetersiz")
+    out_dir = model_dir(model_name)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    final_model.save(out_dir / "model.keras")
+    joblib.dump(final_scaler, out_dir / "scaler.joblib")
+    joblib.dump({"features": FEATURE_NAMES, "n_classes": _N_CLASSES, "horizon": horizon, "atr_mult": atr_mult, "sequence_length": sequence_length, "validation_method": "purged_walk_forward", "folds": fold_metrics, "samples": total_samples, "random_split": False, "model_type": "lstm"}, out_dir / "meta.joblib")
+    metrics = {"samples": total_samples, "folds": len(fold_metrics), "mean_val_acc": float(np.mean([fold["val_acc"] for fold in fold_metrics])), "mean_test_acc": float(np.mean([fold["test_acc"] for fold in fold_metrics])), "best_test_acc": float(np.max([fold["test_acc"] for fold in fold_metrics]))}
+    joblib.dump(metrics, out_dir / "metrics.joblib")
+    return {"model_dir": str(out_dir), "model_type": "lstm", **metrics}
 
 
 class Predictor:

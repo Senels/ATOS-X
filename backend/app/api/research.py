@@ -117,7 +117,7 @@ def build_research_summary() -> dict[str, Any]:
             if payload.get("status") == "INSUFFICIENT_HISTORY":
                 reasons.append("five_year_archive_not_ready")
     statuses = {stage["status"] for stage in stages}
-    if "BLOCKED" in statuses or "INSUFFICIENT_HISTORY" in statuses:
+    if statuses & {"BLOCKED", "DOWNLOAD_FAILED", "INSUFFICIENT_HISTORY"}:
         status = "BLOCKED"
     elif "INVALID" in statuses:
         status = "INVALID"

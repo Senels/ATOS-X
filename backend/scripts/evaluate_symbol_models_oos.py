@@ -6,20 +6,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import joblib
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 
-from app.ai.model import _archive_frames
-from app.ai.sequence import build_sequences
 from app.ai.features import FEATURE_NAMES, build_features
 from app.ai.labeling import make_labels
-from app.data.validation.time_split import PurgedWalkForward
+from app.ai.model import _archive_frames
+from app.ai.sequence import build_sequences
 from app.backtest.oos_engine import BacktestConfig, run_oos_backtest
-from app.backtest.scorecard import rank_scorecards
+from app.data.validation.time_split import PurgedWalkForward
 
 
 def prepare_symbol(df: pd.DataFrame, horizon: int):
@@ -55,7 +57,7 @@ def predict_lstm(model, scaler, X, seq_len):
     seq = build_sequences(scaled, dummy, seq_len)
     if len(seq.X) == 0:
         return np.empty((0, 3), dtype=np.float32), np.empty(0, dtype=np.int64)
-    return model.predict(seq.X, verbose=0), seq.timestamps
+    return model.predict(seq.X, verbose=0), seq.end_positions
 
 
 def probs_to_signals(p: np.ndarray, threshold: float) -> np.ndarray:
@@ -75,12 +77,12 @@ def evaluate_symbol(name, df, dense_model, dense_scaler, lstm_model, lstm_scaler
     idx_test = both.index[test_w.start:test_w.end]
 
     dense_p = predict_dense(dense_model, dense_scaler, X_test)
-    lstm_p, lstm_ts = predict_lstm(lstm_model, lstm_scaler, X_test, seq_len)
+    lstm_p, lstm_positions = predict_lstm(lstm_model, lstm_scaler, X_test, seq_len)
     dense_ts = pd.to_datetime(idx_test, utc=True).astype("int64").to_numpy()
 
     # LSTM sequence timestamps are local offsets within the test fold.
     # Build an explicit mapping so no positional assumption crosses a boundary.
-    lstm_ts = lstm_ts.astype(np.int64)
+    lstm_ts = dense_ts[lstm_positions]
     common = np.intersect1d(dense_ts, lstm_ts)
     if len(common) == 0:
         return {"symbol": name, "status": "no_common_dense_lstm_timestamps"}
@@ -137,7 +139,7 @@ def main():
     reports = []
     for df in frames:
         try:
-            name = getattr(df, "name", None) or "unknown"
+            name = df.attrs.get("symbol", "unknown")
             report = evaluate_symbol(name, df, dense_model, dense_scaler, lstm_model, lstm_scaler, seq_len, args.horizon, args.threshold, cfg)
             if report:
                 reports.append(report)

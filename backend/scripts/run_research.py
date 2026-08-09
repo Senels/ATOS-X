@@ -31,19 +31,27 @@ def main() -> None:
     root = Path(args.archive)
     root.mkdir(parents=True, exist_ok=True)
 
+    download_error = None
+
     if args.download:
-        run([sys.executable, "backend/scripts/download_binance_futures_history.py",
-             "--interval", args.interval, "--years", str(args.years),
-             "--max-symbols", str(args.max_symbols), "--output-dir", str(root)])
+        try:
+            run([sys.executable, "backend/scripts/download_binance_futures_history.py",
+                 "--interval", args.interval, "--years", str(args.years),
+                 "--max-symbols", str(args.max_symbols), "--data-dir", str(root)])
+        except subprocess.CalledProcessError as exc:
+            download_error = f"download_failed_exit_{exc.returncode}"
 
     validation = [sys.executable, "backend/scripts/run_five_year_oos.py",
                   "--data-dir", str(root), "--interval", args.interval,
                   "--years", str(args.years), "--min-bars", str(args.min_bars)]
-    try:
-        run(validation)
-        status = "READY"
-    except subprocess.CalledProcessError:
-        status = "INSUFFICIENT_HISTORY"
+    if download_error:
+        status = "DOWNLOAD_FAILED"
+    else:
+        try:
+            run(validation)
+            status = "READY"
+        except subprocess.CalledProcessError:
+            status = "INSUFFICIENT_HISTORY"
 
     manifest = {
         "exchange": "Binance Global USD-M Futures",
@@ -53,6 +61,9 @@ def main() -> None:
         "status": status,
         "next_stage": "per-symbol OOS model evaluation" if status == "READY" else "download/repair archive",
         "live_trading": False,
+        "blocking_reasons": [download_error] if download_error else (
+            [] if status == "READY" else ["five_year_archive_not_ready"]
+        ),
     }
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)

@@ -1,5 +1,6 @@
 import pandas as pd
 
+from app.ai.sequence import build_sequences
 from app.backtest.per_symbol_oos import prepare_symbol, symbol_oos_fold
 
 
@@ -22,3 +23,10 @@ def test_per_symbol_has_oos_fold():
     tr, va, te = folds[0]
     assert tr.end <= va.start <= va.end <= te.start <= te.end
     assert len(X) == len(y)
+
+
+def test_sequence_end_positions_align_with_dense_test_timestamps():
+    X = pd.DataFrame({"a": range(12), "b": range(12)}).to_numpy(dtype="float32")
+    batch = build_sequences(X, pd.Series(range(12)).to_numpy(), 4)
+    timestamps = pd.date_range("2026-01-01", periods=12, freq="h", tz="UTC").astype("int64").to_numpy()
+    assert timestamps[batch.end_positions].tolist() == timestamps[3:].tolist()

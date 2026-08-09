@@ -4,6 +4,7 @@ TensorFlow testleri `pytest.importorskip("tensorflow")` ile kosullu; CI'da
 TF olmadigi icin skip edilir. Kapi (gate) testleri stub predictor ile
 calisir ve TF gerektirmez.
 """
+import joblib
 import numpy as np
 import pandas as pd
 import pytest
@@ -178,3 +179,13 @@ def test_train_requires_tf_when_missing(monkeypatch):
     monkeypatch.setattr(m, "_HAVE_TF", False)
     with pytest.raises(RuntimeError):
         m.build_model(5)
+
+
+def test_train_lstm_roundtrip(tmp_path, monkeypatch):
+    pytest.importorskip("tensorflow")
+    import app.ai.model as m
+    monkeypatch.setattr(m, "_MODEL_ROOT", tmp_path)
+    result = m.train_lstm_from_dataframe([_df(n=400, seed=4)], horizon=6, epochs=1, sequence_length=10, model_name="lstm")
+    assert result["model_type"] == "lstm"
+    assert result["samples"] > 0
+    assert joblib.load(tmp_path / "lstm" / "meta.joblib")["sequence_length"] == 10
