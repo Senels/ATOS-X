@@ -46,7 +46,7 @@ def main() -> None:
         status = "INSUFFICIENT_HISTORY"
 
     manifest = {
-        "exchange": "Binance Global USDⓈ-M Futures",
+        "exchange": "Binance Global USD-M Futures",
         "years": args.years,
         "interval": args.interval,
         "archive": str(root),

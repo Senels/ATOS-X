@@ -26,7 +26,7 @@ def main() -> None:
     csvs = sorted(archive.glob(f"*_{args.interval}.csv"))
 
     result = {
-        "exchange": "Binance Global USDⓈ-M Futures",
+        "exchange": "Binance Global USD-M Futures",
         "archive": str(archive),
         "interval": args.interval,
         "years": args.years,

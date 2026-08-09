@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import joblib
 import numpy as np
@@ -134,7 +134,10 @@ def train_from_dataframe(dfs: List[pd.DataFrame], horizon: int = 12,
                          model_name: str = "ai_direction", **kwargs) -> Dict[str, Any]:
     _require_tf()
     np.random.seed(seed)
-    tf.random.set_seed(seed)
+    try:
+        tf.random.set_seed(seed)
+    except AttributeError:
+        pass
     X, y, timestamps = _concat_datasets(dfs, horizon, atr_mult)
     folds = _folds(len(X), horizon, kwargs.get("embargo", 0))
     if not folds:
@@ -161,3 +164,52 @@ def train_from_dataframe(dfs: List[pd.DataFrame], horizon: int = 12,
     metrics = {"samples": len(X), "folds": len(fold_metrics), "mean_val_acc": float(np.mean([f["val_acc"] for f in fold_metrics])), "mean_test_acc": float(np.mean([f["test_acc"] for f in fold_metrics])), "best_test_acc": float(np.max([f["test_acc"] for f in fold_metrics]))}
     joblib.dump(metrics, out_dir / "metrics.joblib")
     return {"model_dir": str(out_dir), "model_type": "dense", **metrics}
+
+
+class Predictor:
+    """Loaded Dense model, scaler and feature contract for live-safe inference."""
+
+    def __init__(self, model: Any, scaler: Any, features: List[str]):
+        self.model = model
+        self.scaler = scaler
+        self.features = features
+
+    def predict(self, df: pd.DataFrame) -> Dict[str, Any]:
+        features = _standardize(build_features(df))
+        if features.empty:
+            return {
+                "direction": "HOLD",
+                "confidence": 0.0,
+                "probabilities": [0.0, 1.0, 0.0],
+                "loaded": True,
+            }
+        row = features.iloc[[-1]][self.features].to_numpy(dtype=np.float32)
+        vector = self.scaler.transform(row).astype(np.float32)
+        probabilities = np.asarray(self.model.predict(vector, verbose=0)[0], dtype=np.float64)
+        index = int(np.argmax(probabilities))
+        return {
+            "direction": ["SELL", "HOLD", "BUY"][index],
+            "confidence": float(probabilities[index]),
+            "probabilities": [float(value) for value in probabilities],
+            "loaded": True,
+        }
+
+
+def load_predictor(model_name: str) -> Optional[Predictor]:
+    """Load model artifacts only when their feature/scaler contract is complete."""
+    if not _HAVE_TF:
+        return None
+    out_dir = model_dir(model_name)
+    required = [out_dir / "model.keras", out_dir / "scaler.joblib", out_dir / "meta.joblib"]
+    if not all(path.is_file() for path in required):
+        return None
+    try:
+        model = tf.keras.models.load_model(out_dir / "model.keras")
+        scaler = joblib.load(out_dir / "scaler.joblib")
+        meta = joblib.load(out_dir / "meta.joblib")
+        features = list(meta.get("features", FEATURE_NAMES))
+        if not features or set(features) - set(FEATURE_NAMES):
+            return None
+        return Predictor(model, scaler, features)
+    except Exception:
+        return None

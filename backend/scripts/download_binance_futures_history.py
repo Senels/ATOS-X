@@ -1,4 +1,4 @@
-"""Download Binance Global USDⓈ-M Futures klines for research/backtesting.
+"""Download Binance Global USD-M Futures klines for research/backtesting.
 
 Uses Binance's public REST market-data endpoints only. No API key and no orders.
 The downloader writes one CSV per symbol/timeframe and resumes from existing data.
@@ -110,7 +110,7 @@ def main() -> None:
         symbols = args.symbols or futures_symbols(session)
         if args.max_symbols > 0:
             symbols = symbols[:args.max_symbols]
-        print(f"Binance Global USDⓈ-M Futures: {len(symbols)} symbols, {args.interval}, {args.years:g} years")
+        print(f"Binance Global USD-M Futures: {len(symbols)} symbols, {args.interval}, {args.years:g} years")
         for i, symbol in enumerate(symbols, 1):
             path = Path(args.data_dir) / f"{symbol}_{args.interval}.csv"
             count = download_symbol(session, symbol, args.interval, start_ms, end_ms, path)

@@ -53,7 +53,7 @@ def main() -> None:
     rows = discover(Path(args.data_dir), args.interval, args.years, args.min_bars)
     qualified = [r for r in rows if r["five_year_coverage"]]
     payload = {
-        "exchange": "Binance Global USDⓈ-M Futures",
+        "exchange": "Binance Global USD-M Futures",
         "interval": args.interval,
         "requested_years": args.years,
         "qualified_symbols": len(qualified),

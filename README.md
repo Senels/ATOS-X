@@ -63,6 +63,21 @@ make dev        # http://localhost:8000/health
 Backtest çalıştırmak için `legacy/data/futures_4h_data/` altında
 `<SYMBOL>_4h.csv` dosyaları gerekir (örn. `BTCUSDT_4h.csv`).
 
+## Araştırma Kontrol Odası
+
+`/dashboard/research` sayfası, Binance Global USD-M Futures araştırma
+zincirini tek bir salt-okunur ekranda sunar: beş yıllık arşiv doğrulaması,
+per-symbol Dense/LSTM OOS, maliyetli simülasyon scorecard'ları, Agent Registry,
+promotion ve ensemble ağırlıkları. Sayfa yalnızca pipeline'ın ürettiği yerel
+JSON raporlarını okur; emir göndermez, model eğitmez ve promotion çalıştırmaz.
+
+Araştırma verisi yoksa `NOT_RUN` veya `BLOCKED` gösterilir; performans sonucu
+uydurulmaz. Araştırma komutu da aynı güvenlik sınırını korur:
+
+```bash
+python backend/scripts/run_research.py --interval 4h --years 5
+```
+
 ## Lisans
 
 MIT

@@ -19,6 +19,7 @@ from app.api.exchange import router as exchange_router
 from app.api.metrics import router as metrics_router
 from app.api.optimization import router as optimize_router
 from app.api.portfolio import router as portfolio_router
+from app.api.research import router as research_router
 from app.api.risk import router as risk_router
 from app.core.config import ENV_FILE, get_settings
 from app.core.database import Database
@@ -1964,6 +1965,7 @@ app.include_router(metrics_router)
 app.include_router(portfolio_router)
 app.include_router(risk_router)
 app.include_router(agents_router)
+app.include_router(research_router)
 
 
 @app.get("/")
@@ -2828,6 +2830,16 @@ async def dashboard_html():
     except OSError as e:
         logger.warning(f"Dashboard HTML okunamadi: {e}")
         return HTMLResponse(content="<h1>Dashboard not found</h1>")
+
+
+@app.get("/dashboard/research")
+async def research_dashboard_html():
+    try:
+        with open(_APP_DIR / "research_dashboard.html", "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    except OSError as e:
+        logger.warning(f"Research dashboard okunamadi: {e}")
+        return HTMLResponse(content="<h1>Research dashboard not found</h1>")
 
 
 @app.get("/dashboard/settings")
