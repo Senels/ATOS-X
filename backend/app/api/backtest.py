@@ -539,7 +539,7 @@ async def market_symbols():
     from app.exchange.binance_client import BinanceClient
     client = BinanceClient()
     try:
-        symbols = await client.load_all_symbols()
+        symbols = await client.load_all_symbols(allow_fallback=False)
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Binance sembol listesi alinamadi: {e}")
     return {"count": len(symbols), "symbols": symbols}
@@ -601,7 +601,7 @@ async def scan_start(
         from app.exchange.binance_client import BinanceClient
         client = BinanceClient()
         try:
-            symbol_list = await client.load_all_symbols()
+            symbol_list = await client.load_all_symbols(allow_fallback=False)
         except Exception as e:
             raise HTTPException(status_code=503, detail=f"Piyasa listesi alinamadi: {e}")
         if not symbol_list:

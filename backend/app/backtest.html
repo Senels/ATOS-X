@@ -45,6 +45,12 @@ tr:hover { background:rgba(59,130,246,0.05); }
 .row-btn { cursor:pointer; }
 .win { color:#22c55e; font-weight:bold; }
 .cmp-cb { width:16px; height:16px; accent-color:#3b82f6; cursor:pointer; }
+.scan-head { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+.scan-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.progress-track { height:10px; background:#0f172a; border:1px solid #334155; border-radius:6px; overflow:hidden; margin:12px 0; }
+.progress-bar { height:100%; width:0%; background:#22c55e; transition:width .25s; }
+.muted { color:#94a3b8; font-size:13px; }
+.pill { display:inline-flex; align-items:center; gap:6px; border:1px solid #334155; border-radius:999px; padding:4px 10px; color:#cbd5e1; font-size:12px; }
 </style>
 </head>
 <body>
@@ -102,6 +108,24 @@ tr:hover { background:rgba(59,130,246,0.05); }
 <div class="error hidden" id="errorBox"></div>
 </div>
 
+<div class="card" id="marketScanCard">
+<div class="scan-head">
+<div>
+<h3>Binance Futures Tum Coin Taramasi</h3>
+<div class="muted">USD-M Futures market listesindeki tum USDT perpetual coinleri arka planda backtest eder.</div>
+</div>
+<div class="scan-actions">
+<span class="pill" id="marketCount">Market: -</span>
+<button class="btn" type="button" onclick="loadMarketSymbols()">Listeyi Yenile</button>
+<button class="btn btn-green" id="scanMarketBtn" type="button" onclick="startMarketScan()">Tum Futures Coinlerini Tara</button>
+</div>
+</div>
+<div class="progress-track"><div class="progress-bar" id="scanProgress"></div></div>
+<div class="muted" id="scanStatus">Hazir. Kaynak olarak Binance secilir; emir gonderilmez.</div>
+<div class="error hidden" id="scanError"></div>
+<div class="table-wrap hidden" id="scanResultWrap" style="margin-top:12px;"><table><thead><tr><th>Symbol</th><th>Trades</th><th>Net</th><th>Win Rate %</th><th>PF</th><th>Max DD %</th><th>Error</th></tr></thead><tbody id="scanResultBody"></tbody></table></div>
+</div>
+
 <div class="card hidden" id="resultCard">
 <h3>Sonuc</h3>
 <div class="stats-row" id="statsRow"></div>
@@ -143,23 +167,8 @@ window.fetch = function(url, opts) {
   });
 };
 function num(v) { return (v === '' || v === null || v === undefined) ? null : v; }
-async function loadSymbols() {
-try {
-const r = await fetch('/api/v1/backtest/symbols?interval=4h');
-const d = await r.json();
-document.getElementById('symbolList').innerHTML = (d.symbols||[]).map(x => '<option value="'+x+'"></option>').join('');
-} catch(e) {}
-}
-async function run() {
-const btn = document.getElementById('runBtn');
-const statusText = document.getElementById('statusText');
-const err = document.getElementById('errorBox');
-err.classList.add('hidden'); err.textContent = '';
-document.getElementById('resultCard').classList.add('hidden');
-btn.disabled = true;
-statusText.innerHTML = '<span class="spinner"></span>Backtest calisiyor...';
-const q = new URLSearchParams();
-const map = {symbol:'symbol',interval:'interval',limit:'limit',source:'source',
+function appendCommonParams(q) {
+const map = {interval:'interval',limit:'limit',
 leading_indicator:'leading_indicator',signal_expiry:'signal_expiry',
 rr_ratio:'rr_ratio',sl_lookback:'sl_lookback',atr_mult:'atr_mult',
 initial_equity:'initial_equity',risk_per_trade:'risk_per_trade',fee_rate:'fee_rate',leverage:'leverage',
@@ -173,6 +182,40 @@ q.set('alternate_signal', document.getElementById('alternate_signal').checked ? 
 q.set('atr_fallback', document.getElementById('atr_fallback').checked ? 'true':'false');
 const conf = document.getElementById('confirmations').value.trim();
 if (conf) q.set('confirmations', conf);
+return q;
+}
+async function loadSymbols() {
+try {
+const r = await fetch('/api/v1/backtest/symbols?interval=4h');
+const d = await r.json();
+document.getElementById('symbolList').innerHTML = (d.symbols||[]).map(x => '<option value="'+x+'"></option>').join('');
+} catch(e) {}
+}
+async function loadMarketSymbols() {
+try {
+const r = await fetch('/api/v1/backtest/market-symbols');
+const d = await r.json();
+if (d.detail) throw new Error(typeof d.detail === 'string' ? d.detail : JSON.stringify(d.detail));
+document.getElementById('marketCount').textContent = 'Market: ' + (d.count || 0);
+const dl = document.getElementById('symbolList');
+const existing = new Set(Array.from(dl.options).map(o => o.value));
+(d.symbols||[]).forEach(sym => { if (!existing.has(sym)) dl.innerHTML += '<option value="'+sym+'"></option>'; });
+} catch(e) {
+document.getElementById('marketCount').textContent = 'Market: bloklu';
+}
+}
+async function run() {
+const btn = document.getElementById('runBtn');
+const statusText = document.getElementById('statusText');
+const err = document.getElementById('errorBox');
+err.classList.add('hidden'); err.textContent = '';
+document.getElementById('resultCard').classList.add('hidden');
+btn.disabled = true;
+statusText.innerHTML = '<span class="spinner"></span>Backtest calisiyor...';
+const q = new URLSearchParams();
+q.set('symbol', document.getElementById('symbol').value);
+q.set('source', document.getElementById('source').value);
+appendCommonParams(q);
 try {
 const r = await fetch('/api/v1/backtest?' + q.toString());
 const d = await r.json();
@@ -185,6 +228,60 @@ err.classList.remove('hidden');
 btn.disabled = false;
 statusText.textContent = '';
 }
+}
+let scanTimer = null;
+async function startMarketScan() {
+const btn = document.getElementById('scanMarketBtn');
+const err = document.getElementById('scanError');
+err.classList.add('hidden'); err.textContent = '';
+document.getElementById('scanResultWrap').classList.add('hidden');
+document.getElementById('scanProgress').style.width = '0%';
+btn.disabled = true;
+const q = appendCommonParams(new URLSearchParams());
+q.set('symbols', 'market');
+q.set('source', 'binance');
+try {
+const r = await fetch('/api/v1/backtest/scan/start?' + q.toString(), {method:'POST'});
+const d = await r.json();
+if (d.detail) throw new Error(typeof d.detail === 'string' ? d.detail : JSON.stringify(d.detail));
+document.getElementById('scanStatus').textContent = 'Basladi: ' + d.total + ' Binance Futures sembolu taranacak.';
+pollScan(d.job_id);
+} catch(e) {
+err.textContent = 'Hata: ' + e.message;
+err.classList.remove('hidden');
+btn.disabled = false;
+}
+}
+async function pollScan(jobId) {
+if (scanTimer) clearTimeout(scanTimer);
+try {
+const r = await fetch('/api/v1/backtest/scan/status/' + jobId);
+const d = await r.json();
+if (d.detail) throw new Error(typeof d.detail === 'string' ? d.detail : JSON.stringify(d.detail));
+const total = d.total || 0, done = d.done || 0;
+document.getElementById('scanProgress').style.width = total ? Math.round(done * 100 / total) + '%' : '0%';
+document.getElementById('scanStatus').textContent = d.status + ' | ' + done + '/' + total + (d.current_symbol ? ' | ' + d.current_symbol : '');
+if (d.status === 'done') {
+renderScanResult(d.result || {});
+document.getElementById('scanMarketBtn').disabled = false;
+return;
+}
+if (d.status === 'failed') throw new Error(d.error || 'scan failed');
+scanTimer = setTimeout(() => pollScan(jobId), 2000);
+} catch(e) {
+document.getElementById('scanError').textContent = 'Hata: ' + e.message;
+document.getElementById('scanError').classList.remove('hidden');
+document.getElementById('scanMarketBtn').disabled = false;
+}
+}
+function renderScanResult(result) {
+const body = document.getElementById('scanResultBody');
+body.innerHTML = '';
+(result.results || []).forEach(row => {
+body.innerHTML += '<tr><td>'+row.symbol+'</td><td>'+(row.trades||row.base_trades||0)+'</td><td style="color:'+((row.net||row.base_net||0)>=0?'#22c55e':'#ef4444')+'">'+fmt(row.net||row.base_net||0,2)+'</td><td>'+fmt(row.win_rate||row.base_win_rate||0,1)+'</td><td>'+fmt(row.pf||row.base_pf,2)+'</td><td>'+fmt(row.max_dd||row.base_max_dd,2)+'</td><td>'+(row.error||'')+'</td></tr>';
+});
+if (!(result.results || []).length) body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748b;padding:20px;">Sonuc yok</td></tr>';
+document.getElementById('scanResultWrap').classList.remove('hidden');
 }
 function fmt(v, d, suffix) { if (v === null || v === undefined) return '-'; if (d !== undefined) v = Number(v).toFixed(d); return (suffix||'') + v; }
 function render(d) {
@@ -313,6 +410,7 @@ const m = run.metrics || {};
 render({...m, trades: m.trades || []});
 }
 loadSymbols();
+loadMarketSymbols();
 loadHistory();
 </script>
 </body>

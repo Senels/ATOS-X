@@ -180,6 +180,10 @@ def test_backtest_compare_ui_present():
     assert "compare?a=" in resp.text
     assert "backtest/compare" in resp.text
     assert 'id="min_signal_strength"' in resp.text
+    assert "Binance Futures Tum Coin Taramasi" in resp.text
+    assert "/api/v1/backtest/market-symbols" in resp.text
+    assert "/api/v1/backtest/scan/start" in resp.text
+    assert "symbols', 'market'" in resp.text
     client.close()
 
 

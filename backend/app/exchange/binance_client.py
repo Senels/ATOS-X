@@ -93,7 +93,7 @@ class BinanceClient:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, lambda: fn(*args, **kwargs))
 
-    async def load_all_symbols(self):
+    async def load_all_symbols(self, allow_fallback: bool = True):
         try:
             if not self.client:
                 await self.connect()
@@ -106,6 +106,8 @@ class BinanceClient:
                 s["symbol"]
                 for s in exchange_info["symbols"]
                 if s["symbol"].endswith("USDT")
+                and s.get("quoteAsset", "USDT") == "USDT"
+                and s.get("contractType", "PERPETUAL") == "PERPETUAL"
                 and s["status"] == "TRADING"
                 and not is_stablecoin_symbol(s["symbol"])
             ]
@@ -113,6 +115,8 @@ class BinanceClient:
             return self.all_symbols
         except Exception as e:
             logger.error(f"[BINANCE] sembol yukleme hatasi: {e}")
+            if not allow_fallback:
+                raise
             return ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT"]
 
     def _filter(self, symbol: str, ftype: str, default: str = "0.00000001"):

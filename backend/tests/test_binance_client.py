@@ -110,6 +110,17 @@ async def test_load_all_symbols_fallback():
     assert res == ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT"]
 
 
+async def test_load_all_symbols_strict_raises_without_fallback():
+    bc = BinanceClient()
+
+    def _boom(*a, **k):
+        raise RuntimeError("api")
+
+    make_client(bc, futures_exchange_info=_boom)
+    with pytest.raises(RuntimeError, match="api"):
+        await bc.load_all_symbols(allow_fallback=False)
+
+
 def test_filter_uses_tick_and_step():
     bc = BinanceClient()
     bc.symbol_filters["BTCUSDT"] = {

@@ -327,7 +327,8 @@ def test_binance_cached_refetch_when_stale(tmp_path, monkeypatch):
 
 
 def test_market_symbols(monkeypatch):
-    async def fake_load_all(self):
+    async def fake_load_all(self, allow_fallback=True):
+        assert allow_fallback is False
         return ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
 
     monkeypatch.setattr("app.exchange.binance_client.BinanceClient.load_all_symbols", fake_load_all)
@@ -338,7 +339,8 @@ def test_market_symbols(monkeypatch):
 
 def test_scan_start_market_job(monkeypatch, api_db):
     """symbols=market job akisi: baslat -> calis -> done -> sonuc doner."""
-    async def fake_load_all(self):
+    async def fake_load_all(self, allow_fallback=True):
+        assert allow_fallback is False
         return ["BTCUSDT", "ETHUSDT"]
 
     async def fake_load_data(symbol, interval, limit, source):
@@ -376,7 +378,8 @@ def test_scan_respects_banned_symbols(api_db, monkeypatch):
 
 
 def test_scan_start_market_respects_banned(monkeypatch, api_db):
-    async def fake_load_all(self):
+    async def fake_load_all(self, allow_fallback=True):
+        assert allow_fallback is False
         return ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
 
     async def fake_load_data(symbol, interval, limit, source):
