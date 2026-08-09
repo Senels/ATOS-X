@@ -1,27 +1,18 @@
 """ATOS-X Executive AI Assistant.
 
-The assistant is the management/intelligence layer above strategy, AI model,
-agent council, risk, market intelligence, portfolio analytics and Binance
-runtime state. It can inspect and plan actions across the system, but it does
-not bypass the existing risk gate or live-trading kill switch.
-
-Irreversible or market-moving actions are represented as explicit action plans
-and require the normal execution/confirmation path. This keeps the assistant
-"fully informed and administratively capable" without creating an unrestricted
-second order-entry path.
+Management/intelligence layer above strategy, AI model, agent council, risk,
+market intelligence, portfolio analytics and Binance runtime state.
 """
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, List, Optional
 
 from app.agents.registry import all_agents, categories
 from app.agents.retrain import memory_summary
 from app.strategy.analytics import portfolio_stats
-from app.strategy.market_intel import analyze as analyze_market
 from app.strategy.settings import get_settings
-
 
 DOMAIN_MAP = {
     "market": "Piyasa rejimi, volatilite, likidite, momentum, trend ve korelasyon",
@@ -76,7 +67,12 @@ class ExecutiveAssistant:
 
     def _settings(self) -> Dict[str, Any]:
         try:
-            return get_settings()
+            s = get_settings()
+            if hasattr(s, "model_dump"):
+                return s.model_dump()
+            if isinstance(s, dict):
+                return s
+            return vars(s)
         except Exception:
             return {}
 
@@ -84,7 +80,8 @@ class ExecutiveAssistant:
         s = self._settings()
         if auto_trader is None:
             return {
-                "mode": "unknown", "paper": bool(s.get("PAPER_TRADING", True)),
+                "mode": "unknown",
+                "paper": bool(s.get("PAPER_TRADING", True)),
                 "live_enabled": bool(s.get("LIVE_TRADING_ENABLED", False)),
             }
         positions = getattr(auto_trader, "active_positions", {}) or {}
@@ -119,10 +116,7 @@ class ExecutiveAssistant:
         return {
             "count": len(agents),
             "categories": categories(),
-            "tiers": {
-                str(t): sum(1 for a in agents if a.tier == t)
-                for t in sorted({a.tier for a in agents})
-            },
+            "tiers": {str(t): sum(1 for a in agents if a.tier == t) for t in sorted({a.tier for a in agents})},
             "agents": [
                 {"id": a.agent_id, "name": a.name, "category": a.category,
                  "tier": a.tier, "weight": a.default_weight}
@@ -157,6 +151,7 @@ class ExecutiveAssistant:
         return {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "role": self.role,
+            "version": self.version,
             "system": self.system_snapshot(auto_trader),
             "portfolio": self.portfolio_snapshot(auto_trader),
             "agents": self.agent_snapshot(),
@@ -165,7 +160,6 @@ class ExecutiveAssistant:
         }
 
     def explain(self, decision: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Convert raw engine output into a management-grade explanation."""
         verdict = str(decision.get("verdict", decision.get("direction", "HOLD"))).upper()
         confidence = float(decision.get("confidence", 0.0) or 0.0)
         reason = decision.get("reason") or decision.get("hold_reason") or "belirtilmemiş"
@@ -209,7 +203,5 @@ class ExecutiveAssistant:
                 "risk_gate", "AI_gate", "agent_veto", "live_trading_kill_switch",
                 "API authentication", "audit trail",
             ],
-            "confirmation_required": [
-                "close_position", "change_trading_mode", "start_stop_trading"
-            ],
+            "confirmation_required": ["close_position", "change_trading_mode", "start_stop_trading"],
         }
