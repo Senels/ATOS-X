@@ -36,6 +36,7 @@ body { background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui
 .side-logo small { display:block; font-size:10px; color:var(--faint); letter-spacing:2px; text-transform:uppercase; }
 .side-nav { flex:1; padding:12px 10px; display:flex; flex-direction:column; gap:3px; overflow-y:auto; }
 .nav-item { display:flex; align-items:center; gap:11px; padding:10px 14px; border-radius:10px; color:var(--muted); cursor:pointer; font-size:13px; font-weight:600; border:1px solid transparent; transition:all .15s; background:none; text-align:left; width:100%; }
+.nav-item-link { text-decoration:none; }
 .nav-item .nav-ico { font-size:15px; width:20px; text-align:center; }
 .nav-item:hover { background:rgba(59,130,246,.09); color:var(--text); border-color:var(--border); }
 .nav-item.active { background:linear-gradient(135deg,rgba(59,130,246,.25),rgba(139,92,246,.18)); color:#fff; border-color:var(--border2); box-shadow:0 2px 8px rgba(59,130,246,.2); }
@@ -193,6 +194,9 @@ textarea { font-family:Consolas,Menlo,monospace; }
     <div class="nav-group-label">📈 Analiz</div>
     <button class="tab nav-item" data-tab="signals" onclick="showTab('signals')"><span class="nav-ico">📡</span>Sinyaller &amp; AI</button>
     <button class="tab nav-item" data-tab="market" onclick="showTab('market')"><span class="nav-ico">🌍</span>Piyasa İstihbaratı</button>
+    <a class="nav-item nav-item-link" href="/dashboard/research"><span class="nav-ico">🧠</span>Research Control Room</a>
+    <a class="nav-item nav-item-link" href="/backtest/html"><span class="nav-ico">📉</span>Backtest Laboratuvarı</a>
+    <a class="nav-item nav-item-link" href="/optimize/html"><span class="nav-ico">⚡</span>Optimizasyon</a>
     <div class="nav-group-label">🛡️ Risk</div>
     <button class="tab nav-item" data-tab="risk" onclick="showTab('risk')"><span class="nav-ico">🛡️</span>Risk &amp; Veri<span class="tab-badge" id="tabHaltBadge" style="display:none">HALT</span></button>
     <div class="nav-group-label">⚙️ Sistem</div>
@@ -212,6 +216,7 @@ textarea { font-family:Consolas,Menlo,monospace; }
   <h2><span id="pageTitle">📊 Genel Bakış</span></h2>
   <div class="topbar-actions">
     <span id="statusBadge"><span class="badge online"><span class="status-dot status-online"></span>ONLINE</span></span>
+    <a href="/dashboard/research" class="settings-link" style="color:var(--cyan);border-color:rgba(34,211,238,.5);">🧠 Research</a>
     <a href="/dashboard/settings" class="settings-link">⚙️ Ayarlar</a>
     <button class="btn btn-ghost" onclick="refresh()">🔄 Yenile</button>
     <button class="btn btn-red" onclick="emergencyStop()">🛑 Acil Durdur</button>

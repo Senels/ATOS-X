@@ -58,3 +58,13 @@ def test_research_dashboard_route_is_read_only_page():
     assert "/api/v1/research/summary" in response.text
     assert "emir göndermez" in response.text
     client.close()
+
+
+def test_dashboard_navigation_links_research_and_labs():
+    client = TestClient(app)
+    response = client.get("/dashboard/html")
+    assert response.status_code == 200
+    assert "/dashboard/research" in response.text
+    assert "/backtest/html" in response.text
+    assert "/optimize/html" in response.text
+    client.close()
