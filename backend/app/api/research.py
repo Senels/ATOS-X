@@ -103,6 +103,48 @@ def _registry_summary(payload: dict[str, Any] | None) -> dict[str, Any]:
     return {"entries": entries[-100:], "decisions": decisions, "ensembles": ensembles}
 
 
+def _next_actions(status: str, reasons: list[str]) -> list[dict[str, str]]:
+    actions = []
+    reason_set = set(reasons)
+    if "download_failed_exit_1" in reason_set:
+        actions.append({
+            "priority": "P0",
+            "title": "Fix Binance archive download",
+            "detail": "fapi.binance.com TLS/proxy path is blocking archive creation; provide a valid archive or repair outbound TLS.",
+        })
+    if "missing_archive" in reason_set or "five_year_archive_not_ready" in reason_set:
+        actions.append({
+            "priority": "P0",
+            "title": "Build 5 year USD-M Futures archive",
+            "detail": "BTCUSDT and target symbols need validated 4h OHLCV archives before OOS can run.",
+        })
+    if "missing_dense_model" in reason_set:
+        actions.append({
+            "priority": "P1",
+            "title": "Train Dense artifact",
+            "detail": "Create model.keras, scaler.joblib, and meta.joblib with the same feature contract used by the evaluator.",
+        })
+    if "missing_lstm_model" in reason_set:
+        actions.append({
+            "priority": "P1",
+            "title": "Train LSTM artifact",
+            "detail": "Create leakage-safe sequence artifacts and align predictions by test-window end positions.",
+        })
+    if not actions and status == "READY":
+        actions.append({
+            "priority": "P2",
+            "title": "Review promotion output",
+            "detail": "Confirm registry decisions and ensemble weights before any production promotion workflow.",
+        })
+    if not actions:
+        actions.append({
+            "priority": "P2",
+            "title": "Run research pipeline",
+            "detail": "Execute the archive, OOS, scorecard, registry, and promotion chain to produce real reports.",
+        })
+    return actions
+
+
 def build_research_summary() -> dict[str, Any]:
     archive_stage, archive = _stage("archive", "5 yıllık arşiv doğrulama", _REPORTS_ROOT / "research_manifest.json")
     oos_stage, oos = _stage("oos", "Dense / LSTM per-symbol OOS", _REPORTS_ROOT / "model_oos_pipeline.json")
@@ -138,6 +180,7 @@ def build_research_summary() -> dict[str, Any]:
         "model_oos": oos or {},
         "scorecards": _scorecard_rows(scorecards),
         "registry": _registry_summary(registry),
+        "next_actions": _next_actions(status, sorted(set(reasons))),
     }
 
 

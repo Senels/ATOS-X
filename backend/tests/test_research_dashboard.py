@@ -48,6 +48,7 @@ def test_research_summary_surfaces_download_failure(tmp_path, monkeypatch):
     body = research.build_research_summary()
     assert body["status"] == "BLOCKED"
     assert body["blocking_reasons"] == ["download_failed_exit_1"]
+    assert body["next_actions"][0]["title"] == "Fix Binance archive download"
 
 
 def test_research_dashboard_route_is_read_only_page():
@@ -56,6 +57,7 @@ def test_research_dashboard_route_is_read_only_page():
     assert response.status_code == 200
     assert "Research Control Room" in response.text
     assert "/api/v1/research/summary" in response.text
+    assert 'id="actions"' in response.text
     assert "emir göndermez" in response.text
     client.close()
 
@@ -67,4 +69,13 @@ def test_dashboard_navigation_links_research_and_labs():
     assert "/dashboard/research" in response.text
     assert "/backtest/html" in response.text
     assert "/optimize/html" in response.text
+    client.close()
+
+
+def test_lab_pages_link_back_to_research_control_room():
+    client = TestClient(app)
+    for route in ("/backtest/html", "/optimize/html"):
+        response = client.get(route)
+        assert response.status_code == 200
+        assert "/dashboard/research" in response.text
     client.close()
