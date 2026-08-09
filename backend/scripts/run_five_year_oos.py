@@ -1,8 +1,6 @@
-"""Prepare and run a deterministic per-symbol OOS research batch.
+"""Validate local Binance Global USD-M Futures archive coverage.
 
-This runner downloads no data itself. Run download_binance_futures_history.py first.
-It validates that each CSV has sufficient history, then invokes the existing
-per-symbol evaluator. It never submits exchange orders.
+Research-only: no network access and no exchange orders.
 """
 from __future__ import annotations
 
@@ -14,23 +12,29 @@ import pandas as pd
 
 
 def discover(data_dir: Path, interval: str, years: float, min_bars: int) -> list[dict]:
-    required_ms = years * 365.25 * 24 * 60 * 60 * 1000
+    cutoff = pd.Timestamp.now(tz="UTC") - pd.DateOffset(days=365.25 * years)
     rows = []
     for path in sorted(data_dir.glob(f"*_{interval}.csv")):
         try:
             df = pd.read_csv(path, usecols=["timestamp"])
-            if df.empty:
+            if len(df) < min_bars:
                 continue
-            ts = pd.to_numeric(df["timestamp"], errors="coerce").dropna()
-            if len(ts) < min_bars:
+            raw = df["timestamp"]
+            if pd.api.types.is_numeric_dtype(raw):
+                ts = pd.to_datetime(pd.to_numeric(raw, errors="coerce"), unit="ms", utc=True).dropna()
+            else:
+                ts = pd.to_datetime(raw, utc=True, errors="coerce").dropna()
+            if ts.empty:
                 continue
-            coverage = float(ts.max() - ts.min())
+            first, last = ts.min(), ts.max()
             rows.append({
                 "symbol": path.name.rsplit("_", 1)[0],
                 "file": str(path),
                 "bars": int(len(ts)),
-                "coverage_days": coverage / 86_400_000,
-                "five_year_coverage": coverage >= required_ms,
+                "first": first.isoformat(),
+                "last": last.isoformat(),
+                "coverage_days": float((last - first).total_seconds() / 86400),
+                "five_year_coverage": bool(first <= cutoff),
             })
         except Exception:
             continue
@@ -47,9 +51,6 @@ def main() -> None:
     args = p.parse_args()
 
     rows = discover(Path(args.data_dir), args.interval, args.years, args.min_bars)
-    if not rows:
-        raise SystemExit("No qualifying Binance Global Futures archive files found. Run the downloader first.")
-
     qualified = [r for r in rows if r["five_year_coverage"]]
     payload = {
         "exchange": "Binance Global USDⓈ-M Futures",
@@ -58,7 +59,7 @@ def main() -> None:
         "qualified_symbols": len(qualified),
         "symbols": rows,
         "status": "READY" if qualified else "INSUFFICIENT_HISTORY",
-        "note": "This manifest validates archive coverage only. Model P&L is not inferred from coverage metadata.",
+        "note": "Coverage validation only; no model P&L is inferred from archive metadata.",
     }
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
