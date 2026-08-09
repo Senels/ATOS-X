@@ -78,15 +78,59 @@ def _concat_datasets(dfs: List[pd.DataFrame], horizon: int, atr_mult: float) -> 
     return X, y, ts
 
 
+def _archive_frames(interval: str = "4h", max_symbols: int = 400, min_bars: int = 300) -> List[pd.DataFrame]:
+    """Load local Binance Futures archive frames without mixing future data."""
+    archive = Path(__file__).resolve().parents[1] / "data" / "archive"
+    frames: List[pd.DataFrame] = []
+    for path in sorted(archive.glob(f"*_{interval}.csv"))[:max_symbols]:
+        try:
+            df = pd.read_csv(path)
+            if len(df) < min_bars:
+                continue
+            if "timestamp" in df.columns:
+                df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+                df = df.set_index("timestamp")
+            else:
+                df.index = pd.to_datetime(df.index, utc=True)
+            df = df.sort_index()
+            frames.append(df)
+        except Exception:
+            continue
+    return frames
+
+
+def train_from_archive(interval: str = "4h", max_symbols: int = 400,
+                       min_bars: int = 300, horizon: int = 12,
+                       atr_mult: float = 1.0, epochs: int = 30,
+                       model_name: str = "ai_direction", model_type: str = "dense",
+                       lstm_seq_len: int = 20, **kwargs) -> Dict[str, Any]:
+    """Compatibility entry point for scripts/train_ai.py.
+
+    The current safe production path trains the dense model. LSTM/ensemble
+    requests are rejected explicitly until their fold-local sequence builder
+    is implemented; silently falling back would create misleading results.
+    """
+    if model_type != "dense":
+        raise RuntimeError(
+            f"model_type={model_type} henuz fold-local sequence pipeline ile etkin degil; "
+            "once LSTM leakage-safe sequence builder tamamlanmali"
+        )
+    frames = _archive_frames(interval, max_symbols, min_bars)
+    return train_from_dataframe(
+        frames,
+        horizon=horizon,
+        atr_mult=atr_mult,
+        epochs=epochs,
+        model_name=model_name,
+        **kwargs,
+    )
+
+
 def train_from_dataframe(dfs: List[pd.DataFrame], horizon: int = 12,
                          atr_mult: float = 1.0, epochs: int = 30,
                          val_fraction: float = 0.2, seed: int = 7,
                          model_name: str = "ai_direction", **kwargs) -> Dict[str, Any]:
-    """Train using a purged chronological train/validation/test workflow.
-
-    ``val_fraction`` is retained for API compatibility only. Random
-    train_test_split is intentionally forbidden in this production path.
-    """
+    """Train using a purged chronological train/validation/test workflow."""
     _require_tf()
     np.random.seed(seed)
     tf.random.set_seed(seed)
@@ -124,23 +168,17 @@ def train_from_dataframe(dfs: List[pd.DataFrame], horizon: int = 12,
         X_train = scaler.fit_transform(X[train_w.start:train_w.end]).astype(np.float32)
         X_val = scaler.transform(X[val_w.start:val_w.end]).astype(np.float32)
         X_test = scaler.transform(X[test_w.start:test_w.end]).astype(np.float32)
-
         model = build_model(X.shape[1])
-        hist = model.fit(
-            X_train, y[train_w.start:train_w.end],
-            validation_data=(X_val, y[val_w.start:val_w.end]),
-            epochs=epochs, batch_size=256, verbose=0,
-        )
+        hist = model.fit(X_train, y[train_w.start:train_w.end],
+                         validation_data=(X_val, y[val_w.start:val_w.end]),
+                         epochs=epochs, batch_size=256, verbose=0)
         test_loss, test_acc = model.evaluate(X_test, y[test_w.start:test_w.end], verbose=0)
         fold_metrics.append({
             "fold": fold_no,
-            "train": train_w.__dict__,
-            "validation": val_w.__dict__,
-            "test": test_w.__dict__,
+            "train": train_w.__dict__, "validation": val_w.__dict__, "test": test_w.__dict__,
             "val_loss": float(hist.history["val_loss"][-1]),
             "val_acc": float(hist.history["val_accuracy"][-1]),
-            "test_loss": float(test_loss),
-            "test_acc": float(test_acc),
+            "test_loss": float(test_loss), "test_acc": float(test_acc),
         })
         final_model, final_scaler = model, scaler
 
@@ -149,22 +187,17 @@ def train_from_dataframe(dfs: List[pd.DataFrame], horizon: int = 12,
     final_model.save(out_dir / "model.keras")
     joblib.dump(final_scaler, out_dir / "scaler.joblib")
     meta = {
-        "features": FEATURE_NAMES,
-        "n_classes": _N_CLASSES,
-        "horizon": horizon,
-        "atr_mult": atr_mult,
-        "validation_method": "purged_walk_forward",
-        "folds": fold_metrics,
-        "samples": n,
-        "random_split": False,
+        "features": FEATURE_NAMES, "n_classes": _N_CLASSES,
+        "horizon": horizon, "atr_mult": atr_mult,
+        "validation_method": "purged_walk_forward", "folds": fold_metrics,
+        "samples": n, "random_split": False, "model_type": "dense",
     }
     joblib.dump(meta, out_dir / "meta.joblib")
     metrics = {
-        "samples": n,
-        "folds": len(fold_metrics),
+        "samples": n, "folds": len(fold_metrics),
         "mean_val_acc": float(np.mean([f["val_acc"] for f in fold_metrics])),
         "mean_test_acc": float(np.mean([f["test_acc"] for f in fold_metrics])),
         "best_test_acc": float(np.max([f["test_acc"] for f in fold_metrics])),
     }
     joblib.dump(metrics, out_dir / "metrics.joblib")
-    return {"model_dir": str(out_dir), **metrics}
+    return {"model_dir": str(out_dir), "model_type": "dense", **metrics}
