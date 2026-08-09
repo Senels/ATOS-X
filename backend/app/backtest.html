@@ -116,8 +116,10 @@ tr:hover { background:rgba(59,130,246,0.05); }
 </div>
 <div class="scan-actions">
 <span class="pill" id="marketCount">Market: -</span>
+<span class="pill" id="archiveCount">Arsiv: -</span>
 <button class="btn" type="button" onclick="loadMarketSymbols()">Listeyi Yenile</button>
 <button class="btn btn-green" id="scanMarketBtn" type="button" onclick="startMarketScan()" disabled>Tum Futures Coinlerini Tara</button>
+<button class="btn" id="scanArchiveBtn" type="button" onclick="startArchiveScan()" disabled>Arsivdeki Tum Coinleri Tara</button>
 </div>
 </div>
 <div class="progress-track"><div class="progress-bar" id="scanProgress"></div></div>
@@ -168,6 +170,7 @@ window.fetch = function(url, opts) {
 };
 function num(v) { return (v === '' || v === null || v === undefined) ? null : v; }
 let marketReady = false;
+let archiveReady = false;
 function appendCommonParams(q) {
 const map = {interval:'interval',limit:'limit',
 leading_indicator:'leading_indicator',signal_expiry:'signal_expiry',
@@ -214,6 +217,23 @@ document.getElementById('marketCount').textContent = 'Market: bloklu';
 document.getElementById('scanStatus').textContent = 'Binance Futures tam liste alinamadi. TLS/proxy duzelmeden tum coin taramasi baslatilmaz.';
 err.textContent = 'Blokaj: ' + e.message;
 err.classList.remove('hidden');
+}
+}
+async function loadArchiveSymbols() {
+const btn = document.getElementById('scanArchiveBtn');
+archiveReady = false;
+btn.disabled = true;
+try {
+const q = new URLSearchParams();
+q.set('interval', document.getElementById('interval').value);
+const r = await fetch('/api/v1/backtest/archive-symbols?' + q.toString());
+const d = await r.json();
+if (d.detail) throw new Error(typeof d.detail === 'string' ? d.detail : JSON.stringify(d.detail));
+document.getElementById('archiveCount').textContent = 'Arsiv: ' + (d.count || 0);
+archiveReady = (d.count || 0) > 0;
+btn.disabled = !archiveReady;
+} catch(e) {
+document.getElementById('archiveCount').textContent = 'Arsiv: bloklu';
 }
 }
 async function run() {
@@ -269,6 +289,33 @@ err.classList.remove('hidden');
 btn.disabled = false;
 }
 }
+async function startArchiveScan() {
+const btn = document.getElementById('scanArchiveBtn');
+const err = document.getElementById('scanError');
+err.classList.add('hidden'); err.textContent = '';
+if (!archiveReady) {
+err.textContent = 'Blokaj: Yerel arsivde taranacak futures CSV verisi yok.';
+err.classList.remove('hidden');
+return;
+}
+document.getElementById('scanResultWrap').classList.add('hidden');
+document.getElementById('scanProgress').style.width = '0%';
+btn.disabled = true;
+const q = appendCommonParams(new URLSearchParams());
+q.set('symbols', 'archive');
+q.set('source', 'csv');
+try {
+const r = await fetch('/api/v1/backtest/scan/start?' + q.toString(), {method:'POST'});
+const d = await r.json();
+if (d.detail) throw new Error(typeof d.detail === 'string' ? d.detail : JSON.stringify(d.detail));
+document.getElementById('scanStatus').textContent = 'Basladi: ' + d.total + ' arsiv sembolu taranacak.';
+pollScan(d.job_id);
+} catch(e) {
+err.textContent = 'Hata: ' + e.message;
+err.classList.remove('hidden');
+btn.disabled = false;
+}
+}
 async function pollScan(jobId) {
 if (scanTimer) clearTimeout(scanTimer);
 try {
@@ -281,6 +328,7 @@ document.getElementById('scanStatus').textContent = d.status + ' | ' + done + '/
 if (d.status === 'done') {
 renderScanResult(d.result || {});
 document.getElementById('scanMarketBtn').disabled = false;
+document.getElementById('scanArchiveBtn').disabled = !archiveReady;
 return;
 }
 if (d.status === 'failed') throw new Error(d.error || 'scan failed');
@@ -289,6 +337,7 @@ scanTimer = setTimeout(() => pollScan(jobId), 2000);
 document.getElementById('scanError').textContent = 'Hata: ' + e.message;
 document.getElementById('scanError').classList.remove('hidden');
 document.getElementById('scanMarketBtn').disabled = false;
+document.getElementById('scanArchiveBtn').disabled = !archiveReady;
 }
 }
 function renderScanResult(result) {
@@ -428,6 +477,7 @@ render({...m, trades: m.trades || []});
 }
 loadSymbols();
 loadMarketSymbols();
+loadArchiveSymbols();
 loadHistory();
 </script>
 </body>

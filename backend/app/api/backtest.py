@@ -545,6 +545,13 @@ async def market_symbols():
     return {"count": len(symbols), "symbols": symbols}
 
 
+@router.get("/backtest/archive-symbols")
+async def archive_symbols(interval: str = "4h"):
+    """Yerel CSV arsivindeki tum backtest sembolleri."""
+    symbols = [s for s in loader.list_symbols(interval) if not loader.is_stablecoin_symbol(s)]
+    return {"count": len(symbols), "symbols": symbols, "interval": interval}
+
+
 @router.post("/backtest/scan/start")
 async def scan_start(
     symbols: str = "market",
@@ -597,7 +604,8 @@ async def scan_start(
         "result": None,
     }
 
-    if symbols.strip().lower() == "market":
+    symbol_mode = symbols.strip().lower()
+    if symbol_mode == "market":
         from app.exchange.binance_client import BinanceClient
         client = BinanceClient()
         try:
@@ -606,6 +614,12 @@ async def scan_start(
             raise HTTPException(status_code=503, detail=f"Piyasa listesi alinamadi: {e}")
         if not symbol_list:
             raise HTTPException(status_code=503, detail="Piyasa listesi bos")
+        banned = _banned_symbols()
+        if banned:
+            symbol_list = [s for s in symbol_list if s.upper() not in banned]
+    elif symbol_mode == "archive":
+        source = "csv"
+        symbol_list = [s for s in loader.list_symbols(interval) if not loader.is_stablecoin_symbol(s)]
         banned = _banned_symbols()
         if banned:
             symbol_list = [s for s in symbol_list if s.upper() not in banned]

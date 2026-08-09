@@ -337,6 +337,12 @@ def test_market_symbols(monkeypatch):
     assert "BTCUSDT" in res["symbols"]
 
 
+def test_archive_symbols(monkeypatch):
+    monkeypatch.setattr(bt.loader, "list_symbols", lambda interval: ["BTCUSDT", "USDCUSDT", "ETHUSDT"])
+    res = asyncio.run(bt.archive_symbols(interval="4h"))
+    assert res == {"count": 2, "symbols": ["BTCUSDT", "ETHUSDT"], "interval": "4h"}
+
+
 def test_scan_start_market_job(monkeypatch, api_db):
     """symbols=market job akisi: baslat -> calis -> done -> sonuc doner."""
     async def fake_load_all(self, allow_fallback=True):
@@ -366,6 +372,33 @@ def test_scan_start_market_job(monkeypatch, api_db):
 
     with pytest.raises(Exception):
         asyncio.run(bt.scan_status("yok-boyle-bir-job"))
+
+
+def test_scan_start_archive_job(monkeypatch, api_db):
+    monkeypatch.setattr(bt.loader, "list_symbols", lambda interval: ["BTCUSDT", "ETHUSDT", "USDCUSDT"])
+
+    async def fake_load_data(symbol, interval, limit, source):
+        assert source == "csv"
+        return loader.load_csv(symbol, interval, limit=limit)
+
+    monkeypatch.setattr(bt, "_load_data", fake_load_data)
+
+    async def scenario():
+        started = await bt.scan_start(
+            symbols="archive", interval="4h", limit=100, source="binance",
+        )
+        assert started["total"] == 2
+        for _ in range(200):
+            st = await bt.scan_status(started["job_id"])
+            if st["status"] in ("done", "failed"):
+                return st
+            await asyncio.sleep(0.05)
+        return await bt.scan_status(started["job_id"])
+
+    st = asyncio.run(scenario())
+    assert st["status"] == "done"
+    assert st["result"]["source"] == "csv"
+    assert st["result"]["summary"]["symbols"] == 2
 
 
 def test_scan_respects_banned_symbols(api_db, monkeypatch):
