@@ -247,7 +247,7 @@ async def run_backtest(
     symbol: str = "BTCUSDT",
     interval: str = "4h",
     limit: int = 1000,
-    source: str = "csv",
+    source: str = "binance",
     initial_equity: Optional[float] = None,
     risk_per_trade: Optional[float] = None,
     fee_rate: Optional[float] = None,
@@ -364,7 +364,7 @@ async def run_backtest_scan(
     symbols: str = "BTCUSDT",
     interval: str = "4h",
     limit: int = 400,
-    source: str = "csv",
+    source: str = "binance",
     ai_filter: bool = False,
     ai_threshold: float = 0.55,
     ab_mode: bool = False,
@@ -545,13 +545,6 @@ async def market_symbols():
     return {"count": len(symbols), "symbols": symbols}
 
 
-@router.get("/backtest/archive-symbols")
-async def archive_symbols(interval: str = "4h"):
-    """Yerel CSV arsivindeki tum backtest sembolleri."""
-    symbols = [s for s in loader.list_symbols(interval) if not loader.is_stablecoin_symbol(s)]
-    return {"count": len(symbols), "symbols": symbols, "interval": interval}
-
-
 @router.post("/backtest/scan/start")
 async def scan_start(
     symbols: str = "market",
@@ -606,6 +599,7 @@ async def scan_start(
 
     symbol_mode = symbols.strip().lower()
     if symbol_mode == "market":
+        source = "binance"
         from app.exchange.binance_client import BinanceClient
         client = BinanceClient()
         try:
@@ -614,12 +608,6 @@ async def scan_start(
             raise HTTPException(status_code=503, detail=f"Piyasa listesi alinamadi: {e}")
         if not symbol_list:
             raise HTTPException(status_code=503, detail="Piyasa listesi bos")
-        banned = _banned_symbols()
-        if banned:
-            symbol_list = [s for s in symbol_list if s.upper() not in banned]
-    elif symbol_mode == "archive":
-        source = "csv"
-        symbol_list = [s for s in loader.list_symbols(interval) if not loader.is_stablecoin_symbol(s)]
         banned = _banned_symbols()
         if banned:
             symbol_list = [s for s in symbol_list if s.upper() not in banned]
@@ -712,7 +700,7 @@ async def backtest_monte_carlo(
     symbol: str = "BTCUSDT",
     interval: str = "4h",
     limit: int = 1000,
-    source: str = "csv",
+    source: str = "binance",
     n_sims: int = 1000,
     initial_equity: Optional[float] = None,
 ):

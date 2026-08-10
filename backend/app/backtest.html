@@ -71,7 +71,7 @@ tr:hover { background:rgba(59,130,246,0.05); }
 <div class="field"><label>Symbol</label><input id="symbol" value="BTCUSDT" list="symbolList"><datalist id="symbolList"></datalist></div>
 <div class="field"><label>Interval</label><select id="interval"><option>4h</option><option>1h</option><option>1d</option></select></div>
 <div class="field"><label>Limit (bar)</label><input id="limit" type="number" value="1000" min="50"></div>
-<div class="field"><label>Source</label><select id="source"><option value="csv">CSV (arsiv)</option><option value="binance">Binance (canli)</option></select></div>
+<div class="field"><label>Source</label><select id="source"><option value="binance">Binance (canli)</option></select></div>
 <div class="field"><label>Leading Indicator</label><input id="leading_indicator" value="Range Filter"></div>
 <div class="field"><label>Signal Expiry</label><input id="signal_expiry" type="number" value="3"></div>
 <div class="checkbox"><input id="alternate_signal" type="checkbox" checked><label for="alternate_signal">Alternate Signal</label></div>
@@ -116,10 +116,8 @@ tr:hover { background:rgba(59,130,246,0.05); }
 </div>
 <div class="scan-actions">
 <span class="pill" id="marketCount">Market: -</span>
-<span class="pill" id="archiveCount">Arsiv: -</span>
-<button class="btn" type="button" onclick="loadMarketSymbols()">Listeyi Yenile</button>
+<button class="btn" type="button" onclick="loadMarketSymbols()">Canli Listeyi Yenile</button>
 <button class="btn btn-green" id="scanMarketBtn" type="button" onclick="startMarketScan()" disabled>Tum Futures Coinlerini Tara</button>
-<button class="btn" id="scanArchiveBtn" type="button" onclick="startArchiveScan()" disabled>Arsivdeki Tum Coinleri Tara</button>
 </div>
 </div>
 <div class="progress-track"><div class="progress-bar" id="scanProgress"></div></div>
@@ -170,7 +168,6 @@ window.fetch = function(url, opts) {
 };
 function num(v) { return (v === '' || v === null || v === undefined) ? null : v; }
 let marketReady = false;
-let archiveReady = false;
 function appendCommonParams(q) {
 const map = {interval:'interval',limit:'limit',
 leading_indicator:'leading_indicator',signal_expiry:'signal_expiry',
@@ -188,13 +185,6 @@ const conf = document.getElementById('confirmations').value.trim();
 if (conf) q.set('confirmations', conf);
 return q;
 }
-async function loadSymbols() {
-try {
-const r = await fetch('/api/v1/backtest/symbols?interval=4h');
-const d = await r.json();
-document.getElementById('symbolList').innerHTML = (d.symbols||[]).map(x => '<option value="'+x+'"></option>').join('');
-} catch(e) {}
-}
 async function loadMarketSymbols() {
 const btn = document.getElementById('scanMarketBtn');
 const err = document.getElementById('scanError');
@@ -207,8 +197,7 @@ const d = await r.json();
 if (d.detail) throw new Error(typeof d.detail === 'string' ? d.detail : JSON.stringify(d.detail));
 document.getElementById('marketCount').textContent = 'Market: ' + (d.count || 0);
 const dl = document.getElementById('symbolList');
-const existing = new Set(Array.from(dl.options).map(o => o.value));
-(d.symbols||[]).forEach(sym => { if (!existing.has(sym)) dl.innerHTML += '<option value="'+sym+'"></option>'; });
+dl.innerHTML = (d.symbols||[]).map(sym => '<option value="'+sym+'"></option>').join('');
 marketReady = (d.count || 0) > 0;
 btn.disabled = !marketReady;
 document.getElementById('scanStatus').textContent = marketReady ? 'Hazir. Binance Futures tam liste alindi; emir gonderilmez.' : 'Binance market listesi bos dondu.';
@@ -217,23 +206,6 @@ document.getElementById('marketCount').textContent = 'Market: bloklu';
 document.getElementById('scanStatus').textContent = 'Binance Futures tam liste alinamadi. TLS/proxy duzelmeden tum coin taramasi baslatilmaz.';
 err.textContent = 'Blokaj: ' + e.message;
 err.classList.remove('hidden');
-}
-}
-async function loadArchiveSymbols() {
-const btn = document.getElementById('scanArchiveBtn');
-archiveReady = false;
-btn.disabled = true;
-try {
-const q = new URLSearchParams();
-q.set('interval', document.getElementById('interval').value);
-const r = await fetch('/api/v1/backtest/archive-symbols?' + q.toString());
-const d = await r.json();
-if (d.detail) throw new Error(typeof d.detail === 'string' ? d.detail : JSON.stringify(d.detail));
-document.getElementById('archiveCount').textContent = 'Arsiv: ' + (d.count || 0);
-archiveReady = (d.count || 0) > 0;
-btn.disabled = !archiveReady;
-} catch(e) {
-document.getElementById('archiveCount').textContent = 'Arsiv: bloklu';
 }
 }
 async function run() {
@@ -289,33 +261,6 @@ err.classList.remove('hidden');
 btn.disabled = false;
 }
 }
-async function startArchiveScan() {
-const btn = document.getElementById('scanArchiveBtn');
-const err = document.getElementById('scanError');
-err.classList.add('hidden'); err.textContent = '';
-if (!archiveReady) {
-err.textContent = 'Blokaj: Yerel arsivde taranacak futures CSV verisi yok.';
-err.classList.remove('hidden');
-return;
-}
-document.getElementById('scanResultWrap').classList.add('hidden');
-document.getElementById('scanProgress').style.width = '0%';
-btn.disabled = true;
-const q = appendCommonParams(new URLSearchParams());
-q.set('symbols', 'archive');
-q.set('source', 'csv');
-try {
-const r = await fetch('/api/v1/backtest/scan/start?' + q.toString(), {method:'POST'});
-const d = await r.json();
-if (d.detail) throw new Error(typeof d.detail === 'string' ? d.detail : JSON.stringify(d.detail));
-document.getElementById('scanStatus').textContent = 'Basladi: ' + d.total + ' arsiv sembolu taranacak.';
-pollScan(d.job_id);
-} catch(e) {
-err.textContent = 'Hata: ' + e.message;
-err.classList.remove('hidden');
-btn.disabled = false;
-}
-}
 async function pollScan(jobId) {
 if (scanTimer) clearTimeout(scanTimer);
 try {
@@ -328,7 +273,6 @@ document.getElementById('scanStatus').textContent = d.status + ' | ' + done + '/
 if (d.status === 'done') {
 renderScanResult(d.result || {});
 document.getElementById('scanMarketBtn').disabled = false;
-document.getElementById('scanArchiveBtn').disabled = !archiveReady;
 return;
 }
 if (d.status === 'failed') throw new Error(d.error || 'scan failed');
@@ -337,7 +281,6 @@ scanTimer = setTimeout(() => pollScan(jobId), 2000);
 document.getElementById('scanError').textContent = 'Hata: ' + e.message;
 document.getElementById('scanError').classList.remove('hidden');
 document.getElementById('scanMarketBtn').disabled = false;
-document.getElementById('scanArchiveBtn').disabled = !archiveReady;
 }
 }
 function renderScanResult(result) {
@@ -475,9 +418,7 @@ if (!run) return;
 const m = run.metrics || {};
 render({...m, trades: m.trades || []});
 }
-loadSymbols();
 loadMarketSymbols();
-loadArchiveSymbols();
 loadHistory();
 </script>
 </body>

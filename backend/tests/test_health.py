@@ -1,9 +1,18 @@
+import inspect
+
 import numpy as np
 import pandas as pd
 from starlette.testclient import TestClient
 
 from app import main as main_mod
+from app.api import backtest as bt
 from app.main import app
+
+
+def test_user_backtest_flows_default_to_live_binance():
+    endpoints = (bt.run_backtest, bt.run_backtest_scan, bt.scan_start, bt.backtest_monte_carlo)
+    for endpoint in endpoints:
+        assert inspect.signature(endpoint).parameters["source"].default == "binance"
 
 
 class _FakeKlines:
@@ -182,14 +191,14 @@ def test_backtest_compare_ui_present():
     assert 'id="min_signal_strength"' in resp.text
     assert "Binance Futures Tum Coin Taramasi" in resp.text
     assert "/api/v1/backtest/market-symbols" in resp.text
-    assert "/api/v1/backtest/archive-symbols" in resp.text
     assert "/api/v1/backtest/scan/start" in resp.text
     assert "symbols', 'market'" in resp.text
-    assert "symbols', 'archive'" in resp.text
     assert "marketReady" in resp.text
-    assert "archiveReady" in resp.text
     assert "disabled>Tum Futures Coinlerini Tara" in resp.text
-    assert "Arsivdeki Tum Coinleri Tara" in resp.text
+    assert '<option value="binance">Binance (canli)</option>' in resp.text
+    assert "CSV (arsiv)" not in resp.text
+    assert "/api/v1/backtest/symbols" not in resp.text
+    assert "Canli Listeyi Yenile" in resp.text
     client.close()
 
 
